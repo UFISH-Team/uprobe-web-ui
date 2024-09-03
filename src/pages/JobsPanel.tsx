@@ -10,8 +10,7 @@ import JobLink from '../components/jobs/JobLink';
 import OpenJobDetail from '../components/jobs/OpenJobDetail';
 import OpenChainView from '../components/jobs/OpenChainView';
 
-
-export default function JobsPanel(props: {}) {
+export default function JobsPanel() {
 
   const { refreshJobs, serverAddr, monitorMode } = useStore((state) => state)
 
@@ -28,7 +27,7 @@ export default function JobsPanel(props: {}) {
     <div>
       <div>
         <ButtonGroup>
-          <Button onClick={(e) => refreshJobs()}>Refresh</Button>
+          <Button onClick={() => refreshJobs()}>Refresh</Button>
           <JobActions />
           <OpenChainView />
           <OpenJobDetail />

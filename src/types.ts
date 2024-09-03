@@ -45,7 +45,17 @@ export interface ConditionAfterAnoter {
   statuses: JobStatus[]
 }
 
-export type PanelLabel = 'home' | 'design' | 'genome' | 'tutorial' | 'user'
+export type PanelLabel =
+| "home"
+| "design"
+| "genome"
+| "task"
+| "tutorial"
+| "profile"
+| "myaccount"
+| "addaccount"
+| "settings"
+| "logout";
 
 export interface Folder {
   id: string,
@@ -67,4 +77,18 @@ export interface UserInfo {
   id: number,
   username: string,
   role: string,
+}
+
+export interface UserInfo {
+  name: string;
+  email: string;
+  joinDate: string;
+  probesDesigned: number;
+  avatarUrl: string;
+}
+
+export interface HistoryItem {
+  id: number;
+  action: string;
+  date: string;
 }
