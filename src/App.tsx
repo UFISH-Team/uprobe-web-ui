@@ -20,6 +20,23 @@ import GenomeIcon from '@mui/icons-material/Dataset';
 import TaskIcon from '@mui/icons-material/List';
 import TutorialIcon from '@mui/icons-material/HelpOutline'; 
 
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { CssBaseline } from '@mui/material';
+
+
+const theme = createTheme({
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none', // 取消所有按钮的大写转换
+        },
+      },
+    },
+  },
+});
+
+
 // Import necessary components for the AccountMenu
 import AccountMenu from './components/common/AccountMenu';
 
@@ -50,11 +67,13 @@ const ContentRoute = (props: {label: PanelLabel}) => {
   }
 }
 
-const App: React.FC = () => {
+
+function App() {
   const { panel, setPanel } = useStore();
   
   return (
-    <>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
       <Box sx={{ flexGrow: 1 }}>
         <AppBar position="static">
           <Toolbar>
@@ -78,8 +97,8 @@ const App: React.FC = () => {
       <div className="pageContent">
         <ContentRoute label={panel} />
       </div>
-    </>
+    </ThemeProvider>
   );
-};
+}
 
 export default App;
