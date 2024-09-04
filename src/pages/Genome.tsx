@@ -3,12 +3,10 @@ import {
   Box,
   Typography,
   Button,
-  Divider,
   TextField,
   FormControl,
   Select,
   MenuItem,
-  InputLabel,
   Menu,
   Table,
   TableBody,
@@ -69,19 +67,18 @@ const Genome: React.FC = () => {
   };
 
   return (
-    <Box sx={{ padding: 4 }}>
-      <Typography variant="h5" gutterBottom>U-Probe Database</Typography>
+    <Box sx={{ padding: 10 }}>
+      <Typography variant="h6" gutterBottom>🗄️ U-Probe Database</Typography>
 
       {/* 搜索公共数据库的搜索栏 */}
-      <Box sx={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-        <FormControl sx={{ minWidth: 150, marginRight: 2 }}>
-          <InputLabel id="database-select-label">Database</InputLabel>
+      <Box sx={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
+        <FormControl sx={{ minWidth: 120, marginRight: 2 }}>
           <Select
             labelId="database-select-label"
             value={selectedDatabase}
             onChange={(e) => setSelectedDatabase(e.target.value)}
           >
-            <MenuItem value="All Databases">All Databases</MenuItem>
+            <MenuItem value="All Databases">Species</MenuItem>
             <MenuItem value="Database 1">Database 1</MenuItem>
             <MenuItem value="Database 2">Database 2</MenuItem>
             <MenuItem value="Database 3">Database 3</MenuItem>
@@ -102,7 +99,7 @@ const Genome: React.FC = () => {
 
       {/* 上传文件信息展示区 */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-        <Typography variant="h6">Uploaded Files</Typography>
+        <Typography variant="h6">📤 Uploaded Files</Typography>
         <Button
           variant="contained"
           startIcon={<CloudUploadIcon />}

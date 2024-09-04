@@ -1,4 +1,3 @@
-import "./App.css";
 import React from 'react';
 import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 import Home from './pages/Home';
@@ -6,11 +5,16 @@ import Design from './pages/Design';
 import Genome from './pages/Genome';
 import JobsPanel from './pages/JobsPanel';
 import Tutorial from './pages/Tutorial';
-import Profile from './pages/Profile'; 
-import MyAccount from './pages/MyAccount';
-import AddAccount from './pages/AddAccount';
-import Settings from './pages/Settings';
-import Logout from './pages/Logout';
+import Profile from './components/users/Profile'; 
+import MyAccount from './components/users/MyAccount';
+import AddAccount from './components/users/AddAccount';
+import Settings from './components/users/Settings';
+import Logout from './components/users/Logout';
+
+import CustomProbe from './components/designs/CustomProbe';
+import DesignWorkflow from './components/designs/DesignWorkflow';
+
+
 import { PanelLabel } from './types';
 import useStore from "./store";
 
@@ -22,7 +26,6 @@ import TutorialIcon from '@mui/icons-material/HelpOutline';
 
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
-
 
 const theme = createTheme({
   components: {
@@ -36,12 +39,12 @@ const theme = createTheme({
   },
 });
 
-
 // Import necessary components for the AccountMenu
 import AccountMenu from './components/common/AccountMenu';
 
-const ContentRoute = (props: {label: PanelLabel}) => {
+const ContentRoute = (props: { label: PanelLabel }) => {
   const { label } = props;
+
   if (label === "home") {
     return <Home />;
   } else if (label === "design") {
@@ -52,7 +55,7 @@ const ContentRoute = (props: {label: PanelLabel}) => {
     return <JobsPanel />;
   } else if (label === "tutorial") {
     return <Tutorial />;
-  } else if (label === "profile") {  // 新增的分支
+  } else if (label === "profile") {
     return <Profile />;
   } else if (label === "myaccount") {
     return <MyAccount />;
@@ -62,34 +65,82 @@ const ContentRoute = (props: {label: PanelLabel}) => {
     return <Settings />;
   } else if (label === "logout") {
     return <Logout />;
+  } else if (label === "customprobe") {
+    return <CustomProbe />;
+  } else if (label === "designworkflow") {
+    return <DesignWorkflow />;
   } else {
     return <div />;
   }
 }
 
 
-function App() {
+const App: React.FC = () => {
   const { panel, setPanel } = useStore();
-  
+
+  // Function to determine if a button is active
+  const isActive = (currentPanel: PanelLabel) => panel === currentPanel;
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ flexGrow: 1 }}>
-        <AppBar position="static">
+        <AppBar position="static" sx={{ width: '100%', margin: '0 auto'}}> {/* 设置 AppBar 的宽度 */}
           <Toolbar>
-            {/* 左侧：Home按钮 */}
-            <Button color="inherit" startIcon={<HomeIcon />} onClick={() => { setPanel("home") }}>Home</Button>
+            {/* Home Button with Active Style */}
+            <Button
+              color="inherit"
+              startIcon={<HomeIcon />}
+              onClick={() => setPanel("home")}
+              sx={isActive("home") ? { backgroundColor: '#e0f7fa', color: '#00796b' } : {}}
+            >
+              U-Probe
+            </Button>
             
-            {/* 占位，用于将右侧按钮推到右边 */}
+            {/* Empty Space to Align Right Buttons */}
             <Box sx={{ flexGrow: 1 }} />
-            
-            {/* 右侧：其他按钮 */}
-            <Button color="inherit" startIcon={<DesignIcon />} onClick={() => { setPanel("design") }}>Design</Button>
-            <Button color="inherit" startIcon={<GenomeIcon />} onClick={() => { setPanel("genome") }}>Genome</Button>
-            <Button color="inherit" startIcon={<TaskIcon />} onClick={() => { setPanel("task") }}>Task</Button>
-            <Button color="inherit" startIcon={<TutorialIcon />} onClick={() => { setPanel("tutorial") }}>Tutorial</Button>
-            
-            {/* AccountMenu 组件替换 User 菜单 */}
+
+            {/* Design Button with Active Style */}
+            <Button
+              color="inherit"
+              startIcon={<DesignIcon />}
+              onClick={() => setPanel("design")}
+              sx={isActive("design") ? { backgroundColor: '#e0f7fa', color: '#00796b' } : {}}
+            >
+              Design
+            </Button>
+
+            {/* Genome Button with Active Style */}
+            <Button
+              color="inherit"
+              startIcon={<GenomeIcon />}
+              onClick={() => setPanel("genome")}
+              sx={isActive("genome") ? { backgroundColor: '#e0f7fa', color: '#00796b' } : {}}
+            >
+              Database
+            </Button>
+
+            {/* Task Button with Active Style */}
+            <Button
+              color="inherit"
+              startIcon={<TaskIcon />}
+              onClick={() => setPanel("task")}
+              sx={isActive("task") ? { backgroundColor: '#e0f7fa', color: '#00796b' } : {}}
+            >
+              Task
+            </Button>
+
+            {/* Tutorial Button with Active Style */}
+            <Button
+              color="inherit"
+              startIcon={<TutorialIcon />}
+              onClick={() => setPanel("tutorial")}
+              sx={isActive("tutorial") ? { backgroundColor: '#e0f7fa', color: '#00796b' } : {}}
+            >
+              Tutorial
+            </Button>
+
+            {/* AccountMenu for User Account Options */}
             <AccountMenu />
           </Toolbar>
         </AppBar>

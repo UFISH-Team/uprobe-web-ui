@@ -55,7 +55,9 @@ export type PanelLabel =
 | "myaccount"
 | "addaccount"
 | "settings"
-| "logout";
+| "logout"
+| "customprobe"
+| "designworkflow";
 
 export interface Folder {
   id: string,
