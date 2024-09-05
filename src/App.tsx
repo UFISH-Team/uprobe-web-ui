@@ -3,7 +3,7 @@ import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 import Home from './pages/Home';
 import Design from './pages/Design';
 import Genome from './pages/Genome';
-import JobsPanel from './pages/JobsPanel';
+import JobsPanel from './pages/Task';
 import Tutorial from './pages/Tutorial';
 import Profile from './components/users/Profile'; 
 import MyAccount from './components/users/MyAccount';
