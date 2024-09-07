@@ -117,7 +117,7 @@ const App: React.FC = () => {
               onClick={() => setPanel("genome")}
               sx={isActive("genome") ? { backgroundColor: '#e0f7fa', color: '#00796b' } : {}}
             >
-              Database
+              Genome
             </Button>
 
             {/* Task Button with Active Style */}

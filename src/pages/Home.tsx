@@ -31,7 +31,7 @@ const Home: React.FC = () => {
         <Typography variant="h4" component="h1" gutterBottom>
           🌍 U-Probe: A Universal Probe Design Tool 🔬
         </Typography>
-        <Typography variant="body1" color="textSecondary" sx={{ mt: 2 }} paragraph>
+        <Typography variant="body1" sx={{ color: 'text.secondary', mt: 2 }} paragraph>
           🎯 Welcome to U-Probe, your universal tool for designing and optimizing probes for various applications, including fluorescence in situ hybridization (FISH). 🔬
         </Typography>
 
@@ -77,7 +77,7 @@ const Home: React.FC = () => {
           </CardActions>
         </Card>
 
-        <Typography variant="subtitle1" color="textSecondary" sx={{ mt: 2 }}>
+        <Typography variant="subtitle1" sx={{ color: 'text.secondary', mt: 2 }}>
           ✨ Create custom probes tailored to your specific research needs with ease! 🧬
         </Typography>
       </Box>
