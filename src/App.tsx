@@ -1,5 +1,5 @@
 import React from 'react';
-import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
+import { AppBar, Toolbar, Button, Box } from '@mui/material';
 import Home from './pages/Home';
 import Design from './pages/Design';
 import Genome from './pages/Genome';
