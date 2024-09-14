@@ -9,10 +9,10 @@ import {
   CardMedia,
   CardContent,
 } from '@mui/material';
-import useStore from '../store';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 const Home: React.FC = () => {
-  const { setPanel } = useStore();
+  const navigate = useNavigate(); // Initialize useNavigate
 
   return (
     <Container maxWidth="lg" sx={{ height: '100vh', position: 'relative', overflow: 'hidden' }}>
@@ -52,16 +52,15 @@ const Home: React.FC = () => {
             <Button
               variant="contained"
               size="large"
-              onClick={() => setPanel('design')}
+              onClick={() => navigate('/designworkflow')}  // Navigate to /design
               sx={{ minWidth: 200, mx: 1 }}
             >
               ✏️ Start Designing 
             </Button>
             <Button
               variant="contained"
-
               size="large"
-              onClick={() => setPanel('tutorial')}
+              onClick={() => navigate('/tutorial')}  // Navigate to /tutorial
               sx={{ minWidth: 200, mx: 1 }}
             >
               👀 View Examples 
@@ -69,7 +68,7 @@ const Home: React.FC = () => {
             <Button
               variant="contained"
               size="large"
-              onClick={() => setPanel('genome')}
+              onClick={() => navigate('/genome')}  // Navigate to /genome
               sx={{ minWidth: 200, mx: 1 }}
             >
               🗃️ Upload Data 

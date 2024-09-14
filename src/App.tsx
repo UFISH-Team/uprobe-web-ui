@@ -1,31 +1,30 @@
+// App.tsx
 import React from 'react';
 import { AppBar, Toolbar, Button, Box } from '@mui/material';
+import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom'; // Import Router components
 import Home from './pages/Home';
 import Design from './pages/Design';
 import Genome from './pages/Genome';
 import JobsPanel from './pages/Task';
 import Tutorial from './pages/Tutorial';
-import Profile from './components/users/Profile'; 
+import AccountMenu from './pages/AccountMenu';
+import Profile from './components/users/Profile';
 import MyAccount from './components/users/MyAccount';
 import AddAccount from './components/users/AddAccount';
 import Settings from './components/users/Settings';
 import Logout from './components/users/Logout';
-
 import CustomProbe from './components/designs/CustomProbe';
 import DesignWorkflow from './components/designs/DesignWorkflow';
-
-
-import { PanelLabel } from './types';
-import useStore from "./store";
-
-import HomeIcon from '@mui/icons-material/Home';
-import DesignIcon from '@mui/icons-material/Pinch';
-import GenomeIcon from '@mui/icons-material/Dataset'; 
-import TaskIcon from '@mui/icons-material/List';
-import TutorialIcon from '@mui/icons-material/HelpOutline'; 
+import NotFound from './components/common/NotFound';
 
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
+import HomeIcon from '@mui/icons-material/Home';
+import DesignIcon from '@mui/icons-material/Pinch';
+import GenomeIcon from '@mui/icons-material/Dataset';
+import TaskIcon from '@mui/icons-material/List';
+import TutorialIcon from '@mui/icons-material/HelpOutline';
+
 
 const theme = createTheme({
   components: {
@@ -39,117 +38,87 @@ const theme = createTheme({
   },
 });
 
-// Import necessary components for the AccountMenu
-import AccountMenu from './components/common/AccountMenu';
-
-const ContentRoute = (props: { label: PanelLabel }) => {
-  const { label } = props;
-
-  if (label === "home") {
-    return <Home />;
-  } else if (label === "design") {
-    return <Design />;
-  } else if (label === "genome") {
-    return <Genome />;
-  } else if (label === "task") {
-    return <JobsPanel />;
-  } else if (label === "tutorial") {
-    return <Tutorial />;
-  } else if (label === "profile") {
-    return <Profile />;
-  } else if (label === "myaccount") {
-    return <MyAccount />;
-  } else if (label === "addaccount") {
-    return <AddAccount />;
-  } else if (label === "settings") {
-    return <Settings />;
-  } else if (label === "logout") {
-    return <Logout />;
-  } else if (label === "customprobe") {
-    return <CustomProbe />;
-  } else if (label === "designworkflow") {
-    return <DesignWorkflow />;
-  } else {
-    return <div />;
-  }
-}
-
-
 const App: React.FC = () => {
-  const { panel, setPanel } = useStore();
-
-  // Function to determine if a button is active
-  const isActive = (currentPanel: PanelLabel) => panel === currentPanel;
+  const navigate = useNavigate(); // Hook to programmatically navigate
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ flexGrow: 1 }}>
-        <AppBar position="static" sx={{ width: '100%', margin: '0 auto'}}> {/* 设置 AppBar 的宽度 */}
+        <AppBar position="static" sx={{ width: '100%', margin: '0 auto' }}>
           <Toolbar>
-            {/* Home Button with Active Style */}
             <Button
               color="inherit"
               startIcon={<HomeIcon />}
-              onClick={() => setPanel("home")}
-              sx={isActive("home") ? { backgroundColor: '#e0f7fa', color: '#00796b' } : {}}
+              onClick={() => navigate('/home')}
             >
               U-Probe
             </Button>
             
-            {/* Empty Space to Align Right Buttons */}
             <Box sx={{ flexGrow: 1 }} />
 
-            {/* Design Button with Active Style */}
             <Button
               color="inherit"
               startIcon={<DesignIcon />}
-              onClick={() => setPanel("design")}
-              sx={isActive("design") ? { backgroundColor: '#e0f7fa', color: '#00796b' } : {}}
+              onClick={() => navigate('/design')}
             >
               Design
             </Button>
 
-            {/* Genome Button with Active Style */}
             <Button
               color="inherit"
               startIcon={<GenomeIcon />}
-              onClick={() => setPanel("genome")}
-              sx={isActive("genome") ? { backgroundColor: '#e0f7fa', color: '#00796b' } : {}}
+              onClick={() => navigate('/genome')}
             >
               Genome
             </Button>
 
-            {/* Task Button with Active Style */}
             <Button
               color="inherit"
               startIcon={<TaskIcon />}
-              onClick={() => setPanel("task")}
-              sx={isActive("task") ? { backgroundColor: '#e0f7fa', color: '#00796b' } : {}}
+              onClick={() => navigate('/task')}
             >
               Task
             </Button>
 
-            {/* Tutorial Button with Active Style */}
             <Button
               color="inherit"
               startIcon={<TutorialIcon />}
-              onClick={() => setPanel("tutorial")}
-              sx={isActive("tutorial") ? { backgroundColor: '#e0f7fa', color: '#00796b' } : {}}
+              onClick={() => navigate('/tutorial')}
             >
               Tutorial
             </Button>
 
-            {/* AccountMenu for User Account Options */}
             <AccountMenu />
           </Toolbar>
         </AppBar>
       </Box>
+
       <div className="pageContent">
-        <ContentRoute label={panel} />
+        <Routes>
+          <Route path="/home" element={<Home />} />
+          <Route path="/design" element={<Design />} />
+          <Route path="/genome" element={<Genome />} />
+          <Route path="/task" element={<JobsPanel />} />
+          <Route path="/tutorial" element={<Tutorial />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/myaccount" element={<MyAccount />} />
+          <Route path="/addaccount" element={<AddAccount />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/logout" element={<Logout />} />
+          <Route path="/customprobe" element={<CustomProbe />} />
+          <Route path="/designworkflow" element={<DesignWorkflow />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </div>
     </ThemeProvider>
   );
-}
+};
 
-export default App;
+const MainApp = () => (
+  <Router>
+    <App />
+  </Router>
+);
+
+export default MainApp;

@@ -24,20 +24,17 @@ const CustomDesign: React.FC = () => {
   const sequenceHeight = 20;
   const sequenceY = 90;
 
-  // Calculate the X position to center the sequence rectangle
   const calculateSequenceX = () => {
     const sequenceWidth = sequenceLength * scaleFactor;
     return (window.innerWidth - sequenceWidth) / 2;
   };
 
-  const sequenceX = calculateSequenceX(); // Call it once initially for the centered position
+  const sequenceX = calculateSequenceX();
 
-  // Generate a unique ID for each panel
   const getNextPanelId = () => {
     return panels.length > 0 ? Math.max(...panels.map(panel => panel.id)) + 1 : 1;
   };
 
-  // Recalculate part labels based on the positions of the dividing lines
   const calculateLabels = (newParts: Part[]) => {
     const sortedParts = [...newParts].sort((a, b) => a.x - b.x);
     const segmentPositions = [0, ...sortedParts.map(part => part.x), sequenceLength];
@@ -45,17 +42,15 @@ const CustomDesign: React.FC = () => {
       startX: pos,
       endX: segmentPositions[index + 1],
       label: `part${index + 1}`,
-      length: segmentPositions[index + 1] - pos, // Calculate segment length
+      length: segmentPositions[index + 1] - pos,
     }));
   };
 
-  // Handle setting the sequence length
   const handleSetLength = (length: number) => {
     setSequenceLength(length);
-    setParts([]); // Clear dividing lines when resetting length
+    setParts([]);
   };
 
-  // Handle single click to add a dividing line
   const handleClick = (event: any) => {
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
@@ -79,12 +74,10 @@ const CustomDesign: React.FC = () => {
     }, 300);
   };
 
-  // Handle undoing the most recent dividing line
   const handleUndo = () => {
     setParts(parts.slice(0, -1));
   };
 
-  // Handle mouse move to show coordinates
   const handleMouseMove = (event: any) => {
     const stage = event.target.getStage();
     const pointerPosition = stage.getPointerPosition();
@@ -103,7 +96,6 @@ const CustomDesign: React.FC = () => {
     }
   };
 
-  // Handle dragging to move the dividing line, locking y-axis
   const handleDragMove = (index: number, event: any) => {
     const newParts = [...parts];
     const newX = (event.target.x() - sequenceX) / scaleFactor;
@@ -114,7 +106,6 @@ const CustomDesign: React.FC = () => {
     event.target.y(sequenceY); // Lock y-axis
   };
 
-  // Handle double-click to remove a dividing line
   const handleDoubleClick = (index: number) => {
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
@@ -123,14 +114,12 @@ const CustomDesign: React.FC = () => {
     setParts(newParts);
   };
 
-  // Save dividing lines to local storage
   const handleSaveDesign = () => {
     const designData = JSON.stringify(parts);
     localStorage.setItem('designData', designData);
     alert('Design saved');
   };
 
-  // Load dividing lines from local storage
   const handleLoadDesign = () => {
     const savedData = localStorage.getItem('designData');
     if (savedData) {
@@ -141,13 +130,11 @@ const CustomDesign: React.FC = () => {
     }
   };
 
-  // Add a new panel for designing probe details
   const handleAddPanel = () => {
     const newPanel: ProbePanel = { id: getNextPanelId(), parts: [] };
     setPanels([...panels, newPanel]);
   };
 
-  // Delete a panel
   const handleDeletePanel = (id: number) => {
     setPanels(panels.filter(panel => panel.id !== id));
   };
@@ -157,7 +144,6 @@ const CustomDesign: React.FC = () => {
   return (
     <div className='probe-container'>
       <h1>Custom Probe Design</h1>
-      {/* First panel for target sequence */}
       <Card title="Target Sequence" style={{ marginBottom: '20px' }}>
         <div style={{ marginBottom: '20px' }}>
           <label>Set target sequence length: </label>
@@ -184,7 +170,6 @@ const CustomDesign: React.FC = () => {
           onMouseMove={handleMouseMove}
         >
           <Layer>
-            {/* Sequence rectangle */}
             <Rect
               x={sequenceX}
               y={sequenceY}
@@ -195,7 +180,6 @@ const CustomDesign: React.FC = () => {
               strokeWidth={2}
             />
 
-            {/* Parts based on dividing lines */}
             {labeledParts.map((segment, index) => (
               <React.Fragment key={index}>
                 <Rect
@@ -207,7 +191,6 @@ const CustomDesign: React.FC = () => {
                   stroke={colors[index % colors.length]}
                   strokeWidth={1}
                 />
-                {/* Labels */}
                 <Text
                   x={(segment.startX + segment.endX) / 2 * scaleFactor + sequenceX - 15}
                   y={sequenceY - 20}
@@ -215,18 +198,16 @@ const CustomDesign: React.FC = () => {
                   fontSize={12}
                   fill="blue"
                 />
-                {/* Segment length display */}
                 <Text
                   x={(segment.startX + segment.endX) / 2 * scaleFactor + sequenceX - 15}
                   y={sequenceY + sequenceHeight + 15}
-                  text={`Length: ${Math.round(segment.length)}`}
+                  text={`Len: ${Math.round(segment.length)}`}
                   fontSize={12}
                   fill="black"
                 />
               </React.Fragment>
             ))}
 
-            {/* Dividing lines */}
             {parts.map((part, index) => (
               <React.Fragment key={index}>
                 <Rect
@@ -238,8 +219,13 @@ const CustomDesign: React.FC = () => {
                   draggable
                   onDragMove={(event) => handleDragMove(index, event)}
                   onDblClick={() => handleDoubleClick(index)}
+                  dragBoundFunc={(pos) => {
+                    return {
+                      x: pos.x,
+                      y: sequenceY, // Lock the y-axis
+                    };
+                  }}
                 />
-                {/* Display dividing line's x-coordinate */}
                 <Text
                   x={part.x * scaleFactor + sequenceX - 15}
                   y={sequenceY + sequenceHeight + 30}
@@ -250,7 +236,6 @@ const CustomDesign: React.FC = () => {
               </React.Fragment>
             ))}
 
-            {/* Hover coordinates */}
             {hoverX && (
               <Text
                 x={hoverX - 15}
@@ -264,7 +249,6 @@ const CustomDesign: React.FC = () => {
         </Stage>
       </Card>
 
-      {/* Dynamic panels for probe details */}
       {panels.map(panel => (
         <Card
           key={panel.id}
@@ -276,12 +260,10 @@ const CustomDesign: React.FC = () => {
           }
           style={{ marginBottom: '20px' }}
         >
-          {/* Probe design content goes here */}
           <p>Panel content for probe {panel.id}</p>
         </Card>
       ))}
 
-      {/* Add new panel button */}
       <Row justify="center" style={{ marginTop: '20px' }}>
         <Col>
           <Button type="primary" shape="circle" onClick={handleAddPanel}>

@@ -1,17 +1,15 @@
-// AccountMenu.tsx
-
 import * as React from 'react';
 import { Box, Avatar, Menu, MenuItem, ListItemIcon, Divider, IconButton, Tooltip } from '@mui/material';
 import PersonAdd from '@mui/icons-material/PersonAdd';
-import Settings from '@mui/icons-material/Settings';
-import Logout from '@mui/icons-material/Logout';
+import SettingsIcon from '@mui/icons-material/Settings';
+import LogoutIcon from '@mui/icons-material/Logout';
 import AccountCircle from '@mui/icons-material/AccountCircle';
-import useStore from '../../store';
+import { useNavigate } from 'react-router-dom';  // Import useNavigate from react-router-dom
 
 export default function AccountMenu() {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
-  const { setPanel } = useStore();
+  const navigate = useNavigate();  // Use useNavigate hook to handle routing
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -21,9 +19,9 @@ export default function AccountMenu() {
     setAnchorEl(null);
   };
 
-  const handleMenuItemClick = (panel: PanelLabel) => {
-    setPanel(panel);
-    handleClose();
+  const handleMenuItemClick = (path: string) => {
+    navigate(path);  // Navigate to the selected path
+    handleClose();   // Close the menu after selection
   };
 
   return (
@@ -76,34 +74,34 @@ export default function AccountMenu() {
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        <MenuItem onClick={() => handleMenuItemClick('profile')}>
+        <MenuItem onClick={() => handleMenuItemClick('/profile')}>
           <ListItemIcon>
             <AccountCircle fontSize="small" />
           </ListItemIcon>
           Profile
         </MenuItem>
-        <MenuItem onClick={() => handleMenuItemClick('myaccount')}>
+        <MenuItem onClick={() => handleMenuItemClick('/myaccount')}>
           <ListItemIcon>
             <AccountCircle fontSize="small" />
           </ListItemIcon>
           My account
         </MenuItem>
         <Divider />
-        <MenuItem onClick={() => handleMenuItemClick('addaccount')}>
+        <MenuItem onClick={() => handleMenuItemClick('/addaccount')}>
           <ListItemIcon>
             <PersonAdd fontSize="small" />
           </ListItemIcon>
           Add another account
         </MenuItem>
-        <MenuItem onClick={() => handleMenuItemClick('settings')}>
+        <MenuItem onClick={() => handleMenuItemClick('/settings')}>
           <ListItemIcon>
-            <Settings fontSize="small" />
+            <SettingsIcon fontSize="small" />
           </ListItemIcon>
           Settings
         </MenuItem>
-        <MenuItem onClick={() => handleMenuItemClick('logout')}>
+        <MenuItem onClick={() => handleMenuItemClick('/logout')}>
           <ListItemIcon>
-            <Logout fontSize="small" />
+            <LogoutIcon fontSize="small" />
           </ListItemIcon>
           Logout
         </MenuItem>

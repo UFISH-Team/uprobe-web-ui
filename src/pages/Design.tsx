@@ -1,30 +1,23 @@
-// Importing necessary components from MUI
+// Importing necessary components from MUI and React Router
 import React from 'react';
-import Card from '@mui/material/Card';
-import CardActions from '@mui/material/CardActions';
-import CardContent from '@mui/material/CardContent';
-import CardMedia from '@mui/material/CardMedia';
-import Button from '@mui/material/Button';
-import Typography from '@mui/material/Typography';
-import Box from '@mui/material/Box'; // Importing Box for layout management
-import useStore from '../store';
-
+import { Card, CardActions, CardContent, CardMedia, Button, Typography, Box } from '@mui/material';
+import { useNavigate } from 'react-router-dom';  // Import useNavigate
 
 // Define a React Functional Component using TypeScript
-const ImgMediaCard: React.FC = () => {
+const Design: React.FC = () => {
 
-  const { setPanel } = useStore();
+  const navigate = useNavigate();  // Use useNavigate for navigation
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, ml: 50, mt: 5 }}>
       {/* Description text above the cards */}
       <Typography variant="h4" component="h2" sx={{ mb: 0 }}>
-       Just Do It ! ✨
+        Just Do It ! ✨
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 4 }}>
 
-      <Card sx={{ maxWidth: 500 }}>
+        <Card sx={{ maxWidth: 500 }}>
           <CardMedia
             component="img"
             alt="blue iguana"
@@ -40,8 +33,9 @@ const ImgMediaCard: React.FC = () => {
             </Typography>
           </CardContent>
           <CardActions>
-            <Button onClick={() => setPanel("designworkflow")} size="small">Start</Button>
-            <Button onClick={() => setPanel("tutorial")} size="small">Learn More</Button>
+            {/* Navigate to /designworkflow */}
+            <Button onClick={() => navigate('/design/workflow')} size="small">Start</Button>
+            <Button onClick={() => navigate('/tutorial')} size="small">Learn More</Button>
           </CardActions>
         </Card>
 
@@ -61,8 +55,9 @@ const ImgMediaCard: React.FC = () => {
             </Typography>
           </CardContent>
           <CardActions>
-            <Button onClick={() => setPanel("customprobe")} size="small">Start</Button>
-            <Button onClick={() => setPanel("tutorial")} size="small">Learn More</Button>
+            {/* Navigate to /customprobe */}
+            <Button onClick={() => navigate('/customprobe')} size="small">Start</Button>
+            <Button onClick={() => navigate('/tutorial')} size="small">Learn More</Button>
           </CardActions>
         </Card>
 
@@ -71,4 +66,4 @@ const ImgMediaCard: React.FC = () => {
   );
 }
 
-export default ImgMediaCard;
+export default Design;
