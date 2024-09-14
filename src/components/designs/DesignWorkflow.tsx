@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { TextField, Box, Typography, Button, Select, MenuItem, InputLabel, FormControl, Grid, Divider, Menu, IconButton, IconButtonProps } from "@mui/material";
 import { styled } from "@mui/system";
 import AddIcon from '@mui/icons-material/Add';
@@ -11,6 +11,7 @@ import Papa from 'papaparse';
 
 import '../../App.css'
 
+import axios from 'axios';  
 
 // 样式设置
 const Container = styled(Box)({
@@ -29,6 +30,7 @@ const DesignWorkflow = () => {
   const [taskName, setTaskName] = useState("");
   const [probeType, setProbeType] = useState("");
   const [species, setSpecies] = useState("");  // 初始物种为空
+  const [speciesOptions, setSpeciesOptions] = useState<string[]>([]); // 用于存储从后端获取的物种列表
 
   const [geneList, setGeneList] = useState([{ gene: "", barcode1: "", barcode2: "" }]);
 
@@ -38,6 +40,19 @@ const DesignWorkflow = () => {
 
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+
+  // 获取物种列表的 API 调用
+  useEffect(() => {
+    const fetchGenomes = async () => {
+      try {
+        const response = await axios.get("http://127.0.0.1:8123/genomes");  // 获取物种列表的 API 请求
+        setSpeciesOptions(response.data);  // 设置物种选项
+      } catch (error) {
+        console.error("Error fetching genomes:", error);
+      }
+    };
+    fetchGenomes();  // 调用函数
+  }, []);
 
   const handleMenuClick = (event: React.MouseEvent<HTMLButtonElement>, section: string) => {
     setMenuAnchor(event.currentTarget);
@@ -144,11 +159,11 @@ const DesignWorkflow = () => {
             value={species}
             onChange={(e) => setSpecies(e.target.value)}
           >
-            <MenuItem value="Oryza sativa">Oryza sativa</MenuItem>
-            <MenuItem value="Arabidopsis thaliana">Arabidopsis thaliana</MenuItem>
-            <MenuItem value="Zea mays">Zea mays</MenuItem>
-            <MenuItem value="Glycine max">Glycine max</MenuItem>
-            <MenuItem value="Homo sapiens">Homo sapiens</MenuItem>
+            {speciesOptions.map((speciesOption, idx) => (
+              <MenuItem key={idx} value={speciesOption}>
+                {speciesOption}
+              </MenuItem>
+            ))}
           </Select>
         </FormControl>
 
