@@ -34,7 +34,7 @@ const Design: React.FC = () => {
           </CardContent>
           <CardActions>
             {/* Navigate to /designworkflow */}
-            <Button onClick={() => navigate('/design/workflow')} size="small">Start</Button>
+            <Button onClick={() => navigate('/designworkflow')} size="small">Start</Button>
             <Button onClick={() => navigate('/tutorial')} size="small">Learn More</Button>
           </CardActions>
         </Card>
