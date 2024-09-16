@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { TextField, Box, Typography, Button, Select, MenuItem, InputLabel, FormControl, Grid, Divider, Menu, IconButton, IconButtonProps } from "@mui/material";
+import { Snackbar, Alert, TextField, Box, Typography, Button, Select, MenuItem, InputLabel, FormControl, Grid, Divider, Menu, IconButton, IconButtonProps } from "@mui/material";
 import { styled } from "@mui/system";
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -8,6 +8,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';  // Icon for Filter
 import SortIcon from '@mui/icons-material/Sort';              // Icon for Sorts
 import RemoveCircleIcon from '@mui/icons-material/RemoveCircle';  // Icon for Remove Overlap
 import Papa from 'papaparse';
+import yaml from 'js-yaml';  // 引入 js-yaml 用于生成 YAML 文件
 
 import '../../App.css'
 
@@ -15,8 +16,8 @@ import axios from 'axios';
 
 // 样式设置
 const Container = styled(Box)({
-  padding: "20px",
-  maxWidth: "1200px",
+  padding: "30px",
+  maxWidth: "1400px",
   margin: "0 auto",
   borderRadius: "8px",
   boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
@@ -32,6 +33,7 @@ const DesignWorkflow = () => {
   const [species, setSpecies] = useState("");  // 初始物种为空
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]); // 用于存储从后端获取的物种列表
 
+  const [barcodeOptions, setBarcodeOptions] = useState<string[]>([]); // 存储后端返回的条码列表
   const [geneList, setGeneList] = useState([{ gene: "", barcode1: "", barcode2: "" }]);
 
   const [filters, setFilters] = useState<any[]>([]);
@@ -41,18 +43,48 @@ const DesignWorkflow = () => {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
+  // 提示状态管理
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertSeverity, setAlertSeverity] = useState<"success" | "error">("success");
+
   // 获取物种列表的 API 调用
   useEffect(() => {
     const fetchGenomes = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8123/genomes");  // 获取物种列表的 API 请求
-        setSpeciesOptions(response.data);  // 设置物种选项
+        const response = await axios.get("http://127.0.0.1:8123/genomes");  
+        setSpeciesOptions(response.data);  // 
       } catch (error) {
         console.error("Error fetching genomes:", error);
       }
     };
     fetchGenomes();  // 调用函数
   }, []);
+
+  // 获取后端的条码列表
+  useEffect(() => {
+    const fetchBarcodes = async () => {
+      try {
+        const response = await axios.get("http://127.0.0.1:8123/workflow/barcodes-list");
+        setBarcodeOptions(response.data);  // 将条码列表存储在状态中
+      } catch (error) {
+        console.error("Error fetching barcodes:", error);
+      }
+    };
+
+    fetchBarcodes();  // 调用获取条码的函数
+  }, []);
+
+    // 根据条码获取对应序列
+  const getBarcodeSequence = async (barcode: string) => {
+    try {
+      const response = await axios.get(`http://127.0.0.1:8123/workflow/barcodes/${barcode}`);
+      return response.data[barcode];  // 返回条码对应的序列
+    } catch (error) {
+      console.error(`Error fetching sequence for ${barcode}:`, error);
+      return null;
+    }
+  };
 
   const handleMenuClick = (event: React.MouseEvent<HTMLButtonElement>, section: string) => {
     setMenuAnchor(event.currentTarget);
@@ -63,8 +95,21 @@ const DesignWorkflow = () => {
     setMenuAnchor(null);
   };
 
-  // 处理输入变化
-  const handleGeneListChange = (index: number, field: string, value: string) => {
+  // 探针参数设置
+  const [minLength, setMinLength] = useState(40);
+  const [overlap, setOverlap] = useState(35);
+  const [partLengths, setPartLengths] = useState({ part1: 13, part2: 13, part3: 13 });
+
+  // 更新探针参数输入
+  const handlePartLengthChange = (part: string, length: number) => {
+    setPartLengths(prevLengths => ({
+      ...prevLengths,
+      [part]: length,
+    }));
+  };
+
+   // 处理 geneList 中某一行的变更
+   const handleGeneListChange = (index: number, field: string, value: string) => {
     const updatedGeneList = geneList.map((item, i) =>
       i === index ? { ...item, [field]: value } : item
     );
@@ -126,6 +171,144 @@ const DesignWorkflow = () => {
     setSorts(sorts.filter((_, i) => i !== index));
   };
 
+    // 更新 removeOverlap
+  const updateRemoveOverlap = (value: number) => {
+    setRemoveOverlap(value);
+  };
+
+  // 动态生成 YAML 文件
+  const generateYaml = async () => {
+    const barcodeSet = {};
+  
+    // 动态获取 Barcode 1 和 Barcode 2 的序列
+    for (let item of geneList) {
+      const barcode1Sequence = await getBarcodeSequence(item.barcode1);
+      const barcode2Sequence = await getBarcodeSequence(item.barcode2);
+  
+      if (barcode1Sequence && barcode2Sequence) {
+        barcodeSet[item.barcode1] = barcode1Sequence;
+        barcodeSet[item.barcode2] = barcode2Sequence;
+      }
+    }
+  
+    const yamlContent = {
+      name: taskName,
+      description: `Protocol for designing probe for ${probeType} experiment with double barcodes`,
+      genome: species,
+      targets: geneList.map(gene => gene.gene),
+      barcode_set: barcodeSet,  // 动态生成的 barcode_set
+      encoding: geneList.reduce((acc, item) => {
+        acc[item.gene] = {
+          barcode1: item.barcode1,
+          barcode2: item.barcode2,
+        };
+        return acc;
+      }, {}),
+      extracts: {
+        target_region: {
+          source: "targets",
+          min_length: minLength,
+          overlap: overlap,
+          template: "{part1}{part2}N{part3}",
+          parts: {
+            part1: { length: partLengths.part1, source: "target_region[0:length]" },
+            part2: { length: partLengths.part2, source: "target_region[len(part1):len(part1)+length]" },
+            part3: { length: partLengths.part3, source: "target_region[-length:]" },
+          },
+        },
+      },
+      probes: {
+        circle_probe: {
+          template: "{part1}{part1}{part3}",
+          parts: {
+            part1: { length: "extracts:target_region:parts:part1:length", source: "rc(target_region:part1)" },
+            part2: { template: "{barcode1}N{barcode2}" },
+            part3: { length: "extracts:target_region:parts:part3:length", source: "rc(target_region:part3)" },
+          },
+        amp_probe: {
+          template: "{part1}N{part3}",
+          parts:{
+            part1: { source: "rc(target_region:part1)" },
+            part2: { source: "rc(target_region:part3)" },
+          }
+        }
+        },
+      },
+      attributes: {
+        n_mapped_genes: { target: "target_region", type: "n_mapped_genes", aligner: "bowtie2", similarity_threshold_ratio: 0.75 },
+        target_gc_content: { target: "target_region", type: "gc_content" },
+        tm1: { target: "target_region:part1", type: "annealing_temperature"},
+        tm2: { target: "target_region:part2", type: "annealing_temperature"},
+        tm3: { target: "target_region:part3", type: "annealing_temperature"},
+        target_fold_score: { target: "target_region", type: "fold_score"},
+        circle_fold_score: { target: "circle_probe", type: "fold_score"},
+        amp_fold_score: { target: "amp_probe", type: "fold_score"},
+        circle_self_match: { target: "circle_probe", type: "self_match"},
+        amp_self_match: { target: "amp_probe", type: "self_match"},
+        target_blocks: { target: "target_region", type: "blocks"}
+      },
+      post_process: {
+        filters: filters.reduce((acc, filter) => {
+          acc[filter.type] = filter.value;
+          return acc;
+        }, {}),
+        sorts: {
+          is_ascending: sorts.filter(sort => sort.order === "ascending").map(sort => sort.type),
+          is_descending: sorts.filter(sort => sort.order === "descending").map(sort => sort.type),
+        },
+        remove_overlap: removeOverlap || undefined,  // 如果 removeOverlap 为 0 则不显示
+      },
+    };
+  
+    return yaml.dump(yamlContent);  // 生成 YAML 字符串
+  };
+
+
+  // 提交任务到后端
+  const submitTask = async () => {
+
+    // 输入验证
+    if (!taskName || !probeType || !species || geneList.some(gene => !gene.gene)) {
+      setAlertSeverity("error");
+      setAlertMessage("Please fill in all required fields before submitting.");
+      setAlertOpen(true);
+      return;
+    }
+
+    const yamlFile = await generateYaml();  // 生成 YAML 文件内容
+    
+    // 创建 Blob 对象，将 YAML 文件作为 Blob
+    const blob = new Blob([yamlFile], { type: 'text/yaml' });
+
+    // 使用 FormData 上传文件
+    const formData = new FormData();
+    formData.append("file", blob, "workflow.yaml");  // 将文件添加到 FormData 中
+
+    try {
+      await axios.post("http://127.0.0.1:8123/workflow/submit-task", formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      // 提示成功消息
+      setAlertSeverity("success");
+      setAlertMessage("Task submitted successfully!");
+      setAlertOpen(true);
+    } catch (error) {
+      // 提示错误消息
+      setAlertSeverity("error");
+      setAlertMessage("Error submitting task: " + (error as string));
+      setAlertOpen(true);
+    }
+  };
+
+  // 关闭提示
+  const handleAlertClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setAlertOpen(false);
+  };
+
   return (
     <Container>
       <Box textAlign="center">
@@ -180,41 +363,79 @@ const DesignWorkflow = () => {
             onChange={(e) => setProbeType(e.target.value)}
           >
             <MenuItem value="RCA">RCA</MenuItem>
-            <MenuItem value="Double Hybridization">Double Hybridization</MenuItem>
+            <MenuItem value="Pi-FISH">Pi-FISH</MenuItem>
           </Select>
         </FormControl>
 
         
         {/* Probe Parameters Section */}
-    <   Section>
+        <Section>
         <Typography variant="body1" sx={{ mt: 4, mb: 2 }}>⚙️ Probe Parameters</Typography>
-        <Box display="flex" justifyContent="space-between" sx={{ gap: 4 }}>
-            <TextField 
-                label="Target length" 
-                placeholder="Enter target sequence length" 
-                InputProps={{ sx: { width: '300px', fontSize: '16px' } }}  // 设置宽度
-                sx={{ fontSize: '16px' }}  // 设置字体大小
-            />
-            
-            <TextField 
-                label="part1" 
-                placeholder="Enter part1 length" 
-                InputProps={{ sx: { width: '250px', fontSize: '16px' } }}  // 设置宽度
-            />
-            
-            <TextField 
-                label="part2" 
-                placeholder="Enter part2 length" 
-                InputProps={{ sx: { width: '250px', fontSize: '16px' } }}  // 设置宽度
-            />
-            
-            <TextField 
-                label="part3" 
-                placeholder="Enter part3 length" 
-                InputProps={{ sx: { width: '250px', fontSize: '16px' } }}  // 设置宽度
-            />
-            </Box>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2}}>
+          Please enter the parameters for your probes. 
+          Total length of the target sequence design, sequence overlap, and length of each part.
+        </Typography>
 
+        {/* 第一行：Target length 和 Overlap */}
+        <Grid container spacing={4}>
+          <Grid item xs={6}>
+            <TextField 
+              label="Target length" 
+              placeholder="Enter target sequence length" 
+              fullWidth
+              type="number"
+              value={minLength}  
+              onChange={(e) => setMinLength(Number(e.target.value))}  
+            />
+          </Grid>
+
+          <Grid item xs={6}>
+            <TextField 
+              label="Overlap" 
+              placeholder="Enter overlap value between sequence" 
+              fullWidth
+              type="number"
+              value={overlap}  
+              onChange={(e) => setOverlap(Number(e.target.value))}  
+            />
+          </Grid>
+        </Grid>
+
+        {/* 第二行：part1, part2, part3 */}
+        <Grid container spacing={2} sx={{ mt: 2 }}>
+          <Grid item xs={4}>
+            <TextField 
+              label="Part 1 length" 
+              placeholder="Enter part1 length" 
+              fullWidth
+              type="number"
+              value={partLengths.part1}  
+              onChange={(e) => handlePartLengthChange("part1", Number(e.target.value))}  
+            />
+          </Grid>
+
+          <Grid item xs={4}>
+            <TextField 
+              label="Part 2 length" 
+              placeholder="Enter part2 length" 
+              fullWidth
+              type="number"
+              value={partLengths.part2}  
+              onChange={(e) => handlePartLengthChange("part2", Number(e.target.value))}  
+            />
+          </Grid>
+
+          <Grid item xs={4}>
+            <TextField 
+              label="Part 3 length" 
+              placeholder="Enter part3 length" 
+              fullWidth
+              type="number"
+              value={partLengths.part3}  
+              onChange={(e) => handlePartLengthChange("part3", Number(e.target.value))}  
+            />
+          </Grid>
+        </Grid>
       </Section>
 
       {/* Gene Barcode Map */}
@@ -233,6 +454,8 @@ const DesignWorkflow = () => {
                 onChange={(e) => handleGeneListChange(index, "gene", e.target.value)}
               />
             </Grid>
+
+            {/* Barcode 1 动态加载条码列表 */}
             <Grid item xs={3}>
               <FormControl fullWidth>
                 <InputLabel>Barcode 1</InputLabel>
@@ -240,12 +463,16 @@ const DesignWorkflow = () => {
                   value={item.barcode1}
                   onChange={(e) => handleGeneListChange(index, "barcode1", e.target.value)}
                 >
-                  <MenuItem value="A-488">A-488</MenuItem>
-                  <MenuItem value="A-594">A-594</MenuItem>
-                  <MenuItem value="B-488">B-488</MenuItem>
+                  {barcodeOptions.map((barcode, idx) => (
+                    <MenuItem key={idx} value={barcode}>
+                      {barcode}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
+
+            {/* Barcode 2 动态加载条码列表 */}
             <Grid item xs={3}>
               <FormControl fullWidth>
                 <InputLabel>Barcode 2</InputLabel>
@@ -253,12 +480,16 @@ const DesignWorkflow = () => {
                   value={item.barcode2}
                   onChange={(e) => handleGeneListChange(index, "barcode2", e.target.value)}
                 >
-                  <MenuItem value="A-488">A-488</MenuItem>
-                  <MenuItem value="A-594">A-594</MenuItem>
-                  <MenuItem value="B-488">B-488</MenuItem>
+                  {barcodeOptions.map((barcode, idx) => (
+                    <MenuItem key={idx} value={barcode}>
+                      {barcode}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
+
+            {/* 删除基因行 */}
             <Grid item xs={2}>
               <IconButton onClick={() => removeGeneRow(index)}>
                 <DeleteIcon />
@@ -315,7 +546,7 @@ const DesignWorkflow = () => {
               <Grid container spacing={2}>
                 <Grid item xs={10}>
                   <Typography>{filter.type}</Typography>
-                  {filter.type === "Tm" ? (
+                  {filter.type === "tm" ? (
                     <Grid container spacing={2}>
                       <Grid item xs={6}>
                         <TextField
@@ -398,7 +629,7 @@ const DesignWorkflow = () => {
                 type="number"
                 label="Location Interval"
                 value={removeOverlap}
-                onChange={(e) => setRemoveOverlap(+e.target.value)}
+                onChange={(e) => updateRemoveOverlap(Number(e.target.value))}
               />
             </Box>
           )}
@@ -433,16 +664,26 @@ const DesignWorkflow = () => {
       <Divider />
 
       {/* Submit Button */}
-      <Box display="flex" justifyContent="center" alignItems="center" mt={4}>
-        <Button
+        <Box display="flex" justifyContent="center" alignItems="center" mt={4}>
+          <Button
             variant="contained"
             color="primary"
-            onClick={() => console.log({ taskName, probeType, geneList, filters, sorts, removeOverlap })}
-        >
+            onClick={submitTask}  // 提交任务
+          >
             Submit Task
-        </Button>
+          </Button>
         </Box>
 
+      {/* 提示框 */}
+      <Snackbar
+        open={alertOpen}
+        autoHideDuration={6000}
+        onClose={handleAlertClose}
+      >
+        <Alert onClose={handleAlertClose} severity={alertSeverity} sx={{ width: '100%' }}>
+          {alertMessage}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };
