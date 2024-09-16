@@ -29,7 +29,7 @@ const Section = styled(Box)({
 
 const DesignWorkflow = () => {
   const [taskName, setTaskName] = useState("");
-  const [probeType, setProbeType] = useState("");
+  const [probeType, setProbeType] = useState("RCA");
   const [species, setSpecies] = useState("");  // 初始物种为空
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]); // 用于存储从后端获取的物种列表
 
@@ -39,6 +39,12 @@ const DesignWorkflow = () => {
   const [filters, setFilters] = useState<any[]>([]);
   const [sorts, setSorts] = useState<any[]>([]);
   const [removeOverlap, setRemoveOverlap] = useState(0);
+
+  // 过滤已选过的过滤器或排序选项
+  const isFilterSelected = (type: string) => filters.some(filter => filter.type === type);
+  const isSortSelected = (type: string, order: "↑" | "↓") =>
+  sorts.some(sort => sort.type === type && sort.order === order);
+
 
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -146,10 +152,20 @@ const DesignWorkflow = () => {
     }
   };
 
-  // 添加过滤器选项
+ 
   const addFilterOption = (option: string) => {
-    setFilters([...filters, { type: option, value: "" }]);
-    handleMenuClose();
+    if (!isFilterSelected(option)) {  // 检查是否已选过
+      setFilters([...filters, { type: option, value: "" }]);
+      handleMenuClose();
+    }
+  };
+
+  const addSortOption = (option: string, isAscending: boolean) => {
+    const order = isAscending ? "↑" : "↓";
+    if (!isSortSelected(option, order)) {  // 检查是否已选过
+      setSorts([...sorts, { type: option, order }]);
+      handleMenuClose();
+    }
   };
 
   const updateFilterValue = (index: number, value: any) => {
@@ -161,11 +177,6 @@ const DesignWorkflow = () => {
     setFilters(filters.filter((_, i) => i !== index));
   };
 
-  // 添加排序选项
-  const addSortOption = (option: string, isAscending: boolean) => {
-    setSorts([...sorts, { type: option, order: isAscending ? "↑" : "↓" }]);
-    handleMenuClose();
-  };
 
   const removeSort = (index: number) => {
     setSorts(sorts.filter((_, i) => i !== index));
@@ -253,8 +264,8 @@ const DesignWorkflow = () => {
           return acc;
         }, {}),
         sorts: {
-          is_ascending: sorts.filter(sort => sort.order === "ascending").map(sort => sort.type),
-          is_descending: sorts.filter(sort => sort.order === "descending").map(sort => sort.type),
+          is_ascending: sorts.filter(sort => sort.order === "↑").map(sort => sort.type),
+          is_descending: sorts.filter(sort => sort.order === "↓").map(sort => sort.type),
         },
         remove_overlap: removeOverlap || undefined,  // 如果 removeOverlap 为 0 则不显示
       },
@@ -571,6 +582,7 @@ const DesignWorkflow = () => {
                     <TextField
                       fullWidth
                       label={`Enter ${filter.type}`}
+                      type="number"
                       value={filter.value}
                       onChange={(e) => updateFilterValue(index, e.target.value)}
                     />
@@ -635,27 +647,55 @@ const DesignWorkflow = () => {
           )}
         </Box>
 
-        {/* Menu for Filters, Sorts, and Remove Overlap */}
-        <Menu
-          anchorEl={menuAnchor}
-          open={Boolean(menuAnchor)}
-          onClose={handleMenuClose}
-        >
+        {/* Menu for Filters and Sorts, dynamically disabling selected options */}
+        <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
           {activeSection === "filters" && (
             <>
-              <MenuItem onClick={() => addFilterOption("n_mapped_genes")}>n_mapped_genes</MenuItem>
-              <MenuItem onClick={() => addFilterOption("tm")}>Tm</MenuItem>
-              <MenuItem onClick={() => addFilterOption("target_fold_score")}>target_fold_score</MenuItem>
-              <MenuItem onClick={() => addFilterOption("gc_content")}>gc_content</MenuItem>
+              <MenuItem disabled={isFilterSelected("n_mapped_genes")} onClick={() => addFilterOption("n_mapped_genes")}>
+                n_mapped_genes
+              </MenuItem>
+              <MenuItem disabled={isFilterSelected("tm")} onClick={() => addFilterOption("tm")}>Tm</MenuItem>
+              <MenuItem disabled={isFilterSelected("target_fold_score")} onClick={() => addFilterOption("target_fold_score")}>
+                target_fold_score
+              </MenuItem>
+              <MenuItem disabled={isFilterSelected("gc_content")} onClick={() => addFilterOption("gc_content")}>
+                gc_content
+              </MenuItem>
             </>
           )}
 
           {activeSection === "sorts" && (
             <>
-              <MenuItem onClick={() => addSortOption("n_trans", true)}>n_trans (↑)</MenuItem>
-              <MenuItem onClick={() => addSortOption("n_trans", false)}>n_trans (↓)</MenuItem>
-              <MenuItem onClick={() => addSortOption("target_gc_content", true)}>target_gc_content (↑)</MenuItem>
-              <MenuItem onClick={() => addSortOption("target_gc_content", false)}>target_gc_content (↓)</MenuItem>
+              <MenuItem disabled={isSortSelected("tm", "↑")} onClick={() => addSortOption("tm", true)}>
+                Tm (↑)
+              </MenuItem>
+              <MenuItem disabled={isSortSelected("tm", "↓")} onClick={() => addSortOption("tm", false)}>
+                Tm (↓)
+              </MenuItem>
+              <MenuItem disabled={isSortSelected("n_mapped_genes", "↑")} onClick={() => addSortOption("n_mapped_genes", true)}>
+                n_mapped_genes (↑)
+              </MenuItem>
+              <MenuItem disabled={isSortSelected("n_mapped_genes", "↓")} onClick={() => addSortOption("n_mapped_genes", false)}>
+                n_mapped_genes (↓)
+              </MenuItem>
+              <MenuItem disabled={isSortSelected("target_blocks", "↑")} onClick={() => addSortOption("target_blocks", true)}>
+                target_blocks (↑)
+              </MenuItem>
+              <MenuItem disabled={isSortSelected("target_blocks", "↓")} onClick={() => addSortOption("target_blocks", false)}>
+                target_blocks (↓)
+              </MenuItem>
+              <MenuItem disabled={isSortSelected("target_fold_score", "↑")} onClick={() => addSortOption("target_fold_score", true)}>
+                target_fold_score (↑)
+              </MenuItem>
+              <MenuItem disabled={isSortSelected("target_fold_score", "↓")} onClick={() => addSortOption("target_fold_score", false)}>
+                target_fold_score (↓)
+              </MenuItem>
+              <MenuItem disabled={isSortSelected("target_gc_content", "↑")} onClick={() => addSortOption("target_gc_content", true)}>
+                target_gc_content (↑)
+              </MenuItem>
+              <MenuItem disabled={isSortSelected("target_gc_content", "↓")} onClick={() => addSortOption("target_gc_content", false)}>
+                target_gc_content (↓)
+              </MenuItem>
             </>
           )}
         </Menu>
