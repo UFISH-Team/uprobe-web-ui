@@ -5,7 +5,7 @@ import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-route
 import Home from './pages/Home';
 import Design from './pages/Design';
 import Genome from './pages/Genome';
-import JobsPanel from './pages/Task';
+import JobsPanel from './pages/JobsPanel';
 import Tutorial from './pages/Tutorial';
 import AccountMenu from './pages/AccountMenu';
 import Profile from './components/users/Profile';

@@ -169,3 +169,35 @@ const useStore = create<IProps>((set, get) => ({
 
 
 export default useStore
+
+// Define global state using zustand
+interface GenomeState {
+  files: FileItem[];
+  genomes: string[];
+  selectedGenome: string;
+  customGenome: string;
+  snackbar: SnackbarState;
+  setFiles: (files: FileItem[]) => void;
+  setGenomes: (genomes: string[]) => void;
+  setSelectedGenome: (genome: string) => void;
+  setCustomGenome: (genome: string) => void;
+  setSnackbar: (snackbar: SnackbarState) => void;
+  clearFiles: () => void;
+}
+
+// Create zustand store
+export const useGenomeStore = create<GenomeState>((set) => ({
+  files: [],
+  genomes: [],
+  selectedGenome: '',
+  customGenome: '',
+  snackbar: { open: false, message: '' },
+  
+  setFiles: (files) => set((state) => ({ files })),
+  setGenomes: (genomes) => set((state) => ({ genomes })),
+  setSelectedGenome: (genome) => set({ selectedGenome: genome }),
+  setCustomGenome: (genome) => set({ customGenome: genome }),
+  setSnackbar: (snackbar) => set({ snackbar }),
+  
+  clearFiles: () => set({ files: [] }),
+}));

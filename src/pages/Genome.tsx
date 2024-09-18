@@ -243,8 +243,8 @@ const Genome: React.FC = () => {
   };
 
   return (
-    <Box sx={{ padding: 15 }}>
-      <Typography variant="h6" gutterBottom>1. U-Probe Genome</Typography>
+    <Box sx={{ padding: 10 }}>
+      <Typography variant="h6" gutterBottom>🚀 U-Probe Genome</Typography>
       <Typography variant="body1" sx={{ color: 'text.secondary', mt: 2 , mb: 2}}>
         Please upload your needed files to species directory.
       </Typography>

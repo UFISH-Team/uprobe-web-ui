@@ -18,7 +18,7 @@ const Home: React.FC = () => {
     <Container maxWidth="lg" sx={{ height: '100vh', position: 'relative', overflow: 'hidden' }}>
       <Box
         sx={{
-          height: '90%',
+          height: '80%',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
