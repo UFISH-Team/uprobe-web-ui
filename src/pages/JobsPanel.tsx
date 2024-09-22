@@ -1,45 +1,56 @@
-import React from 'react';
-import Button from '@mui/material/Button';
-import ButtonGroup from '@mui/material/ButtonGroup';
-import Divider from '@mui/material/Divider';
+// File: pages/JobsPanel.tsx
 
-import useStore from '../store';
-import JobsTable from '../components/jobs/JobsTable';
-import JobActions from '../components/jobs/JobActions';
-import JobLink from '../components/jobs/JobLink';
-import OpenJobDetail from '../components/jobs/OpenJobDetail';
-import OpenChainView from '../components/jobs/OpenChainView';
+import React, { useState } from "react";
+import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import { Typography, Box } from "@mui/material";
 
+// Define the structure of a Job
+export interface Job {
+  id: string;
+  name: string;
+  created_time: string;
+  stoped_time: string;
+  status: string;
+  job_type: string;
+}
 
-export default function JobsPanel(props: {}) {
+const JobsPanel: React.FC = () => {
+  // State to store submitted jobs
+  const [jobs, setJobs] = useState<Job[]>([]);
 
-  const { refreshJobs, serverAddr, monitorMode } = useStore((state) => state)
+  // Columns for DataGrid
+  const columns: GridColDef[] = [
+    { field: "id", headerName: "ID", width: 150 },
+    { field: "created_time", headerName: "Created Time", width: 200 },
+    { field: "stoped_time", headerName: "Stopped Time", width: 200 },
+    { field: "name", headerName: "Job Name", width: 250 },
+    { field: "status", headerName: "Status", width: 150 },
+    { field: "job_type", headerName: "Job Type", width: 150 },
+  ];
 
-  React.useEffect(() => {
-    const fetchInterval = 5000
-    const interval = setInterval(() => refreshJobs(), fetchInterval)
-
-    return () => {
-      clearInterval(interval)
-    }
-  }, [serverAddr, monitorMode])
+  // Handler for when a new task is submitted
+  const handleTaskSubmit = (newTask: Job) => {
+    console.log("New Task Submitted:", newTask); // Debugging line to check task content
+    setJobs((prevJobs) => [...prevJobs, newTask]);  // Add new task to jobs list
+  };
 
   return (
-    <div>
-      <div>
-        <ButtonGroup>
-          <Button onClick={(e) => refreshJobs()}>Refresh</Button>
-          <JobActions />
-          <OpenChainView />
-          <OpenJobDetail />
-          <JobLink />
-        </ButtonGroup>
+    <Box sx={{ padding: "20px" }}>
+      <Typography variant="h4" gutterBottom>
+        Job List
+      </Typography>
+
+      <div style={{ height: 400, width: "100%" }}>
+        <DataGrid 
+          rows={jobs} 
+          columns={columns} 
+          pageSize={5} 
+          checkboxSelection 
+          getRowId={(row) => row.id}  // Ensure DataGrid uses 'id' as row identifier
+        />
       </div>
+    </Box>
+  );
+};
 
-      <Divider style={{marginBottom: 20, marginTop: 20}} />
-
-      <JobsTable />
-
-    </div>
-  )
-}
+export default JobsPanel;

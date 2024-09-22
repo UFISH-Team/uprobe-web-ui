@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Snackbar, Alert, TextField, Box, Typography, Button, Select, MenuItem, InputLabel, FormControl, Grid, Divider, Menu, IconButton, IconButtonProps } from "@mui/material";
+import { Snackbar, Alert, TextField, Box, Typography, Button, Select, MenuItem, InputLabel, FormControl, Grid, Divider, Menu, IconButton, LinearProgress } from "@mui/material";
 import { styled } from "@mui/system";
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import UploadIcon from '@mui/icons-material/Upload';
 import FilterListIcon from '@mui/icons-material/FilterList';  // Icon for Filters
 import SortIcon from '@mui/icons-material/Sort';              // Icon for Sorts
 import RemoveCircleIcon from '@mui/icons-material/RemoveCircle';  // Icon for Remove Overlap
@@ -27,11 +26,19 @@ const Section = styled(Box)({
   marginBottom: "40px",
 });
 
-const DesignWorkflow = () => {
+
+const DesignWorkflow: React.FC = () => {
   const [taskName, setTaskName] = useState("");
   const [probeType, setProbeType] = useState("RCA");
   const [species, setSpecies] = useState("");  // 初始物种为空
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]); // 用于存储从后端获取的物种列表
+
+  const [dnaFishParams, setDnaFishParams] = useState({
+    length: 70,
+    overlap: 20,
+    poolList: [{ name: "", location: "", numbers: 8000, density: 0.00005 }],
+  });
+  
 
   const [barcodeOptions, setBarcodeOptions] = useState<string[]>([]); // 存储后端返回的条码列表
   const [geneList, setGeneList] = useState([{ gene: "", barcode1: "", barcode2: "" }]);
@@ -48,6 +55,11 @@ const DesignWorkflow = () => {
 
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+
+  const [isSubmitting, setIsSubmitting] = useState(false); // 控制按钮状态
+  const [progress, setProgress] = useState(0);             // 控制进度条显示
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);  // 存储下载文件的URL
+
 
   // 提示状态管理
   const [alertOpen, setAlertOpen] = useState(false);
@@ -71,7 +83,7 @@ const DesignWorkflow = () => {
   useEffect(() => {
     const fetchBarcodes = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8123/workflow/barcodes-list");
+        const response = await axios.get("http://127.0.0.1:8123/workflow/barcodes_list");
         setBarcodeOptions(response.data);  // 将条码列表存储在状态中
       } catch (error) {
         console.error("Error fetching barcodes:", error);
@@ -114,6 +126,72 @@ const DesignWorkflow = () => {
     }));
   };
 
+    // 解析并更新基因列表的CSV上传处理函数
+  const handleGeneCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      Papa.parse(file, {
+        header: true,
+        complete: (results) => {
+          const parsedData = results.data.map((row: any) => ({
+            gene: row["gene"],
+            barcode1: row["barcode1"],
+            barcode2: row["barcode2"],
+          }));
+          setGeneList(parsedData);
+        },
+      });
+    }
+  };
+
+  // 解析并更新池列表的CSV上传处理函数
+  const handlePoolCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      Papa.parse(file, {
+        header: true,
+        complete: (results) => {
+          const parsedData = results.data.map((row: any) => ({
+            name: row["name"],
+            location: row["location"],
+            numbers: Number(row["numbers"]),
+            density: Number(row["density"]),
+          }));
+          setDnaFishParams((prev) => ({
+            ...prev,
+            poolList: parsedData,
+          }));
+        },
+      });
+    }
+  };
+
+
+  // Handle pool list changes for DNA-FISH
+  const handlePoolChange = (index: number, field: string, value: any) => {
+    const updatedPoolList = dnaFishParams.poolList.map((item, i) =>
+      i === index ? { ...item, [field]: value } : item
+    );
+    setDnaFishParams(prev => ({ ...prev, poolList: updatedPoolList }));
+  };
+
+  // Add a new row to pool list
+  const addPoolRow = () => {
+    setDnaFishParams(prev => ({
+      ...prev,
+      poolList: [...prev.poolList, { name: "", location: "", numbers: 0, density: 0 }],
+    }));
+  };
+
+  // Remove a row from pool list
+  const removePoolRow = (index: number) => {
+    setDnaFishParams(prev => ({
+      ...prev,
+      poolList: prev.poolList.filter((_, i) => i !== index),
+    }));
+  };
+
+
    // 处理 geneList 中某一行的变更
    const handleGeneListChange = (index: number, field: string, value: string) => {
     const updatedGeneList = geneList.map((item, i) =>
@@ -132,27 +210,6 @@ const DesignWorkflow = () => {
     setGeneList(geneList.filter((_, i) => i !== index));
   };
 
-  // 上传文件解析 gene barcode list
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const file = e.target.files[0];
-      Papa.parse(file, {
-        complete: (result) => {
-          const parsedData = result.data as string[][];
-          const formattedData = parsedData.map(([gene, barcode1, barcode2]) => ({
-            gene,
-            barcode1,
-            barcode2,
-          }));
-          setGeneList(formattedData);
-        },
-        header: false,
-        skipEmptyLines: true,
-      });
-    }
-  };
-
- 
   const addFilterOption = (option: string) => {
     if (!isFilterSelected(option)) {  // 检查是否已选过
       setFilters([...filters, { type: option, value: "" }]);
@@ -191,101 +248,88 @@ const DesignWorkflow = () => {
   const generateYaml = async () => {
     const barcodeSet = {};
   
-    // 动态获取 Barcode 1 和 Barcode 2 的序列
-    for (let item of geneList) {
-      const barcode1Sequence = await getBarcodeSequence(item.barcode1);
-      const barcode2Sequence = await getBarcodeSequence(item.barcode2);
+    if (probeType === "RCA") {
+      // For RCA: dynamically get Barcode sequences
+      for (let item of geneList) {
+        const barcode1Sequence = await getBarcodeSequence(item.barcode1);
+        const barcode2Sequence = await getBarcodeSequence(item.barcode2);
   
-      if (barcode1Sequence && barcode2Sequence) {
-        barcodeSet[item.barcode1] = barcode1Sequence;
-        barcodeSet[item.barcode2] = barcode2Sequence;
+        if (barcode1Sequence && barcode2Sequence) {
+          barcodeSet[item.barcode1] = barcode1Sequence;
+          barcodeSet[item.barcode2] = barcode2Sequence;
+        }
       }
     }
   
-    const yamlContent = {
-      name: taskName,
-      description: `Protocol for designing probe for ${probeType} experiment with double barcodes`,
-      genome: species,
-      targets: geneList.map(gene => gene.gene),
-      barcode_set: barcodeSet,  // 动态生成的 barcode_set
-      encoding: geneList.reduce((acc, item) => {
-        acc[item.gene] = {
-          barcode1: item.barcode1,
-          barcode2: item.barcode2,
-        };
-        return acc;
-      }, {}),
-      extracts: {
-        target_region: {
-          source: "targets",
-          min_length: minLength,
-          overlap: overlap,
-          template: "{part1}{part2}N{part3}",
-          parts: {
-            part1: { length: partLengths.part1, source: "target_region[0:length]" },
-            part2: { length: partLengths.part2, source: "target_region[len(part1):len(part1)+length]" },
-            part3: { length: partLengths.part3, source: "target_region[-length:]" },
+      const yamlContent = {
+        name: taskName,
+        probetype: probeType,
+        genome: species,
+        targets: probeType === "RCA" ? geneList.map(gene => gene.gene) : undefined,
+        ...(probeType === "RCA" && {
+          barcode_set: barcodeSet,
+          encoding: geneList.reduce((acc, item) => {
+            acc[item.gene] = {
+              barcode1: item.barcode1,
+              barcode2: item.barcode2,
+            };
+            return acc;
+          }, {}),
+          extracts: {
+            target_region: {
+              source: "targets",
+              min_length: minLength,
+              overlap: overlap,
+              template: "{part1}{part2}N{part3}",
+              parts: {
+                part1: { length: partLengths.part1, source: "target_region[0:length]" },
+                part2: { length: partLengths.part2, source: "target_region[len(part1):len(part1)+length]" },
+                part3: { length: partLengths.part3, source: "target_region[-length:]" },
+              },
+            },
           },
-        },
-      },
-      probes: {
-        circle_probe: {
-          template: "{part1}{part1}{part3}",
-          parts: {
-            part1: { length: "extracts:target_region:parts:part1:length", source: "rc(target_region:part1)" },
-            part2: { template: "{barcode1}N{barcode2}" },
-            part3: { length: "extracts:target_region:parts:part3:length", source: "rc(target_region:part3)" },
+        }),
+        ...(probeType === "DNA-FISH" && {
+          probes: {
+            fish_probe: {
+              length: dnaFishParams.length,
+              overlap: dnaFishParams.overlap,
+            },
           },
-        amp_probe: {
-          template: "{part1}N{part3}",
-          parts:{
-            part1: { source: "rc(target_region:part1)" },
-            part2: { source: "rc(target_region:part3)" },
-          }
-        }
-        },
-      },
-      attributes: {
-        n_mapped_genes: { target: "target_region", type: "n_mapped_genes", aligner: "bowtie2", similarity_threshold_ratio: 0.75 },
-        target_gc_content: { target: "target_region", type: "gc_content" },
-        tm1: { target: "target_region:part1", type: "annealing_temperature"},
-        tm2: { target: "target_region:part2", type: "annealing_temperature"},
-        tm3: { target: "target_region:part3", type: "annealing_temperature"},
-        target_fold_score: { target: "target_region", type: "fold_score"},
-        circle_fold_score: { target: "circle_probe", type: "fold_score"},
-        amp_fold_score: { target: "amp_probe", type: "fold_score"},
-        circle_self_match: { target: "circle_probe", type: "self_match"},
-        amp_self_match: { target: "amp_probe", type: "self_match"},
-        target_blocks: { target: "target_region", type: "blocks"}
-      },
-      post_process: {
-        filters: filters.reduce((acc, filter) => {
-          acc[filter.type] = filter.value;
-          return acc;
-        }, {}),
-        sorts: {
-          is_ascending: sorts.filter(sort => sort.order === "↑").map(sort => sort.type),
-          is_descending: sorts.filter(sort => sort.order === "↓").map(sort => sort.type),
-        },
-        remove_overlap: removeOverlap || undefined,  // 如果 removeOverlap 为 0 则不显示
-      },
+          pool_list: dnaFishParams.poolList.map(pool => ({
+            name: pool.name,
+            location: pool.location,
+            numbers: pool.numbers,
+            density: pool.density,
+          })),
+        }),
+      };
+    
+      return yaml.dump(yamlContent);
     };
-  
-    return yaml.dump(yamlContent);  // 生成 YAML 字符串
-  };
-
-
+    
   // 提交任务到后端
   const submitTask = async () => {
-
     // 输入验证
-    if (!taskName || !probeType || !species || geneList.some(gene => !gene.gene)) {
+    if (!taskName || !probeType || !species || (
+      probeType === 'RCA' && geneList.some(gene => !gene.gene)
+    ) || (
+      probeType === 'DNA-FISH' && dnaFishParams.poolList.some(pool => 
+        !pool.name || !pool.location || pool.numbers === 0 || pool.density === 0
+      )
+    )) {
       setAlertSeverity("error");
       setAlertMessage("Please fill in all required fields before submitting.");
       setAlertOpen(true);
       return;
     }
 
+
+      // 设置提交按钮为处理中状态
+    setIsSubmitting(true);
+    setProgress(30);  // 初始进度
+
+    // Generate the YAML content based on the task details
     const yamlFile = await generateYaml();  // 生成 YAML 文件内容
     
     // 创建 Blob 对象，将 YAML 文件作为 Blob
@@ -296,19 +340,48 @@ const DesignWorkflow = () => {
     formData.append("file", blob, "workflow.yaml");  // 将文件添加到 FormData 中
 
     try {
-      await axios.post("http://127.0.0.1:8123/workflow/submit-task", formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      // 根据探针类型选择不同的 API 端点
+      let apiUrl = "";
+
+      if (probeType === 'RCA') {
+        apiUrl = "http://127.0.0.1:8123/workflow/design_rca";
+      } else if (probeType === 'DNA-FISH') {
+        apiUrl = "http://127.0.0.1:8123/workflow/design_dnafish";
+      }
+
+        // 设置进度条更新
+      setProgress(60);  // 中间进度
+
+        // 发送请求，接收.zip文件
+      const response = await axios.post(apiUrl, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        responseType: 'blob',  // 指定返回文件类型为 Blob
       });
 
-      // 提示成功消息
+      setProgress(90);
+
+      // 生成 Blob URL 用于下载
+      const fileData = response.data;
+      const downloadBlob = new Blob([fileData], { type: 'application/zip' });
+      const url = URL.createObjectURL(downloadBlob);  // 创建 URL
+      setDownloadUrl(url);  // 将生成的 URL 保存到状态中
+
+
+      //设置进度条完成
+      setProgress(100);
+      // 提示任务成功
       setAlertSeverity("success");
-      setAlertMessage("Task submitted successfully!");
+      setAlertMessage("Task submitted successfully! You can now download the result.");
       setAlertOpen(true);
+
     } catch (error) {
-      // 提示错误消息
+      // 任务失败时的错误提示
       setAlertSeverity("error");
-      setAlertMessage("Error submitting task: " + (error as string));
+      setAlertMessage("Error submitting task: " + (error as Error).message);
       setAlertOpen(true);
+    } finally {
+      setIsSubmitting(false);  // 恢复按钮状态
+      setProgress(0);  // 重置进度条
     }
   };
 
@@ -319,6 +392,7 @@ const DesignWorkflow = () => {
     }
     setAlertOpen(false);
   };
+
 
   return (
     <Container>
@@ -364,7 +438,7 @@ const DesignWorkflow = () => {
         {/* Probe Type */}
         <Typography variant="body1" sx={{mt: 4, mb:2 }}>🔬 Probe Type</Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-        We offer basic probe types such as RCA and Pi-FISH. You can choose from the existing options or customize your design.
+        We offer basic probe types such as RCA and DNA-FISH. You can choose from the existing options or customize your design.
             </Typography>
         <FormControl fullWidth>
           <InputLabel id="probe-type-label">Probe Type</InputLabel>
@@ -374,163 +448,267 @@ const DesignWorkflow = () => {
             onChange={(e) => setProbeType(e.target.value)}
           >
             <MenuItem value="RCA">RCA</MenuItem>
-            <MenuItem value="Pi-FISH">Pi-FISH</MenuItem>
+            <MenuItem value="DNA-FISH">DNA-FISH</MenuItem>
           </Select>
         </FormControl>
 
-        
-        {/* Probe Parameters Section */}
-        <Section>
         <Typography variant="body1" sx={{ mt: 4, mb: 2 }}>⚙️ Probe Parameters</Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2}}>
-          Please enter the parameters for your probes. 
-          Total length of the target sequence design, sequence overlap, and length of each part.
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+          {probeType === 'RCA' 
+            ? "Enter the parameters for RCA probes."
+            : "Enter the length and overlap for DNA-FISH probes."
+          }
         </Typography>
 
-        {/* 第一行：Target length 和 Overlap */}
-        <Grid container spacing={4}>
-          <Grid item xs={6}>
-            <TextField 
-              label="Target length" 
-              placeholder="Enter target sequence length" 
-              fullWidth
-              type="number"
-              value={minLength}  
-              onChange={(e) => setMinLength(Number(e.target.value))}  
-            />
-          </Grid>
+        {probeType === 'RCA' && (
+          <>
+            <Grid container spacing={4}>
+              <Grid item xs={6}>
+                <TextField 
+                  label="Target length" 
+                  placeholder="Enter target sequence length" 
+                  fullWidth
+                  type="number"
+                  value={minLength}  
+                  onChange={(e) => setMinLength(Number(e.target.value))}  
+                />
+              </Grid>
 
-          <Grid item xs={6}>
-            <TextField 
-              label="Overlap" 
-              placeholder="Enter overlap value between sequence" 
-              fullWidth
-              type="number"
-              value={overlap}  
-              onChange={(e) => setOverlap(Number(e.target.value))}  
-            />
-          </Grid>
-        </Grid>
+              <Grid item xs={6}>
+                <TextField 
+                  label="Overlap" 
+                  placeholder="Enter overlap value" 
+                  fullWidth
+                  type="number"
+                  value={overlap}  
+                  onChange={(e) => setOverlap(Number(e.target.value))}  
+                />
+              </Grid>
+            </Grid>
 
-        {/* 第二行：part1, part2, part3 */}
-        <Grid container spacing={2} sx={{ mt: 2 }}>
-          <Grid item xs={4}>
-            <TextField 
-              label="Part 1 length" 
-              placeholder="Enter part1 length" 
-              fullWidth
-              type="number"
-              value={partLengths.part1}  
-              onChange={(e) => handlePartLengthChange("part1", Number(e.target.value))}  
-            />
-          </Grid>
+            <Grid container spacing={2} sx={{ mt: 2 }}>
+              <Grid item xs={4}>
+                <TextField 
+                  label="Part 1 length" 
+                  placeholder="Enter part1 length" 
+                  fullWidth
+                  type="number"
+                  value={partLengths.part1}  
+                  onChange={(e) => handlePartLengthChange("part1", Number(e.target.value))}  
+                />
+              </Grid>
+              <Grid item xs={4}>
+                <TextField 
+                  label="Part 2 length" 
+                  placeholder="Enter part2 length" 
+                  fullWidth
+                  type="number"
+                  value={partLengths.part2}  
+                  onChange={(e) => handlePartLengthChange("part2", Number(e.target.value))}  
+                />
+              </Grid>
+              <Grid item xs={4}>
+                <TextField 
+                  label="Part 3 length" 
+                  placeholder="Enter part3 length" 
+                  fullWidth
+                  type="number"
+                  value={partLengths.part3}  
+                  onChange={(e) => handlePartLengthChange("part3", Number(e.target.value))}  
+                />
+              </Grid>
+            </Grid>
+          </>
+        )}
 
-          <Grid item xs={4}>
-            <TextField 
-              label="Part 2 length" 
-              placeholder="Enter part2 length" 
-              fullWidth
-              type="number"
-              value={partLengths.part2}  
-              onChange={(e) => handlePartLengthChange("part2", Number(e.target.value))}  
-            />
-          </Grid>
-
-          <Grid item xs={4}>
-            <TextField 
-              label="Part 3 length" 
-              placeholder="Enter part3 length" 
-              fullWidth
-              type="number"
-              value={partLengths.part3}  
-              onChange={(e) => handlePartLengthChange("part3", Number(e.target.value))}  
-            />
-          </Grid>
-        </Grid>
-      </Section>
-
-      {/* Gene Barcode Map */}
-        <Typography variant="body1" sx={{mt: 4, mb:2 }}>🔢 Gene Barcode Map</Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-        Manually input gene names and select the corresponding barcodes, or directly upload xxx.csv in the format: gene, barcode1, barcode2.
-            </Typography>
-
-        {geneList.map((item, index) => (
-          <Grid container spacing={2} key={index} alignItems="center">
-            <Grid item xs={4}>
-              <TextField
+        {probeType === 'DNA-FISH' && (
+          <Grid container spacing={4}>
+            <Grid item xs={6}>
+              <TextField 
+                label="Probe Length" 
+                placeholder="Enter probe length" 
                 fullWidth
-                label="Gene"
-                value={item.gene}
-                onChange={(e) => handleGeneListChange(index, "gene", e.target.value)}
+                type="number"
+                value={dnaFishParams.length}
+                onChange={(e) => setDnaFishParams(prev => ({ ...prev, length: Number(e.target.value) }))}
               />
             </Grid>
 
-            {/* Barcode 1 动态加载条码列表 */}
-            <Grid item xs={3}>
-              <FormControl fullWidth>
-                <InputLabel>Barcode 1</InputLabel>
-                <Select
-                  value={item.barcode1}
-                  onChange={(e) => handleGeneListChange(index, "barcode1", e.target.value)}
-                >
-                  {barcodeOptions.map((barcode, idx) => (
-                    <MenuItem key={idx} value={barcode}>
-                      {barcode}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* Barcode 2 动态加载条码列表 */}
-            <Grid item xs={3}>
-              <FormControl fullWidth>
-                <InputLabel>Barcode 2</InputLabel>
-                <Select
-                  value={item.barcode2}
-                  onChange={(e) => handleGeneListChange(index, "barcode2", e.target.value)}
-                >
-                  {barcodeOptions.map((barcode, idx) => (
-                    <MenuItem key={idx} value={barcode}>
-                      {barcode}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* 删除基因行 */}
-            <Grid item xs={2}>
-              <IconButton onClick={() => removeGeneRow(index)}>
-                <DeleteIcon />
-              </IconButton>
+            <Grid item xs={6}>
+              <TextField 
+                label="Overlap" 
+                placeholder="Enter overlap value" 
+                fullWidth
+                type="number"
+                value={dnaFishParams.overlap}
+                onChange={(e) => setDnaFishParams(prev => ({ ...prev, overlap: Number(e.target.value) }))}
+              />
             </Grid>
           </Grid>
-        ))}
+        )}
+      </Section>
 
-        <Button
-          variant="outlined"
-          startIcon={<AddIcon />}
-          onClick={addGeneRow}
-          sx={{ mt: 2 }}
-        >
-          Add Gene
-        </Button>
 
+      {/* Gene Barcode Map or Pool List depending on probe type */}
+      <Section>
+      <Typography variant="body1" sx={{ mt: 4, mb: 2 }}>
+        {probeType === 'RCA' ? "🔢 RCA Gene Barcode Map" : "🔢 DNA-FISH Pool List"}
+      </Typography>
+      <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+        {probeType === 'RCA' 
+          ? "Manually input gene names and select the corresponding barcodes."
+          : "Provide pool list for DNA-FISH including name, location(chr:start-end), numbers, and density."
+        }
+      </Typography>
+
+      {probeType === 'RCA' && (
+        <>
+          <Button
+            variant="outlined"
+            component="label"
+            startIcon={<AddIcon />}
+            sx={{ mb: 2 }}
+          >
+            Upload genelist csv
+            <input
+              type="file"
+              hidden
+              accept=".csv"
+              onChange={(e) => handleGeneCsvUpload(e)}
+            />
+          </Button>
+
+          {geneList.map((item, index) => (
+            <Grid container spacing={2} key={index} alignItems="center">
+              <Grid item xs={4}>
+                <TextField
+                  fullWidth
+                  label="Gene"
+                  value={item.gene}
+                  onChange={(e) => handleGeneListChange(index, "gene", e.target.value)}
+                />
+              </Grid>
+
+              <Grid item xs={3}>
+                <FormControl fullWidth>
+                  <InputLabel>Barcode 1</InputLabel>
+                  <Select
+                    value={item.barcode1}
+                    onChange={(e) => handleGeneListChange(index, "barcode1", e.target.value)}
+                  >
+                    {barcodeOptions.map((barcode, idx) => (
+                      <MenuItem key={idx} value={barcode}>
+                        {barcode}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={3}>
+                <FormControl fullWidth>
+                  <InputLabel>Barcode 2</InputLabel>
+                  <Select
+                    value={item.barcode2}
+                    onChange={(e) => handleGeneListChange(index, "barcode2", e.target.value)}
+                  >
+                    {barcodeOptions.map((barcode, idx) => (
+                      <MenuItem key={idx} value={barcode}>
+                        {barcode}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={2}>
+                <IconButton onClick={() => removeGeneRow(index)}>
+                  <DeleteIcon />
+                </IconButton>
+              </Grid>
+            </Grid>
+          ))}
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={addGeneRow}
+            sx={{ mt: 2 }}
+          >
+            Add Gene
+          </Button>
+        </>
+      )}
+
+      {probeType === 'DNA-FISH' && (
+        <>
         <Button
           variant="outlined"
           component="label"
-          startIcon={<UploadIcon />}
-          sx={{ mt: 2, ml: 2 }}
+          startIcon={<AddIcon />}
+          sx={{ mb: 2 }}
         >
-          Upload Gene List
+          Upload poollist csv
           <input
             type="file"
             hidden
-            onChange={handleFileUpload}
+            accept=".csv"
+            onChange={(e) => handlePoolCsvUpload(e)}
           />
         </Button>
+          {dnaFishParams.poolList.map((pool, index) => (
+            <Grid container spacing={2} key={index} >
+              <Grid item xs={3}>
+                <TextField
+                  fullWidth
+                  label="Name"
+                  value={pool.name}
+                  onChange={(e) => handlePoolChange(index, "name", e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={3}>
+                <TextField
+                  fullWidth
+                  label="Location"
+                  value={pool.location}
+                  onChange={(e) => handlePoolChange(index, "location", e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={2}>
+                <TextField
+                  fullWidth
+                  label="Numbers"
+                  type="number"
+                  value={pool.numbers}
+                  onChange={(e) => handlePoolChange(index, "numbers", Number(e.target.value))}
+                />
+              </Grid>
+              <Grid item xs={2}>
+                <TextField
+                  fullWidth
+                  label="Density"
+                  type="number"
+                  value={pool.density}
+                  onChange={(e) => handlePoolChange(index, "density", Number(e.target.value))}
+                />
+              </Grid>
+              <Grid item xs={2}>
+                <IconButton onClick={() => removePoolRow(index)}>
+                  <DeleteIcon />
+                </IconButton>
+              </Grid>
+            </Grid>
+          ))}
+
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={addPoolRow}
+            sx={{ mt: 2 }}
+          >
+            Add Pool
+          </Button>
+        </>
+      )}
       </Section>
 
       {/* Post Process Section */}
@@ -703,16 +881,42 @@ const DesignWorkflow = () => {
 
       <Divider />
 
-      {/* Submit Button */}
+      {/* 提交任务的按钮与进度条 */}
+      <Box display="flex" justifyContent="center" alignItems="center" mt={4}>
+        <Button
+          variant="contained"
+          color={isSubmitting ? "secondary" : "primary"}
+          onClick={submitTask}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Designing..." : "Submit Task"}
+        </Button>
+      </Box>
+
+      {/* 显示进度条 */}
+      {isSubmitting && (
+        <Box sx={{ width: '100%', mt: 2 }}>
+          <LinearProgress variant="determinate" value={progress} />
+        </Box>
+      )}
+
+      {/* 下载按钮：仅在生成了下载链接时显示 */}
+      {downloadUrl && (
         <Box display="flex" justifyContent="center" alignItems="center" mt={4}>
           <Button
             variant="contained"
-            color="primary"
-            onClick={submitTask}  // 提交任务
+            color="success"
+            onClick={() => {
+              const link = document.createElement('a');
+              link.href = downloadUrl;  // 使用生成的下载链接
+              link.download = 'result.zip';  // 指定下载的文件名
+              link.click();  // 触发下载
+            }}
           >
-            Submit Task
+            Download .zip
           </Button>
         </Box>
+      )}
 
       {/* 提示框 */}
       <Snackbar

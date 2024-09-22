@@ -42,6 +42,7 @@
     "reactflow": "^11.11.4",
     "shortid": "2.2.16",
     "universal-cookie": "^7.2.0",
+    "uuid": "^10.0.0",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
