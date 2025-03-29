@@ -1,15 +1,16 @@
 import { FileArray } from "chonky";
-import create from "zustand";
+import { create } from "zustand";
 
 import {
   PanelLabel,
   FolderChain, Job, ServerRouter,
   CallReq, JobModify, UserMode,
-  UserInfo, Task,
+  UserInfo, Task, FileItem, SnackbarState
 } from "./types";
 
 
-interface IProps {
+// Main application store interface
+interface AppStoreState {
   panel: PanelLabel,
   setPanel: (p: PanelLabel) => void, 
   serverAddr: string,
@@ -68,7 +69,8 @@ interface IProps {
 }
 
 
-const useStore = create<IProps>((set, get) => ({
+// Create the main application store
+const useStore = create<AppStoreState>((set, get) => ({
   panel: "home",
   setPanel: (p) => { set({panel: p}) },
   serverAddr: "http://127.0.0.1:5000",
@@ -170,7 +172,7 @@ const useStore = create<IProps>((set, get) => ({
 
 export default useStore
 
-// Define global state using zustand
+// Genome-specific store interface
 interface GenomeState {
   files: FileItem[];
   genomes: string[];
@@ -185,7 +187,7 @@ interface GenomeState {
   clearFiles: () => void;
 }
 
-// Create zustand store
+// Create genome zustand store
 export const useGenomeStore = create<GenomeState>((set) => ({
   files: [],
   genomes: [],
@@ -193,8 +195,8 @@ export const useGenomeStore = create<GenomeState>((set) => ({
   customGenome: '',
   snackbar: { open: false, message: '' },
   
-  setFiles: (files) => set((state) => ({ files })),
-  setGenomes: (genomes) => set((state) => ({ genomes })),
+  setFiles: (files) => set({ files }),
+  setGenomes: (genomes) => set({ genomes }),
   setSelectedGenome: (genome) => set({ selectedGenome: genome }),
   setCustomGenome: (genome) => set({ customGenome: genome }),
   setSnackbar: (snackbar) => set({ snackbar }),

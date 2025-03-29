@@ -2,11 +2,13 @@
 import React from 'react';
 import { AppBar, Toolbar, Button, Box } from '@mui/material';
 import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom'; // Import Router components
+
 import Home from './pages/Home';
 import Design from './pages/Design';
 import Genome from './pages/Genome';
 import JobsPanel from './pages/JobsPanel';
 import Tutorial from './pages/Tutorial';
+
 import AccountMenu from './pages/AccountMenu';
 import Profile from './components/users/Profile';
 import MyAccount from './components/users/MyAccount';
