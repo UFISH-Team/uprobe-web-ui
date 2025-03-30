@@ -24,6 +24,7 @@ const Home: React.FC = () => {
       py: 4,
       display: 'flex',
       alignItems: 'center',
+      backgroundColor: theme.palette.background.default,
     }}>
       <Box
         sx={{
@@ -46,7 +47,8 @@ const Home: React.FC = () => {
           gutterBottom
           sx={{ 
             fontWeight: 600,
-            mb: 2
+            mb: 2,
+            color: theme.palette.primary.main,
           }}
         >
           🌍 U-Probe: A Universal Probe Design Tool 🔬
@@ -60,19 +62,24 @@ const Home: React.FC = () => {
             maxWidth: '800px'
           }} 
         >
-          Welcome to U-Probe, your universal tool for designing and optimizing probes for various applications, including fluorescence in situ hybridization (FISH). 
+          Welcome to U-Probe, your universal tool for designing and optimizing probes for various applications, including fluorescence in situ hybridization (FISH).
         </Typography>
 
         {/* Card with Image and Buttons */}
         <Card 
+          elevation={4}
           sx={{ 
             width: '100%',
             maxWidth: '800px', 
             textAlign: 'center', 
             mb: 4, 
-            boxShadow: 3,
             borderRadius: 2,
-            overflow: 'hidden'
+            overflow: 'hidden',
+            transition: 'transform 0.3s, box-shadow 0.3s',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: 8,
+            }
           }}
         >
           <Box sx={{ 
@@ -91,46 +98,72 @@ const Home: React.FC = () => {
                 left: 0,
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover'
+                objectFit: 'cover',
+                transition: 'transform 0.5s',
+                '&:hover': {
+                  transform: 'scale(1.05)',
+                }
               }}
             />
           </Box>
           
           <CardContent sx={{ py: 3 }}>
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
             Select an action to start exploring U-Probe capabilities. 🚀
             </Typography>
           </CardContent>
           
-          <CardActions sx={{ 
-            justifyContent: 'center',
-            flexDirection: isTablet ? 'column' : 'row',
-            gap: 2,
-            pb: 3,
-            px: 3,
-          }}>
+          <CardActions 
+            sx={{ 
+              padding: { xs: 2, sm: 3 },
+              paddingTop: 0,
+              paddingBottom: 3,
+              display: 'flex',
+              flexDirection: isTablet ? 'column' : 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: isTablet ? 2 : 3,
+            }}
+          >
             <Button
               variant="contained"
               size="large"
               component={Link}
               to="/designworkflow"
               sx={{ 
-                width: isTablet ? '100%' : 'auto',
-                minWidth: isTablet ? 'unset' : '180px',
-                py: 1.5
+                flex: isTablet ? '1 1 auto' : '1 1 0',
+                width: isTablet ? '100%' : undefined,
+                py: 1.5,
+                borderRadius: 1.5,
+                fontWeight: 500,
+                boxShadow: 2,
+                transition: 'all 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: 4,
+                }
               }}
             >
-              ✏️ Design Probe 
+              ✏️ Start Designing 
             </Button>
             <Button
               variant="contained"
               size="large"
               component={Link}
               to="/tutorial"
+              color="secondary"
               sx={{ 
-                width: isTablet ? '100%' : 'auto',
-                minWidth: isTablet ? 'unset' : '180px',
-                py: 1.5
+                flex: isTablet ? '1 1 auto' : '1 1 0',
+                width: isTablet ? '100%' : undefined,
+                py: 1.5,
+                borderRadius: 1.5,
+                fontWeight: 500,
+                boxShadow: 2,
+                transition: 'all 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: 4,
+                }
               }}
             >
               👀 View Examples 
@@ -140,10 +173,19 @@ const Home: React.FC = () => {
               size="large"
               component={Link}
               to="/genome"
+              color="info"
               sx={{ 
-                width: isTablet ? '100%' : 'auto',
-                minWidth: isTablet ? 'unset' : '180px',
-                py: 1.5
+                flex: isTablet ? '1 1 auto' : '1 1 0',
+                width: isTablet ? '100%' : undefined,
+                py: 1.5,
+                borderRadius: 1.5,
+                fontWeight: 500,
+                boxShadow: 2,
+                transition: 'all 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: 4,
+                }
               }}
             >
               🗃️ Upload Data 
@@ -155,7 +197,8 @@ const Home: React.FC = () => {
           variant="subtitle1" 
           sx={{ 
             color: 'text.secondary',
-            maxWidth: '800px'
+            maxWidth: '800px',
+            fontStyle: 'italic'
           }}
         >
           ✨ Create custom probes tailored to your specific research needs with ease! 🧬

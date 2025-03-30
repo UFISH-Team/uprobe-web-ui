@@ -27,18 +27,7 @@ import GenomeIcon from '@mui/icons-material/Dataset';
 import TaskIcon from '@mui/icons-material/List';
 import TutorialIcon from '@mui/icons-material/HelpOutline';
 
-
-const theme = createTheme({
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none', // 取消所有按钮的大写转换
-        },
-      },
-    },
-  },
-});
+import theme from './theme/theme';
 
 const App: React.FC = () => {
   const navigate = useNavigate(); // Hook to programmatically navigate
