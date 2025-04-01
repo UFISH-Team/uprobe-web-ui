@@ -2,11 +2,13 @@
 import React from 'react';
 import { AppBar, Toolbar, Button, Box } from '@mui/material';
 import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom'; // Import Router components
+
 import Home from './pages/Home';
 import Design from './pages/Design';
 import Genome from './pages/Genome';
 import JobsPanel from './pages/JobsPanel';
 import Tutorial from './pages/Tutorial';
+
 import AccountMenu from './pages/AccountMenu';
 import Profile from './components/users/Profile';
 import MyAccount from './components/users/MyAccount';
@@ -25,18 +27,7 @@ import GenomeIcon from '@mui/icons-material/Dataset';
 import TaskIcon from '@mui/icons-material/List';
 import TutorialIcon from '@mui/icons-material/HelpOutline';
 
-
-const theme = createTheme({
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none', // 取消所有按钮的大写转换
-        },
-      },
-    },
-  },
-});
+import theme from './theme/theme';
 
 const App: React.FC = () => {
   const navigate = useNavigate(); // Hook to programmatically navigate
