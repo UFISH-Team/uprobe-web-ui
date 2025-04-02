@@ -29,6 +29,7 @@
     "chonky": "^2.3.2",
     "dagre": "^0.8.5",
     "js-yaml": "^4.1.0",
+    "konva": "^9.3.20",
     "notistack": "^3.0.1",
     "papaparse": "^5.4.1",
     "react": "^18.3.1",
