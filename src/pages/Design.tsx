@@ -10,8 +10,8 @@ const Design: React.FC = () => {
 
   return (
     <Container maxWidth={false} sx={{ 
-      width: '90%',
-      minHeight: '80vh',
+      width: '100%',
+      minHeight: '60vh',
       display: 'flex',
       alignItems: 'center',
       py: 2,
@@ -22,7 +22,7 @@ const Design: React.FC = () => {
         flexDirection: 'column', 
         gap: 2,
         mx: 'auto',
-        width: '80%',
+        width: '60%',
         maxWidth: 'lg',
       }}>
         <Outlet />
@@ -158,7 +158,7 @@ const Design: React.FC = () => {
                   }
                 }}
               >
-                Help Guide
+                Learn More
               </Button>
             </CardActions>
           </Card>
@@ -269,7 +269,7 @@ const Design: React.FC = () => {
                   }
                 }}
               >
-                Help Guide
+                Learn More
               </Button>
             </CardActions>
           </Card>

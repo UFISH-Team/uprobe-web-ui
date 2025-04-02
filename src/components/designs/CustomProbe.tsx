@@ -234,12 +234,7 @@ const CustomProbe: React.FC = () => {
     'BC3': 'GCTAGCTAGCTA'
   });
   
-  const [fixedSequences, setFixedSequences] = useState<{[key: string]: string}>({
-    'F1': 'AAAAAA',
-    'F2': 'TTTTTT',
-    'F3': 'GGGGGG'
-  });
-  
+ 
   // State for new segment
   const [newSegment, setNewSegment] = useState<{
     source: SegmentSource;
@@ -720,7 +715,7 @@ const CustomProbe: React.FC = () => {
       <StyledContainer>
         <Typography variant="h4" gutterBottom align="center" sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
           <DnaIcon color="primary" fontSize="large" />
-          Design Your Own Probe Type, Please !
+          Create Your Own Probe Type, Please Follow the Steps!
         </Typography>
         
         {/* Alert for notifications */}
@@ -750,7 +745,7 @@ const CustomProbe: React.FC = () => {
         >
           <DialogTitle>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">Saved Probes</Typography>
+              <Typography variant="h6">Saved Probe Groups</Typography>
               <IconButton onClick={() => setShowHistory(false)}>
                 <CloseIcon />
               </IconButton>
@@ -864,7 +859,7 @@ const CustomProbe: React.FC = () => {
             <SectionTitle sx={{ mb: 0 }}>
               <SettingsIcon color="primary" />
               <Typography variant="h5" component="h2">
-                Probe Design
+                Probe Type Design
               </Typography>
             </SectionTitle>
             <Box sx={{ display: 'flex', gap: 1 }}>
