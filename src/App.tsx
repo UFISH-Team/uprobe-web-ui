@@ -1,7 +1,9 @@
 // App.tsx
 import React from 'react';
-import { AppBar, Toolbar, Button, Box } from '@mui/material';
-import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom'; // Import Router components
+import { AppBar, Toolbar, Button, Box, IconButton, useMediaQuery, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
+import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation } from 'react-router-dom';
+import { useTheme } from '@mui/material/styles';
+import MenuIcon from '@mui/icons-material/Menu';
 
 import Home from './pages/Home';
 import Design from './pages/Design';
@@ -9,6 +11,7 @@ import Genome from './pages/Genome';
 import JobsPanel from './pages/JobsPanel';
 import Tutorial from './pages/Tutorial';
 
+import Layout from './components/common/Layout';
 import AccountMenu from './pages/AccountMenu';
 import Profile from './components/users/Profile';
 import MyAccount from './components/users/MyAccount';
@@ -19,7 +22,7 @@ import CustomProbe from './components/designs/CustomProbe';
 import DesignWorkflow from './components/designs/DesignWorkflow';
 import NotFound from './components/common/NotFound';
 
-import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import HomeIcon from '@mui/icons-material/Home';
 import DesignIcon from '@mui/icons-material/Pinch';
@@ -27,88 +30,151 @@ import GenomeIcon from '@mui/icons-material/Dataset';
 import TaskIcon from '@mui/icons-material/List';
 import TutorialIcon from '@mui/icons-material/HelpOutline';
 
-import theme from './theme/theme';
+import theme from './theme';
+
+// Navigation items configuration
+const navItems = [
+  { text: 'Home', icon: HomeIcon, path: '/home' },
+  { text: 'Design', icon: DesignIcon, path: '/design' },
+  { text: 'Genome', icon: GenomeIcon, path: '/genome' },
+  { text: 'Task', icon: TaskIcon, path: '/task' },
+  { text: 'Tutorial', icon: TutorialIcon, path: '/tutorial' },
+];
 
 const App: React.FC = () => {
-  const navigate = useNavigate(); // Hook to programmatically navigate
+  const navigate = useNavigate();
+  const location = useLocation();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
+
+  const drawer = (
+    <List>
+      {navItems.map((item) => {
+        const Icon = item.icon;
+        return (
+          <ListItemButton
+            key={item.text}
+            onClick={() => {
+              navigate(item.path);
+              if (isMobile) handleDrawerToggle();
+            }}
+            selected={location.pathname === item.path}
+          >
+            <ListItemIcon>
+              <Icon color={location.pathname === item.path ? 'primary' : 'inherit'} />
+            </ListItemIcon>
+            <ListItemText primary={item.text} />
+          </ListItemButton>
+        );
+      })}
+    </List>
+  );
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box sx={{ flexGrow: 1 }}>
-        <AppBar position="static" sx={{ width: '100%', margin: '0 auto' }}>
-          <Toolbar>
-            <Button
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <AppBar position="fixed" elevation={0}>
+        <Toolbar>
+          {isMobile && (
+            <IconButton
               color="inherit"
-              startIcon={<HomeIcon />}
-              onClick={() => navigate('/home')}
+              aria-label="open drawer"
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ mr: 2 }}
             >
-              U-Probe
-            </Button>
-            
-            <Box sx={{ flexGrow: 1 }} />
+              <MenuIcon />
+            </IconButton>
+          )}
+          
+          <Typography variant="h6" component="div" sx={{ flexGrow: 0, mr: 4 }}>
+            U-Probe
+          </Typography>
 
-            <Button
-              color="inherit"
-              startIcon={<DesignIcon />}
-              onClick={() => navigate('/design')}
-            >
-              Design
-            </Button>
+          {!isMobile && (
+            <Box sx={{ flexGrow: 1, display: 'flex', gap: 2 }}>
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Button
+                    key={item.text}
+                    color="inherit"
+                    startIcon={<Icon />}
+                    onClick={() => navigate(item.path)}
+                    sx={{
+                      borderRadius: 1,
+                      px: 2,
+                      backgroundColor: location.pathname === item.path ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      },
+                    }}
+                  >
+                    {item.text}
+                  </Button>
+                );
+              })}
+            </Box>
+          )}
 
-            <Button
-              color="inherit"
-              startIcon={<GenomeIcon />}
-              onClick={() => navigate('/genome')}
-            >
-              Genome
-            </Button>
+          <AccountMenu />
+        </Toolbar>
+      </AppBar>
 
-            <Button
-              color="inherit"
-              startIcon={<TaskIcon />}
-              onClick={() => navigate('/task')}
-            >
-              Task
-            </Button>
+      {isMobile && (
+        <Drawer
+          variant="temporary"
+          anchor="left"
+          open={mobileOpen}
+          onClose={handleDrawerToggle}
+          ModalProps={{
+            keepMounted: true, // Better open performance on mobile
+          }}
+          sx={{
+            '& .MuiDrawer-paper': { width: 240, boxSizing: 'border-box' },
+          }}
+        >
+          {drawer}
+        </Drawer>
+      )}
 
-            <Button
-              color="inherit"
-              startIcon={<TutorialIcon />}
-              onClick={() => navigate('/tutorial')}
-            >
-              Tutorial
-            </Button>
-
-            <AccountMenu />
-          </Toolbar>
-        </AppBar>
-      </Box>
-
-      <div className="pageContent">
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          pt: '64px', // AppBar height
+        }}
+      >
         <Routes>
-          <Route path="/home" element={<Home />} />
-          <Route path="/design" element={<Design />} />
-          <Route path="/genome" element={<Genome />} />
-          <Route path="/task" element={<JobsPanel />} />
-          <Route path="/tutorial" element={<Tutorial />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/myaccount" element={<MyAccount />} />
-          <Route path="/addaccount" element={<AddAccount />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/logout" element={<Logout />} />
-          <Route path="/customprobe" element={<CustomProbe />} />
-          <Route path="/designworkflow" element={<DesignWorkflow />} />
-          <Route path="*" element={<NotFound />} />
+          <Route path="/home" element={<Layout><Home /></Layout>} />
+          <Route path="/design" element={<Layout><Design /></Layout>} />
+          <Route path="/genome" element={<Layout><Genome /></Layout>} />
+          <Route path="/task" element={<Layout><JobsPanel /></Layout>} />
+          <Route path="/tutorial" element={<Layout><Tutorial /></Layout>} />
+          <Route path="/profile" element={<Layout><Profile /></Layout>} />
+          <Route path="/myaccount" element={<Layout><MyAccount /></Layout>} />
+          <Route path="/addaccount" element={<Layout><AddAccount /></Layout>} />
+          <Route path="/settings" element={<Layout><Settings /></Layout>} />
+          <Route path="/logout" element={<Layout><Logout /></Layout>} />
+          <Route path="/customprobe" element={<Layout><CustomProbe /></Layout>} />
+          <Route path="/designworkflow" element={<Layout><DesignWorkflow /></Layout>} />
+          <Route path="*" element={<Layout><NotFound /></Layout>} />
         </Routes>
-      </div>
-    </ThemeProvider>
+      </Box>
+    </Box>
   );
 };
 
 const MainApp = () => (
   <Router>
-    <App />
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <App />
+    </ThemeProvider>
   </Router>
 );
 

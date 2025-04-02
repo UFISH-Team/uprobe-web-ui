@@ -7,8 +7,7 @@ import {
   useTheme,
   useMediaQuery,
   Divider,
-  IconButton,
-  Tooltip
+  IconButton
 } from '@mui/material';
 import InfoIcon from '@mui/icons-material/Info';
 import CloseIcon from '@mui/icons-material/Close';
@@ -30,7 +29,7 @@ const Genome: React.FC = () => {
   // Custom hooks for better separation of concerns
   const { genomes, selectedGenome, setSelectedGenome, customGenome, setCustomGenome, fetchGenomes, deleteGenome } = useGenomeData();
   const { files, handleFileUpload, deleteFile, downloadFile } = useFileOperations(selectedGenome, customGenome);
-  const { notification, showNotification, hideNotification } = useNotification();
+  const { notification, hideNotification } = useNotification();
   const [showMetadata, setShowMetadata] = useState<boolean>(!isMobile);
 
   // Get stats visualization component

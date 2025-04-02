@@ -20,7 +20,7 @@ const Home: React.FC = () => {
 
   return (
     <Container maxWidth={false} sx={{ 
-      minHeight: '100vh', 
+      minHeight: '80vh', 
       py: 4,
       display: 'flex',
       alignItems: 'center',
@@ -42,13 +42,14 @@ const Home: React.FC = () => {
         }}
       >
         <Typography 
-          variant={isMobile ? "h5" : "h4"} 
+          variant={isMobile ? "h2" : "h1"} 
           component="h1" 
           gutterBottom
           sx={{ 
-            fontWeight: 600,
+            fontWeight: 700,
             mb: 2,
             color: theme.palette.primary.main,
+            fontSize: isMobile ? '2rem' : '3rem'
           }}
         >
           🌍 U-Probe: A Universal Probe Design Tool 🔬
