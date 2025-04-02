@@ -13,15 +13,15 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 const Tutorial: React.FC = () => {
   return (
-    <Box sx={{ padding: 4, maxWidth: '900px', margin: '0 auto' }}>
-      <Typography variant="h6" gutterBottom>
+    <Box sx={{ padding: 4, maxWidth: '1500px', margin: '0 auto' }}>
+      <Typography variant="h3" gutterBottom>
         U-Probe Tutorial 📚:
       </Typography>
 
       {/* Section 1: Getting Started */}
       <Accordion defaultExpanded>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="body1">1. Getting Started 🚀</Typography>
+          <Typography variant="h5">1. Getting Started 🚀</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Typography>
@@ -37,7 +37,7 @@ const Tutorial: React.FC = () => {
       {/* Section 2: Designing Your Probe */}
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="body1">2. Designing Your Probe ✏️</Typography>
+          <Typography variant="h5">2. Designing Your Probe ✏️</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Typography>Follow these steps to create a custom probe:</Typography>
@@ -53,7 +53,7 @@ const Tutorial: React.FC = () => {
       {/* Section 3: Optimizing Your Probe */}
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="body1">3. Optimizing Your Probe 🔧</Typography>
+          <Typography variant="h5">3. Optimizing Your Probe 🔧</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Typography>U-Probe offers various tools to optimize your probe design:</Typography>
@@ -68,7 +68,7 @@ const Tutorial: React.FC = () => {
       {/* Section 4: Uploading Custom Data */}
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="body1">4. Uploading Custom Data 📂</Typography>
+          <Typography variant="h5">4. Uploading Custom Data 📂</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Typography>For advanced users, U-Probe allows you to upload custom genomic data:</Typography>
@@ -83,7 +83,7 @@ const Tutorial: React.FC = () => {
       {/* Section 5: Analyzing Results */}
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="body1">5. Analyzing Results 🧪</Typography>
+          <Typography variant="h5">5. Analyzing Results 🧪</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Typography>After generating your probe:</Typography>
@@ -98,7 +98,7 @@ const Tutorial: React.FC = () => {
       {/* Help Section */}
       <Card sx={{ marginTop: 4 }}>
         <CardContent>
-          <Typography variant="body1">Need Help? ❓</Typography>
+          <Typography variant="h5">Need Help? ❓</Typography>
           <Typography>
             If you have any questions or encounter issues while using U-Probe, please don't hesitate to contact our support team or refer to our detailed documentation. 📞📄
           </Typography>

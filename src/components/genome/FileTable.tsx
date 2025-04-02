@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { FileItem } from '../types';
+import { FileItem } from '../../types';
 
 interface FileTableProps {
   files: FileItem[];
