@@ -20,9 +20,14 @@ import {
   Container,
   Card,
   CardContent,
-  CardActions,
   Alert,
-  Collapse
+  Collapse,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  List,
+  ListItem,
+  ListItemText
 } from "@mui/material";
 import { styled } from "@mui/system";
 import AddIcon from '@mui/icons-material/Add';
@@ -37,14 +42,16 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
+import DownloadIcon from '@mui/icons-material/Download';
+import SaveIcon from '@mui/icons-material/Save';
+import HistoryIcon from '@mui/icons-material/History';
 
 // Styled components
 const StyledContainer = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(3),
   margin: "0 auto",
   borderRadius: theme.shape.borderRadius,
-  boxShadow: theme.shadows[2],
+  boxShadow: theme.shadows[2] as string,
   [theme.breakpoints.up('sm')]: {
     padding: theme.spacing(4),
   },
@@ -157,12 +164,24 @@ interface ProbeSegment {
   isReverseComplement: boolean;
   label: string;
   sourceProbeId?: string; // For segments sourced from other probes
+  sourceStartPos?: number; // For segments sourced from other probes
+  sourceEndPos?: number; // For segments sourced from other probes
 }
 
 interface Probe {
   id: string;
   segments: ProbeSegment[];
-  isComplete: boolean; // Flag to indicate if design is complete
+  isComplete: boolean;
+  name?: string; // Optional name for the probe
+}
+
+interface ProbeGroup {
+  id: string;
+  name: string;
+  probes: Probe[];
+  createdAt: Date;
+  updatedAt: Date;
+  isSaved?: boolean; // Whether this group is saved to the database
 }
 
 const CustomProbe: React.FC = () => {
@@ -177,6 +196,19 @@ const CustomProbe: React.FC = () => {
   const [probes, setProbes] = useState<Probe[]>([
     { id: '1', segments: [], isComplete: false }
   ]);
+  
+  // Probe group state
+  const [probeGroup, setProbeGroup] = useState<ProbeGroup>({
+    id: Date.now().toString(),
+    name: 'New Probe Group',
+    probes: probes,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
+  
+  // History state
+  const [savedProbeGroups, setSavedProbeGroups] = useState<ProbeGroup[]>([]);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
   
   // For design panel
   const [activeProbeIndex, setActiveProbeIndex] = useState<number>(0);
@@ -220,6 +252,8 @@ const CustomProbe: React.FC = () => {
     externalName: string;
     customFixedSequence: string;
     sourceProbeId: string;
+    sourceStartPos: number;
+    sourceEndPos: number;
   }>({
     source: 'target',
     sequence: '',
@@ -230,7 +264,9 @@ const CustomProbe: React.FC = () => {
     externalType: 'barcode',
     externalName: '',
     customFixedSequence: '',
-    sourceProbeId: ''
+    sourceProbeId: '',
+    sourceStartPos: 1,
+    sourceEndPos: 10
   });
   
   // Generate random sequence as Target when targetLength changes
@@ -250,8 +286,10 @@ const CustomProbe: React.FC = () => {
   // Handle target sequence length change
   const handleTargetLengthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const length = parseInt(e.target.value, 10);
-    if (!isNaN(length) && length > 0 && length <= 1000) {
+    if (!isNaN(length) && length >= 10 && length <= 1000) {
       setTargetLength(length);
+    } else {
+      showAlert('Sequence length must be between 10 and 1000 base pairs', 'error');
     }
   };
   
@@ -296,7 +334,9 @@ const CustomProbe: React.FC = () => {
         externalType: 'barcode',
         externalName: '',
         customFixedSequence: '',
-        sourceProbeId: ''
+        sourceProbeId: '',
+        sourceStartPos: 1,
+        sourceEndPos: 10
       };
       
       setNewSegment(prev => ({
@@ -307,26 +347,29 @@ const CustomProbe: React.FC = () => {
       }));
       
     } else if (field === 'startPos' || field === 'endPos') {
-      // Ensure position is valid and within target sequence range
       const pos = parseInt(value, 10);
-      if (!isNaN(pos) && pos > 0 && pos <= targetSequence.length) {
-        setNewSegment(prev => ({
-          ...prev,
-          [field]: pos,
-          sequence: field === 'startPos' 
-            ? targetSequence.substring(pos - 1, prev.endPos) 
-            : targetSequence.substring(prev.startPos - 1, pos)
-        }));
+      if (!isNaN(pos)) {
+        if (validatePositions(pos, field === 'startPos' ? newSegment.endPos : newSegment.startPos, targetSequence.length)) {
+          setNewSegment(prev => ({
+            ...prev,
+            [field]: pos,
+            sequence: field === 'startPos' 
+              ? targetSequence.substring(pos - 1, prev.endPos) 
+              : targetSequence.substring(prev.startPos - 1, pos)
+          }));
+        }
       }
     } else if (field === 'targetSelection') {
       const [start, end] = value.split('-').map((num: string) => parseInt(num, 10));
-      setNewSegment(prev => ({
-        ...prev,
-        targetSelection: value,
-        startPos: start,
-        endPos: end,
-        sequence: targetSequence.substring(start - 1, end)
-      }));
+      if (!isNaN(start) && !isNaN(end) && validatePositions(start, end, targetSequence.length)) {
+        setNewSegment(prev => ({
+          ...prev,
+          targetSelection: value,
+          startPos: start,
+          endPos: end,
+          sequence: targetSequence.substring(start - 1, end)
+        }));
+      }
     } else if (field === 'externalName') {
       let sequence = '';
       if (newSegment.externalType === 'barcode' && barcodes[value]) {
@@ -339,14 +382,16 @@ const CustomProbe: React.FC = () => {
         sequence
       }));
     } else if (field === 'customFixedSequence') {
-      // Update custom fixed sequence directly
-      setNewSegment(prev => ({
-        ...prev,
-        customFixedSequence: value,
-        sequence: value
-      }));
+      if (value === '' || validateSequence(value)) {
+        setNewSegment(prev => ({
+          ...prev,
+          customFixedSequence: value,
+          sequence: value
+        }));
+      } else {
+        showAlert('Invalid sequence. Only A, T, G, C bases are allowed', 'error');
+      }
     } else if (field === 'externalType') {
-      // Reset related fields when switching external sequence type
       setNewSegment(prev => ({
         ...prev,
         externalType: value,
@@ -355,14 +400,14 @@ const CustomProbe: React.FC = () => {
         sequence: ''
       }));
     } else if (field === 'sourceProbeId') {
-      // Get sequence from the selected probe
       const sequence = getProbeSequenceById(value);
-      
-      setNewSegment(prev => ({
-        ...prev,
-        sourceProbeId: value,
-        sequence
-      }));
+      if (sequence) {
+        setNewSegment(prev => ({
+          ...prev,
+          sourceProbeId: value,
+          sequence
+        }));
+      }
     } else {
       setNewSegment(prev => ({
         ...prev,
@@ -383,6 +428,12 @@ const CustomProbe: React.FC = () => {
   // Add segment to current probe
   const addSegmentToProbe = () => {
     if (!newSegment.sequence) {
+      showAlert('Please select a sequence first', 'error');
+      return;
+    }
+
+    if (newSegment.externalType === 'fixed' && !validateSequence(newSegment.customFixedSequence)) {
+      showAlert('Invalid fixed sequence. Only A, T, G, C bases are allowed', 'error');
       return;
     }
     
@@ -403,7 +454,7 @@ const CustomProbe: React.FC = () => {
         source = 'fixed';
       }
     } else if (newSegment.source === 'probe') {
-      segmentLabel = `Probe: ${newSegment.sourceProbeId}`;
+      segmentLabel = `Probe: ${newSegment.sourceProbeId} (${newSegment.sourceStartPos}-${newSegment.sourceEndPos})`;
       sourceProbeId = newSegment.sourceProbeId;
     }
     
@@ -413,13 +464,12 @@ const CustomProbe: React.FC = () => {
       sequence: newSegment.sequence,
       isReverseComplement: newSegment.isReverseComplement,
       label: segmentLabel,
-      sourceProbeId
+      sourceProbeId,
+      startPos: newSegment.source === 'target' ? newSegment.startPos : undefined,
+      endPos: newSegment.source === 'target' ? newSegment.endPos : undefined,
+      sourceStartPos: newSegment.source === 'probe' ? newSegment.sourceStartPos : undefined,
+      sourceEndPos: newSegment.source === 'probe' ? newSegment.sourceEndPos : undefined
     };
-    
-    if (newSegment.source === 'target') {
-      newProbeSegment.startPos = newSegment.startPos;
-      newProbeSegment.endPos = newSegment.endPos;
-    }
     
     const updatedProbes = [...probes];
     updatedProbes[activeProbeIndex].segments.push(newProbeSegment);
@@ -436,7 +486,9 @@ const CustomProbe: React.FC = () => {
       externalType: 'barcode',
       externalName: '',
       customFixedSequence: '',
-      sourceProbeId: ''
+      sourceProbeId: '',
+      sourceStartPos: 1,
+      sourceEndPos: 10
     });
     
     showAlert('Segment added successfully!', 'success');
@@ -567,12 +619,108 @@ const CustomProbe: React.FC = () => {
     }, 5000);
   };
   
+  // Handle probe group name change
+  const handleProbeGroupNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setProbeGroup(prev => ({
+      ...prev,
+      name: e.target.value,
+      updatedAt: new Date()
+    }));
+  };
+
+  // Save probe group to history
+  const saveProbeGroup = () => {
+    if (!probeGroup.name.trim()) {
+      showAlert('Please enter a name for the probe group', 'error');
+      return;
+    }
+
+    const updatedGroup = {
+      ...probeGroup,
+      probes: probes,
+      updatedAt: new Date(),
+      isSaved: true
+    };
+
+    setSavedProbeGroups(prev => {
+      const existingIndex = prev.findIndex(g => g.id === probeGroup.id);
+      if (existingIndex >= 0) {
+        const newGroups = [...prev];
+        newGroups[existingIndex] = updatedGroup;
+        return newGroups;
+      }
+      return [...prev, updatedGroup];
+    });
+
+    showAlert('Probe group saved successfully!', 'success');
+  };
+
+  // Load probe group from history
+  const loadProbeGroup = (group: ProbeGroup) => {
+    setProbeGroup(group);
+    setProbes(group.probes);
+    setShowHistory(false);
+    showAlert('Probe group loaded successfully!', 'success');
+  };
+
+  // Delete probe group from history
+  const deleteProbeGroup = (groupId: string) => {
+    setSavedProbeGroups(prev => prev.filter(g => g.id !== groupId));
+    showAlert('Probe group deleted from history', 'info');
+  };
+
+  // Generate probe sequence segment options
+  const generateProbeSegmentOptions = (probeId: string) => {
+    const probe = getProbeById(probeId);
+    if (!probe) return [];
+    
+    const fullSequence = getProbeFullSequence(probe);
+    const options = [];
+    const step = 10;
+    
+    for (let i = 1; i <= fullSequence.length; i += step) {
+      const end = Math.min(i + step - 1, fullSequence.length);
+      options.push(`${i}-${end}`);
+    }
+    return options;
+  };
+
+  // Handle probe segment selection
+  const handleProbeSegmentSelection = (probeId: string, selection: string) => {
+    const [start, end] = selection.split('-').map((num: string) => parseInt(num, 10));
+    const probe = getProbeById(probeId);
+    if (!probe) return;
+    
+    const fullSequence = getProbeFullSequence(probe);
+    if (validatePositions(start, end, fullSequence.length)) {
+      setNewSegment(prev => ({
+        ...prev,
+        sourceStartPos: start,
+        sourceEndPos: end,
+        sequence: fullSequence.substring(start - 1, end)
+      }));
+    }
+  };
+
+  // Add validation for sequence positions
+  const validatePositions = (start: number, end: number, maxLength: number): boolean => {
+    if (start < 1 || end < 1 || start > maxLength || end > maxLength) {
+      showAlert('Position must be within valid range', 'error');
+      return false;
+    }
+    if (start > end) {
+      showAlert('Start position must be less than or equal to end position', 'error');
+      return false;
+    }
+    return true;
+  };
+
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <StyledContainer>
         <Typography variant="h4" gutterBottom align="center" sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
           <DnaIcon color="primary" fontSize="large" />
-          Custom Probe Design Tool
+          Design Your Own Probe Type, Please !
         </Typography>
         
         {/* Alert for notifications */}
@@ -592,9 +740,67 @@ const CustomProbe: React.FC = () => {
             {alertState.message}
           </Alert>
         </Collapse>
+
+        {/* History Dialog */}
+        <Dialog
+          open={showHistory}
+          onClose={() => setShowHistory(false)}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="h6">Saved Probes</Typography>
+              <IconButton onClick={() => setShowHistory(false)}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            <List>
+              {savedProbeGroups.map((group) => (
+                <ListItem
+                  key={group.id}
+                  secondaryAction={
+                    <Box>
+                      <IconButton
+                        edge="end"
+                        onClick={() => loadProbeGroup(group)}
+                        sx={{ mr: 1 }}
+                      >
+                        <DownloadIcon />
+                      </IconButton>
+                      <IconButton
+                        edge="end"
+                        onClick={() => deleteProbeGroup(group.id)}
+                        color="error"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Box>
+                  }
+                >
+                  <ListItemText
+                    primary={group.name}
+                    secondary={`Created: ${group.createdAt.toLocaleString()} | Probes: ${group.probes.length}`}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </DialogContent>
+        </Dialog>
         
         {/* Target sequence section */}
-        <Section>
+        <Paper 
+          elevation={2} 
+          sx={{ 
+            p: 3, 
+            mb: 4, 
+            backgroundColor: theme.palette.background.default,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 2
+          }}
+        >
           <SectionTitle>
             <ScienceIcon color="primary" />
             <Typography variant="h5" component="h2">
@@ -635,10 +841,18 @@ const CustomProbe: React.FC = () => {
           <SequenceDisplay>
             {targetSequence}
           </SequenceDisplay>
-        </Section>
+        </Paper>
         
         {/* Probe design section */}
-        <Section>
+        <Paper 
+          elevation={2} 
+          sx={{ 
+            p: 3, 
+            backgroundColor: theme.palette.background.default,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 2
+          }}
+        >
           <Box sx={{ 
             display: 'flex', 
             justifyContent: 'space-between', 
@@ -653,7 +867,14 @@ const CustomProbe: React.FC = () => {
                 Probe Design
               </Typography>
             </SectionTitle>
-            <Tooltip title="Add a new probe to the design">
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                startIcon={<HistoryIcon />}
+                onClick={() => setShowHistory(true)}
+              >
+                History
+              </Button>
               <Button 
                 variant="contained" 
                 startIcon={<AddIcon />}
@@ -661,10 +882,31 @@ const CustomProbe: React.FC = () => {
               >
                 Add Probe
               </Button>
-            </Tooltip>
+            </Box>
+          </Box>
+
+          {/* Probe Group Name */}
+          <Box sx={{ mb: 3 }}>
+            <TextField
+              fullWidth
+              label="Probe Group Name"
+              value={probeGroup.name}
+              onChange={handleProbeGroupNameChange}
+              size="small"
+              sx={{ mb: 1 }}
+            />
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<SaveIcon />}
+              onClick={saveProbeGroup}
+              disabled={!probeGroup.name.trim()}
+            >
+              Save Probe Group
+            </Button>
           </Box>
           
-          {/* Probes overview section - all probes displayed together */}
+          {/* Probes overview section */}
           <Box sx={{ mb: 4 }}>
             {probes.map((probe, index) => (
               <ProbeCard key={probe.id} variant="outlined">
@@ -673,6 +915,7 @@ const CustomProbe: React.FC = () => {
                     <DnaIcon color={probe.isComplete ? "success" : "primary"} fontSize="small" />
                     <Typography variant="h6" component="h3">
                       Probe {probe.id}
+                      {probe.name && ` - ${probe.name}`}
                     </Typography>
                     {probe.isComplete && (
                       <Chip 
@@ -813,7 +1056,8 @@ const CustomProbe: React.FC = () => {
                         </Box>
                         
                         <Grid container spacing={2} alignItems="flex-start">
-                          <Grid item xs={12} sm={4}>
+                          {/* Source Selection */}
+                          <Grid item xs={12} sm={3}>
                             <FormControl fullWidth size="small">
                               <InputLabel>Source</InputLabel>
                               <Select
@@ -829,10 +1073,11 @@ const CustomProbe: React.FC = () => {
                               </Select>
                             </FormControl>
                           </Grid>
-                          
-                          {newSegment.source === 'target' ? (
+
+                          {/* Region Selection */}
+                          {newSegment.source === 'target' && (
                             <>
-                              <Grid item xs={12} sm={8}>
+                              <Grid item xs={12} sm={6}>
                                 <FormControl fullWidth size="small">
                                   <InputLabel>Select Region</InputLabel>
                                   <Select
@@ -847,9 +1092,9 @@ const CustomProbe: React.FC = () => {
                                   <FormHelperText>Or manually enter position:</FormHelperText>
                                 </FormControl>
                               </Grid>
-                              <Grid item xs={6} sm={3}>
+                              <Grid item xs={6} sm={1.5}>
                                 <TextField
-                                  label="Start Position"
+                                  label="Start"
                                   type="number"
                                   fullWidth
                                   size="small"
@@ -858,9 +1103,9 @@ const CustomProbe: React.FC = () => {
                                   InputProps={{ inputProps: { min: 1, max: targetSequence.length } }}
                                 />
                               </Grid>
-                              <Grid item xs={6} sm={3}>
+                              <Grid item xs={6} sm={1.5}>
                                 <TextField
-                                  label="End Position"
+                                  label="End"
                                   type="number"
                                   fullWidth
                                   size="small"
@@ -870,9 +1115,12 @@ const CustomProbe: React.FC = () => {
                                 />
                               </Grid>
                             </>
-                          ) : newSegment.source === 'external' ? (
+                          )}
+
+                          {/* External Sequence Selection */}
+                          {newSegment.source === 'external' && (
                             <>
-                              <Grid item xs={12} sm={4}>
+                              <Grid item xs={12} sm={3}>
                                 <FormControl fullWidth size="small">
                                   <InputLabel>External Type</InputLabel>
                                   <Select
@@ -886,7 +1134,7 @@ const CustomProbe: React.FC = () => {
                                 </FormControl>
                               </Grid>
                               {newSegment.externalType === 'barcode' ? (
-                                <Grid item xs={12} sm={4}>
+                                <Grid item xs={12} sm={6}>
                                   <FormControl fullWidth size="small">
                                     <InputLabel>Select Barcode</InputLabel>
                                     <Select
@@ -901,7 +1149,7 @@ const CustomProbe: React.FC = () => {
                                   </FormControl>
                                 </Grid>
                               ) : (
-                                <Grid item xs={12} sm={4}>
+                                <Grid item xs={12} sm={6}>
                                   <TextField
                                     label="Enter Fixed Sequence"
                                     fullWidth
@@ -914,29 +1162,98 @@ const CustomProbe: React.FC = () => {
                                 </Grid>
                               )}
                             </>
-                          ) : newSegment.source === 'probe' ? (
-                            // Source from existing probes
-                            <Grid item xs={12} sm={8}>
-                              <FormControl fullWidth size="small">
-                                <InputLabel>Select Probe</InputLabel>
-                                <Select
-                                  value={newSegment.sourceProbeId}
-                                  label="Select Probe"
-                                  onChange={(e) => handleNewSegmentChange('sourceProbeId', e.target.value)}
-                                >
-                                  {getCompletedProbes().map(probe => (
-                                    <MenuItem key={probe.id} value={probe.id}>
-                                      Probe {probe.id} ({getProbeFullSequence(probe).length} bp)
-                                    </MenuItem>
-                                  ))}
-                                </Select>
-                                <FormHelperText>
-                                  Only completed probes are available as sources
-                                </FormHelperText>
-                              </FormControl>
-                            </Grid>
-                          ) : null}
+                          )}
+
+                          {/* Probe Source Selection */}
+                          {newSegment.source === 'probe' && (
+                            <>
+                              <Grid item xs={12} sm={6}>
+                                <FormControl fullWidth size="small">
+                                  <InputLabel>Select Probe</InputLabel>
+                                  <Select
+                                    value={newSegment.sourceProbeId}
+                                    label="Select Probe"
+                                    onChange={(e) => handleNewSegmentChange('sourceProbeId', e.target.value)}
+                                  >
+                                    {getCompletedProbes().map(probe => (
+                                      <MenuItem key={probe.id} value={probe.id}>
+                                        Probe {probe.id} ({getProbeFullSequence(probe).length} bp)
+                                      </MenuItem>
+                                    ))}
+                                  </Select>
+                                  <FormHelperText>
+                                    Only completed probes are available as sources
+                                  </FormHelperText>
+                                </FormControl>
+                              </Grid>
+                              
+                              {newSegment.sourceProbeId && (
+                                <>
+                                  <Grid item xs={12} sm={3}>
+                                    <FormControl fullWidth size="small">
+                                      <InputLabel>Select Region</InputLabel>
+                                      <Select
+                                        value={`${newSegment.sourceStartPos}-${newSegment.sourceEndPos}`}
+                                        label="Select Region"
+                                        onChange={(e) => handleProbeSegmentSelection(newSegment.sourceProbeId, e.target.value)}
+                                      >
+                                        {generateProbeSegmentOptions(newSegment.sourceProbeId).map(option => (
+                                          <MenuItem key={option} value={option}>{option}</MenuItem>
+                                        ))}
+                                      </Select>
+                                      <FormHelperText>Or manually enter position:</FormHelperText>
+                                    </FormControl>
+                                  </Grid>
+                                  <Grid item xs={6} sm={1.5}>
+                                    <TextField
+                                      label="Start"
+                                      type="number"
+                                      fullWidth
+                                      size="small"
+                                      value={newSegment.sourceStartPos}
+                                      onChange={(e) => {
+                                        const pos = parseInt(e.target.value, 10);
+                                        if (!isNaN(pos) && pos > 0) {
+                                          const probe = getProbeById(newSegment.sourceProbeId);
+                                          if (probe) {
+                                            const maxPos = getProbeFullSequence(probe).length;
+                                            if (pos <= maxPos) {
+                                              handleProbeSegmentSelection(newSegment.sourceProbeId, `${pos}-${newSegment.sourceEndPos}`);
+                                            }
+                                          }
+                                        }
+                                      }}
+                                      InputProps={{ inputProps: { min: 1 } }}
+                                    />
+                                  </Grid>
+                                  <Grid item xs={6} sm={1.5}>
+                                    <TextField
+                                      label="End"
+                                      type="number"
+                                      fullWidth
+                                      size="small"
+                                      value={newSegment.sourceEndPos}
+                                      onChange={(e) => {
+                                        const pos = parseInt(e.target.value, 10);
+                                        if (!isNaN(pos) && pos > 0) {
+                                          const probe = getProbeById(newSegment.sourceProbeId);
+                                          if (probe) {
+                                            const maxPos = getProbeFullSequence(probe).length;
+                                            if (pos <= maxPos) {
+                                              handleProbeSegmentSelection(newSegment.sourceProbeId, `${newSegment.sourceStartPos}-${pos}`);
+                                            }
+                                          }
+                                        }
+                                      }}
+                                      InputProps={{ inputProps: { min: 1 } }}
+                                    />
+                                  </Grid>
+                                </>
+                              )}
+                            </>
+                          )}
                           
+                          {/* Selected Sequence Display */}
                           <Grid item xs={12}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <Typography variant="subtitle2">
@@ -951,6 +1268,7 @@ const CustomProbe: React.FC = () => {
                             </SequenceDisplay>
                           </Grid>
                           
+                          {/* Action Buttons */}
                           <Grid item xs={12} sm={6}>
                             <Tooltip title={newSegment.sequence ? "Reverse and complement the selected sequence" : "Select a sequence first"}>
                               <span>
@@ -990,9 +1308,11 @@ const CustomProbe: React.FC = () => {
                 </Collapse>
               </ProbeCard>
             ))}
-            
-            {/* Instructions for probe design flow */}
-            <Paper 
+          </Box>
+        </Paper>
+        
+         {/* Instructions for probe design flow */}
+         <Paper 
               variant="outlined" 
               sx={{ 
                 p: 2, 
@@ -1012,8 +1332,6 @@ const CustomProbe: React.FC = () => {
                 <li>Continue until all desired probes are designed</li>
               </ol>
             </Paper>
-          </Box>
-        </Section>
       </StyledContainer>
     </Container>
   );
