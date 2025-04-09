@@ -1,7 +1,7 @@
 // App.tsx
 import React from 'react';
-import { AppBar, Toolbar, Button, Box, IconButton, useMediaQuery, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
-import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation } from 'react-router-dom';
+import { AppBar, Toolbar, Button, Box, IconButton, useMediaQuery, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
+import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import MenuIcon from '@mui/icons-material/Menu';
 
@@ -150,6 +150,7 @@ const App: React.FC = () => {
         }}
       >
         <Routes>
+          <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="/home" element={<Layout><Home /></Layout>} />
           <Route path="/design" element={<Layout><Design /></Layout>} />
           <Route path="/genome" element={<Layout><Genome /></Layout>} />

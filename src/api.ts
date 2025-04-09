@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ApiResponse, PaginatedResponse } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8123';
 
 // 创建 axios 实例
 const api = axios.create({
@@ -69,16 +69,83 @@ class ApiService {
     return api.delete(`/designs/${id}`);
   }
 
-  // 基因组相关
-  static async getGenomes(params?: { page?: number; pageSize?: number }): Promise<PaginatedResponse<any>> {
-    return api.get('/genomes', { params });
+  // 探针设计工作流相关
+  static async getBarcodeOptions(): Promise<string[]> {
+    return api.get('/workflow/barcodes');
   }
 
-  static async uploadGenome(data: FormData): Promise<ApiResponse<any>> {
-    return api.post('/genomes/upload', data, {
+  static async getBarcodeSequence(barcode: string): Promise<{ [key: string]: string }> {
+    return api.get(`/workflow/barcodes/${barcode}`);
+  }
+
+  static async getSpeciesOptions(): Promise<string[]> {
+    return api.get('/genome/genomes');
+  }
+
+  static async designRCA(data: any): Promise<Blob> {
+    const formData = new FormData();
+    formData.append('file', new Blob([JSON.stringify(data)], { type: 'text/yaml' }), 'workflow.yaml');
+    return api.post('/workflow/design_rca', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      responseType: 'blob',
+    });
+  }
+
+  static async designDNAFISH(data: any): Promise<Blob> {
+    const formData = new FormData();
+    formData.append('file', new Blob([JSON.stringify(data)], { type: 'text/yaml' }), 'workflow.yaml');
+    return api.post('/workflow/design_dnafish', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      responseType: 'blob',
+    });
+  }
+
+  // 基因组相关
+  static async getGenomes(): Promise<string[]> {
+    return api.get('/genome/genomes');
+  }
+
+  static async getGenomeFiles(genomeName: string): Promise<{ genome: string; files: string[] }> {
+    return api.get(`/genome/genomes/${genomeName}/files`);
+  }
+
+  static async getFileMetadata(genomeName: string, fileName: string): Promise<{
+    size: number;
+    created: string;
+    modified: string;
+  }> {
+    return api.get(`/genome/genomes/${genomeName}/${fileName}/metadata`);
+  }
+
+  static async uploadGenomeFile(genomeName: string, file: File): Promise<{ message: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/genome/genomes/${genomeName}/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  }
+
+  static async addGenome(genomeName: string): Promise<{ message: string }> {
+    return api.post(`/genome/genomes/${genomeName}`);
+  }
+
+  static async deleteGenome(genomeName: string): Promise<{ message: string }> {
+    return api.delete(`/genome/genomes/${genomeName}`);
+  }
+
+  static async deleteGenomeFile(genomeName: string, fileName: string): Promise<{ message: string }> {
+    return api.delete(`/genome/genomes/${genomeName}/${fileName}`);
+  }
+
+  static async downloadGenomeFile(genomeName: string, fileName: string): Promise<Blob> {
+    return api.get(`/genome/genomes/${genomeName}/${fileName}`, {
+      responseType: 'blob'
     });
   }
 

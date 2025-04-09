@@ -85,3 +85,50 @@ export interface SnackbarState {
   message: string;
 }
 
+// API响应类型
+export interface ApiResponse<T> {
+  code: number;
+  message: string;
+  data: T;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+// 基因组相关类型
+export interface Genome {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  fileCount: number;
+}
+
+export interface GenomeMetadata {
+  id: string;
+  genomeId: string;
+  species: string;
+  assembly: string;
+  version: string;
+  source: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GenomeFile {
+  id: string;
+  genomeId: string;
+  name: string;
+  type: string;
+  size: number;
+  path: string;
+  createdAt: string;
+  updatedAt: string;
+}
+

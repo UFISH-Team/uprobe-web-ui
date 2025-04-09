@@ -2,140 +2,104 @@ import React from 'react';
 import {
   Box,
   FormControl,
+  InputLabel,
   Select,
   MenuItem,
-  TextField,
+  Typography,
+  CircularProgress,
   IconButton,
-  Tooltip,
-  Button
+  TextField,
+  Button,
 } from '@mui/material';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import InfoIcon from '@mui/icons-material/Info';
 
 interface GenomeSelectorProps {
   genomes: string[];
-  selectedGenome: string;
-  setSelectedGenome: (genome: string) => void;
-  customGenome: string;
-  setCustomGenome: (genome: string) => void;
-  onUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onDeleteGenome: () => void;
-  showMetadata: () => void;
+  selectedGenome: string | null;
+  onSelectGenome: (genomeName: string) => void;
+  onAddGenome: (genomeName: string) => void;
+  onDeleteGenome: (genomeName: string) => void;
+  isLoading?: boolean;
 }
 
 const GenomeSelector: React.FC<GenomeSelectorProps> = ({
   genomes,
   selectedGenome,
-  setSelectedGenome,
-  customGenome,
-  setCustomGenome,
-  onUpload,
+  onSelectGenome,
+  onAddGenome,
   onDeleteGenome,
-  showMetadata
+  isLoading = false,
 }) => {
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [newGenomeName, setNewGenomeName] = React.useState('');
 
-  const triggerFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
+  const handleAddGenome = () => {
+    if (newGenomeName.trim()) {
+      onAddGenome(newGenomeName.trim());
+      setNewGenomeName('');
     }
   };
 
-  const handleGenomeChange = (event: any) => {
-    setSelectedGenome(event.target.value);
-    setCustomGenome('');
-  };
-
-  const handleCustomGenomeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setCustomGenome(event.target.value);
-    setSelectedGenome('');
-  };
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
-    <Box 
-      sx={{
-        display: 'flex',
-        flexDirection: { xs: 'column', sm: 'row' },
-        alignItems: { xs: 'stretch', sm: 'center' },
-        gap: 2,
-        mb: 3,
-        p: 2,
-        backgroundColor: 'background.paper',
-        borderRadius: 1,
-        boxShadow: 1
-      }}
-    >
-      <FormControl sx={{ minWidth: 150, flex: { sm: 1 } }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <FormControl fullWidth>
+        <InputLabel id="genome-select-label">Select Genome</InputLabel>
         <Select
-          value={selectedGenome}
-          onChange={handleGenomeChange}
-          displayEmpty
-          fullWidth
-          sx={{ height: '40px' }}
+          labelId="genome-select-label"
+          value={selectedGenome || ''}
+          label="Select Genome"
+          onChange={(e) => onSelectGenome(e.target.value)}
         >
-          <MenuItem value="">
-            <em>Select Species</em>
-          </MenuItem>
-          {genomes.map((genome, index) => (
-            <MenuItem key={index} value={genome}>{genome}</MenuItem>
+          {genomes.map((genome) => (
+            <MenuItem key={genome} value={genome}>
+              {genome}
+            </MenuItem>
           ))}
         </Select>
       </FormControl>
 
-      <TextField
-        placeholder="Or enter new species..."
-        variant="outlined"
-        size="small"
-        value={customGenome}
-        onChange={handleCustomGenomeChange}
-        sx={{ flex: { sm: 1 } }}
-        InputProps={{ sx: { height: '40px' } }}
-      />
-
-      <Box sx={{ display: 'flex', gap: 1, justifyContent: { xs: 'flex-end', sm: 'flex-start' } }}>
-        <Tooltip title="Upload files">
-          <Button 
-            variant="contained" 
-            color="primary" 
-            onClick={triggerFileInput}
-            startIcon={<CloudUploadIcon />}
-            size="small"
-          >
-            Upload
-          </Button>
-        </Tooltip>
-        <input
-          type="file"
-          multiple
-          style={{ display: 'none' }}
-          ref={fileInputRef}
-          onChange={onUpload}
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        <TextField
+          fullWidth
+          size="small"
+          label="New Genome Name"
+          value={newGenomeName}
+          onChange={(e) => setNewGenomeName(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              handleAddGenome();
+            }
+          }}
         />
+        <Button
+          variant="contained"
+          onClick={handleAddGenome}
+          disabled={!newGenomeName.trim()}
+          startIcon={<AddIcon />}
+        >
+          Add
+        </Button>
+      </Box>
 
-        <Tooltip title="Delete selected genome">
+      {selectedGenome && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
           <IconButton
             color="error"
-            onClick={onDeleteGenome}
-            disabled={!selectedGenome}
-            size="small"
-            sx={{ ml: 1 }}
+            onClick={() => onDeleteGenome(selectedGenome)}
+            title="Delete Genome"
           >
             <DeleteIcon />
           </IconButton>
-        </Tooltip>
-
-        <Tooltip title="Toggle metadata panel">
-          <IconButton
-            color="info"
-            onClick={showMetadata}
-            size="small"
-            sx={{ display: { xs: 'flex', md: 'none' } }}
-          >
-            <InfoIcon />
-          </IconButton>
-        </Tooltip>
-      </Box>
+        </Box>
+      )}
     </Box>
   );
 };
