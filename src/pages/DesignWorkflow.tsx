@@ -14,6 +14,8 @@ import { CustomProbeType, extractParametersFromYaml } from '../types';
 
 import { Container, Section } from '../style';
 
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8123';
+
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
   const [barcodeOptions, setBarcodeOptions] = useState<string[]>([]);

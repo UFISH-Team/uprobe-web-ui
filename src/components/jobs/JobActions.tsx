@@ -4,11 +4,11 @@ import ButtonGroup from '@mui/material/ButtonGroup';
 import Popover from '@mui/material/Popover';
 import MenuItem from '@mui/material/MenuItem';
 
-import useStore from '../../store';
+import useJobStore from '../../store/jobStore';
 
 
 const JobActions = () => {
-  const { selectedJobs, monitorMode, allowedRouters, modifyJobs } = useStore((state) => state)
+  const { selectedJobs, monitorMode, allowedRouters, modifyJobs } = useJobStore((state) => state)
   const [anchorEl, setAnchorEl] = React.useState<HTMLButtonElement | null>(null)
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);

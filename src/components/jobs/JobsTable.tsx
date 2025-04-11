@@ -2,11 +2,11 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import { DataGrid, GridColDef, GridRowsProp, GridRowSelectionModel } from '@mui/x-data-grid';
 
-import useStore from '../../store';
+import useJobStore from '../../store/jobStore';
 import { Job } from '../../types';
 
 const JobsTable = () => {
-  const { jobs, setSelectedJobs, id2Job, refreshJobs } = useStore();
+  const { jobs, setSelectedJobs, id2Job, refreshJobs } = useJobStore((state) => state);
   const [rows, setRows] = useState<GridRowsProp>([]);
 
   // Define columns outside of render for better performance

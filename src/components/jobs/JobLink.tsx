@@ -1,14 +1,14 @@
 import Button from '@mui/material/Button';
 import { useSnackbar } from 'notistack';
 
-import useStore from '../../store';
+import useJobStore from '../../store/jobStore';
 
 
 const JobLink = () => {
   const {
     selectedJobs, allowedRouters, serverAddr,
     refreshJobs,
-  } = useStore((state) => state)
+  } = useJobStore((state) => state)
 
   const { enqueueSnackbar } = useSnackbar()
 

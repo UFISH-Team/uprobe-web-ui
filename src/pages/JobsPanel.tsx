@@ -1,56 +1,45 @@
-// File: pages/JobsPanel.tsx
+import React from 'react';
+import Button from '@mui/material/Button';
+import ButtonGroup from '@mui/material/ButtonGroup';
+import Divider from '@mui/material/Divider';
 
-import React, { useState } from "react";
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
-import { Typography, Box } from "@mui/material";
+import useJobStore from '../store/jobStore';
+import JobsTable from '../components/jobs/JobsTable';
+import JobActions from '../components/jobs/JobActions';
+import JobLink from '../components/jobs/JobLink';
+import OpenJobDetail from '../components/jobs/OpenJobDetail';
+import OpenChainView from '../components/jobs/OpenChainView';
 
-// Define the structure of a Job
-export interface Job {
-  id: string;
-  name: string;
-  created_time: string;
-  stoped_time: string;
-  status: string;
-  job_type: string;
-}
 
-const JobsPanel: React.FC = () => {
-  // State to store submitted jobs
-  const [jobs, setJobs] = useState<Job[]>([]);
+export default function JobsPanel(props: {}) {
 
-  // Columns for DataGrid
-  const columns: GridColDef[] = [
-    { field: "id", headerName: "ID", width: 150 },
-    { field: "created_time", headerName: "Created Time", width: 200 },
-    { field: "stoped_time", headerName: "Stopped Time", width: 200 },
-    { field: "name", headerName: "Job Name", width: 250 },
-    { field: "status", headerName: "Status", width: 150 },
-    { field: "job_type", headerName: "Job Type", width: 150 },
-  ];
+  const { refreshJobs, serverAddr, monitorMode } = useJobStore((state) => state)
 
-  // Handler for when a new task is submitted
-  const handleTaskSubmit = (newTask: Job) => {
-    console.log("New Task Submitted:", newTask); // Debugging line to check task content
-    setJobs((prevJobs) => [...prevJobs, newTask]);  // Add new task to jobs list
-  };
+  React.useEffect(() => {
+    const fetchInterval = 5000
+    const interval = setInterval(() => refreshJobs(), fetchInterval)
+
+    return () => {
+      clearInterval(interval)
+    }
+  }, [serverAddr, monitorMode])
 
   return (
-    <Box sx={{ padding: "20px" }}>
-      <Typography variant="h4" gutterBottom>
-        Job List
-      </Typography>
-
-      <div style={{ height: 400, width: "100%" }}>
-        <DataGrid 
-          rows={jobs} 
-          columns={columns} 
-          pageSize={5} 
-          checkboxSelection 
-          getRowId={(row) => row.id}  // Ensure DataGrid uses 'id' as row identifier
-        />
+    <div>
+      <div>
+        <ButtonGroup>
+          <Button onClick={(e) => refreshJobs()}>Refresh</Button>
+          <JobActions />
+          <OpenChainView />
+          <OpenJobDetail />
+          <JobLink />
+        </ButtonGroup>
       </div>
-    </Box>
-  );
-};
 
-export default JobsPanel;
+      <Divider style={{marginBottom: 20, marginTop: 20}} />
+
+      <JobsTable />
+
+    </div>
+  )
+}

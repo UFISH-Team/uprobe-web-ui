@@ -7,7 +7,7 @@ import Button from '@mui/material/Button';
 import { Job } from "../../types";
 import { Accordion, AccordionSummary, AccordionDetails } from '../common/Accordion';
 import PseudoTerminal from './PseudoTerminal';
-import { FetchStdout, FetchStderr } from '../network/FetchLogs';
+import { FetchStdout, FetchStderr } from './FetchLogs';
 
 
 interface IProps {

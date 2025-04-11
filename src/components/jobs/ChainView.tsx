@@ -14,7 +14,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
 
-import useStore from '../../store';
+import useJobStore from '../../store/jobStore';
 import { Job } from '../../types';
 
 
@@ -122,7 +122,7 @@ const layoutGraph = (nodes: Node[], edges: Edge[]) => {
 export default function ChainView() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const { jobs, refreshJobs } = useStore((state) => state);
+  const { jobs, refreshJobs } = useJobStore((state) => state);
 
   React.useEffect(() => {
     refreshJobs()

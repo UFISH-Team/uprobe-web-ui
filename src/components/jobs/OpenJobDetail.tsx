@@ -2,12 +2,12 @@ import React from 'react';
 import Button from '@mui/material/Button';
 
 import JobDetailDialog from './JobDetailDialog';
-import useStore from '../../store';
+import useJobStore from '../../store/jobStore';
 
 
 const OpenJobDetail = () => {
 
-  const { selectedJobs } = useStore((state) => state)
+  const { selectedJobs } = useJobStore((state) => state)
   const [detailDialogOpen, setDetailDialogOpen] = React.useState(false)
 
   return (
