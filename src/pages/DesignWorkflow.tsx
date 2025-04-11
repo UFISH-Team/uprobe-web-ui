@@ -14,8 +14,6 @@ import { CustomProbeType, extractParametersFromYaml } from '../types';
 
 import { Container, Section } from '../style';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8123';
-
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
   const [barcodeOptions, setBarcodeOptions] = useState<string[]>([]);
@@ -66,6 +64,7 @@ const DesignWorkflow: React.FC = () => {
     setRemoveOverlap,
     setAlert,
     submitTask,
+    navigateToJobs,
   } = useDesignStore();
 
   // Fetch species and barcode options on mount
@@ -897,7 +896,7 @@ const DesignWorkflow: React.FC = () => {
           onClick={submitTask}
           disabled={isSubmitting}
         >
-          {isSubmitting ? 'Designing...' : 'Submit Task'}
+          {isSubmitting ? 'Submitting...' : 'Submit Task'}
         </Button>
       </Box>
 
@@ -910,7 +909,7 @@ const DesignWorkflow: React.FC = () => {
 
       {/* Download button */}
       {downloadUrl && (
-        <Box display="flex" justifyContent="center" alignItems="center" mt={4}>
+        <Box display="flex" justifyContent="center" alignItems="center" mt={4} gap={2}>
           <Button
             variant="contained"
             color="success"
@@ -922,6 +921,13 @@ const DesignWorkflow: React.FC = () => {
             }}
           >
             Download .zip
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={navigateToJobs}
+          >
+            View in Jobs Panel
           </Button>
         </Box>
       )}

@@ -104,6 +104,17 @@ class ApiService {
     });
   }
 
+  static async designUProbe(data: any): Promise<Blob> {
+    const formData = new FormData();
+    formData.append('file', new Blob([JSON.stringify(data)], { type: 'text/yaml' }), 'workflow.yaml');
+    return api.post('/workflow/design_uprobe', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      responseType: 'blob',
+    });
+  }
+
   // 基因组相关
   static async getGenomes(): Promise<string[]> {
     return api.get('/genome/genomes');

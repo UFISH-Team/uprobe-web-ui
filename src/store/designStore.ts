@@ -92,6 +92,7 @@ interface DesignState {
   setProgress: (progress: number) => void;
   setDownloadUrl: (url: string | null) => void;
   setAlert: (open: boolean, message: string, severity: 'success' | 'error') => void;
+  navigateToJobs: () => void;
   
   // API actions
   submitTask: () => Promise<void>;
@@ -203,6 +204,10 @@ const useDesignStore = create<DesignState>((set, get) => ({
     alertMessage: message,
     alertSeverity: severity,
   }),
+  navigateToJobs: () => {
+    const jobStore = (require('./jobStore')).default;
+    jobStore.getState().setPanel("job");
+  },
   
   // API actions
   getBarcodeSequence: async (barcode) => {
@@ -247,6 +252,15 @@ const useDesignStore = create<DesignState>((set, get) => ({
       });
       return;
     }
+
+    if (state.probeType === 'U-Probe' && state.geneList.some(gene => !gene.gene)) {
+      set({
+        alertOpen: true,
+        alertMessage: 'Please fill in all gene names for U-Probe design.',
+        alertSeverity: 'error',
+      });
+      return;
+    }
     
     set({ isSubmitting: true, progress: 30 });
     
@@ -265,6 +279,7 @@ const useDesignStore = create<DesignState>((set, get) => ({
           }
         }
       }
+
       
       const yamlContent = {
         name: state.taskName,
@@ -317,6 +332,22 @@ const useDesignStore = create<DesignState>((set, get) => ({
         ? ApiService.designRCA(yamlContent)
         : ApiService.designDNAFISH(yamlContent));
       
+      // Create a job entry
+      const jobData = {
+        name: state.taskName,
+        job_type: state.probeType,
+        status: 'running',
+        description: `${state.probeType} design for ${state.species}`,
+        parameters: yamlContent
+      };
+      
+      // Create job in the system
+      await ApiService.createJob(jobData);
+      
+      // Refresh job list to show the new job
+      const jobStore = (await import('./jobStore')).default;
+      jobStore.getState().refreshJobs();
+      
       set({ progress: 90 });
       
       // Create download URL
@@ -327,9 +358,14 @@ const useDesignStore = create<DesignState>((set, get) => ({
         progress: 100,
         downloadUrl: url,
         alertOpen: true,
-        alertMessage: 'Task submitted successfully! You can now download the result.',
+        alertMessage: 'Task submitted successfully! You can now download the result and view it in the Jobs panel.',
         alertSeverity: 'success',
       });
+
+      // Navigate to Jobs panel after a short delay to allow the user to see the success message
+      setTimeout(() => {
+        get().navigateToJobs();
+      }, 2000);
     } catch (error) {
       set({
         alertOpen: true,
