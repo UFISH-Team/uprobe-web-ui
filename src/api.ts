@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ApiResponse, PaginatedResponse } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8123';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8123';
 
 // 创建 axios 实例
 const api = axios.create({

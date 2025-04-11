@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Snackbar, Alert, TextField, Box, Typography, Button, Select, MenuItem, InputLabel, FormControl, Grid, Divider, Menu, IconButton, LinearProgress, Dialog, DialogTitle, DialogContent, List, ListItem, ListItemText } from '@mui/material';
-import { styled } from '@mui/system';
+
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -8,83 +8,11 @@ import SortIcon from '@mui/icons-material/Sort';
 import RemoveCircleIcon from '@mui/icons-material/RemoveCircle';
 import CloseIcon from '@mui/icons-material/Close';
 import Papa from 'papaparse';
-import useDesignStore from './designStore';
-import ApiService from '../../api';
+import useDesignStore from '../store/designStore';
+import ApiService from '../api';
+import { CustomProbeType, extractParametersFromYaml } from '../types';
 
-const Container = styled(Box)({
-  padding: '30px',
-  maxWidth: '1400px',
-  margin: '0 auto',
-  borderRadius: '8px',
-  boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
-});
-
-const Section = styled(Box)({
-  marginBottom: '40px',
-});
-
-// Add this interface at the top of the file
-interface CustomProbeType {
-  id: string;
-  name: string;
-  type: string;
-  yamlContent: string;
-  createdAt: Date;
-  updatedAt: Date;
-  barcodeCount: number;
-  targetLength?: number;
-  overlap?: number;
-  partLengths?: {
-    part1: number;
-    part2: number;
-    part3: number;
-  };
-}
-
-// Add this function to parse YAML content
-const parseYamlContent = (yamlContent: string) => {
-  try {
-    const yaml = require('js-yaml');
-    const parsed = yaml.load(yamlContent);
-    return parsed;
-  } catch (e) {
-    console.error('Error parsing YAML:', e);
-    return null;
-  }
-};
-
-// Add this function to extract parameters from YAML
-const extractParametersFromYaml = (yamlContent: string) => {
-  const parsed = parseYamlContent(yamlContent);
-  if (!parsed) return null;
-
-  const parameters: any = {};
-  
-  // Extract target length from YAML
-  if (parsed.target_sequence_length) {
-    parameters.targetLength = parsed.target_sequence_length;
-  }
-
-  // Extract barcode count from probes
-  if (parsed.probes) {
-    const barcodeSet = new Set<string>();
-    Object.values(parsed.probes).forEach((probe: any) => {
-      if (probe.parts) {
-        Object.values(probe.parts).forEach((part: any) => {
-          if (part.expr && part.expr.includes('encoding')) {
-            const barcodeMatch = part.expr.match(/'([^']+)'/);
-            if (barcodeMatch) {
-              barcodeSet.add(barcodeMatch[1]);
-            }
-          }
-        });
-      }
-    });
-    parameters.barcodeCount = barcodeSet.size;
-  }
-
-  return parameters;
-};
+import { Container, Section } from '../style';
 
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);

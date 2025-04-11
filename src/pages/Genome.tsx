@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Box, Container, Grid, Typography, Snackbar } from '@mui/material';
-import { useGenomeData } from '../components/genome/hooks/useGenomeData';
-import { useNotification } from '../components/genome/hooks/useNotification';
+import { useGenomeData } from '../hooks/useGenomeData';
+import { useNotification } from '../hooks/useNotification';
 import FileUpload from '../components/genome/FileUpload';
 import FileList from '../components/genome/FileList';
 import GenomeSelector from '../components/genome/GenomeSelector';

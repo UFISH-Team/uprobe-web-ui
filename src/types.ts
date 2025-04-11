@@ -132,3 +132,63 @@ export interface GenomeFile {
   updatedAt: string;
 }
 
+export interface CustomProbeType {
+  id: string;
+  name: string;
+  type: string;
+  yamlContent: string;
+  createdAt: Date;
+  updatedAt: Date;
+  barcodeCount: number;
+  targetLength?: number;
+  overlap?: number;
+  partLengths?: {
+    part1: number;
+    part2: number;
+    part3: number;
+  };
+}
+
+export const parseYamlContent = (yamlContent: string) => {
+  try {
+    const yaml = require('js-yaml');
+    const parsed = yaml.load(yamlContent);
+    return parsed;
+  } catch (e) {
+    console.error('Error parsing YAML:', e);
+    return null;
+  }
+};
+
+// Add this function to extract parameters from YAML
+export const extractParametersFromYaml = (yamlContent: string) => {
+  const parsed = parseYamlContent(yamlContent);
+  if (!parsed) return null;
+
+  const parameters: any = {};
+  
+  // Extract target length from YAML
+  if (parsed.target_sequence_length) {
+    parameters.targetLength = parsed.target_sequence_length;
+  }
+
+  // Extract barcode count from probes
+  if (parsed.probes) {
+    const barcodeSet = new Set<string>();
+    Object.values(parsed.probes).forEach((probe: any) => {
+      if (probe.parts) {
+        Object.values(probe.parts).forEach((part: any) => {
+          if (part.expr && part.expr.includes('encoding')) {
+            const barcodeMatch = part.expr.match(/'([^']+)'/);
+            if (barcodeMatch) {
+              barcodeSet.add(barcodeMatch[1]);
+            }
+          }
+        });
+      }
+    });
+    parameters.barcodeCount = barcodeSet.size;
+  }
+
+  return parameters;
+};

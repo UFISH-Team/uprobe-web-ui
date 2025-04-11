@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import ApiService from '../../api';
+import ApiService from '../api';
 
 interface Gene {
   gene: string;

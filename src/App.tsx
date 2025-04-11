@@ -11,6 +11,7 @@ import Genome from './pages/Genome';
 import JobsPanel from './pages/JobsPanel';
 import Tutorial from './pages/Tutorial';
 
+
 import Layout from './components/common/Layout';
 import AccountMenu from './pages/AccountMenu';
 import Profile from './components/users/Profile';
@@ -18,8 +19,8 @@ import MyAccount from './components/users/MyAccount';
 import AddAccount from './components/users/AddAccount';
 import Settings from './components/users/Settings';
 import Logout from './components/users/Logout';
-import CustomProbe from './components/designs/CustomProbe';
-import DesignWorkflow from './components/designs/DesignWorkflow';
+import CustomProbe from './pages/CustomProbe';
+import DesignWorkflow from './pages/DesignWorkflow';
 import NotFound from './components/common/NotFound';
 
 import { ThemeProvider } from '@mui/material/styles';

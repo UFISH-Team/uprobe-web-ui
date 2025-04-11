@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import ApiService from '../../../api';
+import ApiService from '../api';
 import { useNotification } from './useNotification';
 
 export const useGenomeData = () => {
