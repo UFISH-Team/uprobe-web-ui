@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import ApiService from '../api';
+import { CustomProbeType } from '../types';
 
 interface Gene {
   gene: string;
@@ -45,6 +46,9 @@ interface DesignState {
     overlap: number;
     poolList: Pool[];
   };
+
+  // Custom probe type specific
+  selectedCustomType: CustomProbeType | null;
   
   // Post processing
   filters: Filter[];
@@ -63,6 +67,7 @@ interface DesignState {
   setTaskName: (name: string) => void;
   setProbeType: (type: 'RCA' | 'DNA-FISH' | string) => void;
   setSpecies: (species: string) => void;
+  setSelectedCustomType: (type: CustomProbeType | null) => void;
   
   // RCA actions
   setGeneList: (list: Gene[]) => void;
@@ -106,13 +111,14 @@ const useDesignStore = create<DesignState>((set, get) => ({
   species: '',
   geneList: [{ gene: '' }],
   minLength: 40,
-  overlap: 35,
+  overlap: 20,
   partLengths: { part1: 13, part2: 13, part3: 13 },
   dnaFishParams: {
     length: 70,
     overlap: 20,
     poolList: [{ name: '', location: '', numbers: 8000, density: 0.00005 }],
   },
+  selectedCustomType: null,
   filters: [],
   sorts: [],
   removeOverlap: 0,
@@ -127,6 +133,7 @@ const useDesignStore = create<DesignState>((set, get) => ({
   setTaskName: (name) => set({ taskName: name }),
   setProbeType: (type) => set({ probeType: type }),
   setSpecies: (species) => set({ species }),
+  setSelectedCustomType: (type) => set({ selectedCustomType: type }),
   
   // RCA setters
   setGeneList: (list) => set({ geneList: list }),
@@ -221,90 +228,86 @@ const useDesignStore = create<DesignState>((set, get) => ({
   },
   
   submitTask: async () => {
-    const state = get();
-    
-    // Input validation
-    if (!state.taskName || !state.probeType || !state.species) {
-      set({
-        alertOpen: true,
-        alertMessage: 'Please fill in all required fields before submitting.',
-        alertSeverity: 'error',
-      });
-      return;
-    }
-    
-    if (state.probeType === 'RCA' && state.geneList.some(gene => !gene.gene)) {
-      set({
-        alertOpen: true,
-        alertMessage: 'Please fill in all gene names for RCA design.',
-        alertSeverity: 'error',
-      });
-      return;
-    }
-    
-    if (state.probeType === 'DNA-FISH' && state.dnaFishParams.poolList.some(pool => 
-      !pool.name || !pool.location || pool.numbers === 0 || pool.density === 0
-    )) {
-      set({
-        alertOpen: true,
-        alertMessage: 'Please fill in all pool details for DNA-FISH design.',
-        alertSeverity: 'error',
-      });
-      return;
-    }
-
-    if (state.probeType === 'U-Probe' && state.geneList.some(gene => !gene.gene)) {
-      set({
-        alertOpen: true,
-        alertMessage: 'Please fill in all gene names for U-Probe design.',
-        alertSeverity: 'error',
-      });
-      return;
-    }
-    
-    set({ isSubmitting: true, progress: 30 });
-    
     try {
-      // Generate YAML content
-      const barcodeSet: { [key: string]: string } = {};
+      const state = get();
       
-      if (state.probeType === 'RCA') {
-        for (const item of state.geneList) {
-          const barcode1Sequence = await get().getBarcodeSequence(item.barcode1);
-          const barcode2Sequence = await get().getBarcodeSequence(item.barcode2);
-          
-          if (barcode1Sequence && barcode2Sequence) {
-            barcodeSet[item.barcode1] = barcode1Sequence;
-            barcodeSet[item.barcode2] = barcode2Sequence;
-          }
-        }
+      // Input validation
+      if (!state.taskName || !state.probeType || !state.species) {
+        set({
+          alertOpen: true,
+          alertMessage: 'Please fill in all required fields before submitting.',
+          alertSeverity: 'error',
+        });
+        return;
+      }
+      
+      if (state.probeType === 'RCA' && state.geneList.some(gene => !gene.gene)) {
+        set({
+          alertOpen: true,
+          alertMessage: 'Please fill in all gene names for RCA design.',
+          alertSeverity: 'error',
+        });
+        return;
+      }
+      
+      if (state.probeType === 'DNA-FISH' && state.dnaFishParams.poolList.some(pool => 
+        !pool.name || !pool.location || pool.numbers === 0 || pool.density === 0
+      )) {
+        set({
+          alertOpen: true,
+          alertMessage: 'Please fill in all pool details for DNA-FISH design.',
+          alertSeverity: 'error',
+        });
+        return;
       }
 
+      if (state.probeType === 'U-Probe' && state.geneList.some(gene => !gene.gene)) {
+        set({
+          alertOpen: true,
+          alertMessage: 'Please fill in all gene names for U-Probe design.',
+          alertSeverity: 'error',
+        });
+        return;
+      }
+      
+      set({ isSubmitting: true, progress: 30 });
+      
       
       const yamlContent = {
         name: state.taskName,
         probetype: state.probeType,
         genome: state.species,
-        targets: state.probeType === 'RCA' ? state.geneList.map(gene => gene.gene) : undefined,
+        targets: state.probeType !== 'DNA-FISH' ? state.geneList.map((gene: Gene) => gene.gene) : undefined,
+        barcode_set: '',
+        extracts: {
+          target_region: {
+            source: 'targets',
+            length: state.minLength,
+            overlap: state.overlap
+          },
+        },  
         ...(state.probeType === 'RCA' && {
-          barcode_set: barcodeSet,
-          encoding: state.geneList.reduce((acc, item) => {
+          encoding: state.geneList.reduce((acc: { [key: string]: { barcode1: string; barcode2: string } }, item: Gene) => {
             acc[item.gene] = {
-              barcode1: item.barcode1,
-              barcode2: item.barcode2,
+              barcode1: item.barcode1 || '',
+              barcode2: item.barcode2 || '',
             };
             return acc;
           }, {} as { [key: string]: { barcode1: string; barcode2: string } }),
-          extracts: {
-            target_region: {
-              source: 'targets',
-              min_length: state.minLength,
-              overlap: state.overlap,
+          probes: {
+            circle_probe: {
               template: '{part1}{part2}N{part3}',
               parts: {
                 part1: { length: state.partLengths.part1, source: 'target_region[0:length]' },
                 part2: { length: state.partLengths.part2, source: 'target_region[len(part1):len(part1)+length]' },
                 part3: { length: state.partLengths.part3, source: 'target_region[-length:]' },
+              },
+            },
+            amp_probe: {
+              template: "{part1}N{part2}",
+              parts: {
+                part1: { expr: "rc(circle_probe.part2.barcode2)" },
+                part2: { expr: "rc(target_region[-self.length:])" },
               },
             },
           },
@@ -316,12 +319,38 @@ const useDesignStore = create<DesignState>((set, get) => ({
               overlap: state.dnaFishParams.overlap,
             },
           },
-          pool_list: state.dnaFishParams.poolList.map(pool => ({
+          pool_list: state.dnaFishParams.poolList.map((pool: Pool) => ({
             name: pool.name,
             location: pool.location,
             numbers: pool.numbers,
             density: pool.density,
           })),
+        }),
+        ...(state.probeType !== 'RCA' && state.probeType !== 'DNA-FISH' && {
+          encoding: state.geneList.reduce((acc: { [key: string]: { [key: string]: string } }, item: Gene) => {
+            // Create an object with all barcodes for this gene
+            const barcodes: { [key: string]: string } = {};
+            // Add all barcodes from the gene object (excluding the gene name itself)
+            Object.entries(item).forEach(([key, value]) => {
+              if (key !== 'gene' && value) {
+                barcodes[key] = value;
+              }
+            });
+            acc[item.gene] = barcodes;
+            return acc;
+          }, {} as { [key: string]: { [key: string]: string } }),
+          ...(state.selectedCustomType?.yamlContent 
+            ? (() => {
+                try {
+                  const yaml = require('js-yaml');
+                  const parsed = yaml.load(state.selectedCustomType.yamlContent);
+                  return parsed || {};
+                } catch (e) {
+                  console.error('Error parsing YAML for custom probe type:', e);
+                  return {};
+                }
+              })()
+            : {}),
         }),
       };
       
@@ -330,7 +359,9 @@ const useDesignStore = create<DesignState>((set, get) => ({
       // Submit to API
       const response = await (state.probeType === 'RCA' 
         ? ApiService.designRCA(yamlContent)
-        : ApiService.designDNAFISH(yamlContent));
+        : state.probeType === 'DNA-FISH'
+          ? ApiService.designDNAFISH(yamlContent)
+          : ApiService.designUProbe(yamlContent));
       
       // Create a job entry
       const jobData = {
