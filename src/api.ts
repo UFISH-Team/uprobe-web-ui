@@ -32,10 +32,29 @@ api.interceptors.response.use(
     return response.data;
   },
   (error) => {
-    if (error.response?.status === 401) {
-      // 处理未授权错误
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+    if (error.response) {
+      switch (error.response.status) {
+        case 401:
+          // 处理未授权错误
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+          break;
+        case 403:
+          console.error('Access forbidden:', error.response.data);
+          break;
+        case 404:
+          console.error('Resource not found:', error.response.data);
+          break;
+        case 500:
+          console.error('Server error:', error.response.data);
+          break;
+        default:
+          console.error('API error:', error.response.data);
+      }
+    } else if (error.request) {
+      console.error('Network error:', error.request);
+    } else {
+      console.error('Error:', error.message);
     }
     return Promise.reject(error);
   }

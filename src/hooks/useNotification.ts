@@ -5,12 +5,14 @@ export const useNotification = () => {
   const [notification, setNotification] = useState<SnackbarState>({
     open: false,
     message: '',
+    severity: 'info'
   });
 
   const showNotification = useCallback((message: string, severity: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     setNotification({
       open: true,
       message,
+      severity
     });
   }, []);
 

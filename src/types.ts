@@ -33,6 +33,7 @@ export interface FileItem {
 export interface SnackbarState {
   open: boolean;
   message: string;
+  severity: 'success' | 'error' | 'info' | 'warning';
 }
 
 // API响应类型

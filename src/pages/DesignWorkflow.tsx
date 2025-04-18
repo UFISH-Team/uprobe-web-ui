@@ -279,7 +279,7 @@ const DesignWorkflow: React.FC = () => {
   return (
     <Container>
       <Box textAlign="center" mb={4}>
-        <Typography variant="h5" sx={{ mt: 2 }} gutterBottom>
+        <Typography variant="h3" sx={{ mt: 2 }} gutterBottom>
           Ready to craft your perfect workflow? 🎨
         </Typography>
         <Typography variant="body1" color="text.secondary">
