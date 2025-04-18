@@ -21,7 +21,6 @@ import {
   List, 
   ListItem, 
   ListItemText,
-  Paper,
   Stepper,
   Step,
   StepLabel,
@@ -44,7 +43,7 @@ import useDesignStore from '../store/designStore';
 import ApiService from '../api';
 import { CustomProbeType, extractParametersFromYaml } from '../types';
 
-import { Container, Section } from '../style';
+import { Container } from '../style';
 
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
@@ -77,7 +76,6 @@ const DesignWorkflow: React.FC = () => {
     removeOverlap,
     isSubmitting,
     progress,
-    downloadUrl,
     alertOpen,
     alertMessage,
     alertSeverity,
@@ -104,7 +102,6 @@ const DesignWorkflow: React.FC = () => {
     setRemoveOverlap,
     setAlert,
     submitTask,
-    navigateToJobs,
   } = useDesignStore();
 
   // Fetch species and barcode options on mount
@@ -124,25 +121,28 @@ const DesignWorkflow: React.FC = () => {
     fetchOptions();
   }, []);
 
+  // Extract loadCustomProbeTypes function
+  const loadCustomProbeTypes = () => {
+    const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
+    const customTypes = savedGroups
+      .filter((group: any) => group.type === 'custom')
+      .map((group: any) => ({
+        id: group.id,
+        name: group.name,
+        type: 'custom',
+        yamlContent: group.yamlContent,
+        createdAt: new Date(group.createdAt),
+        updatedAt: new Date(group.updatedAt),
+        barcodeCount: group.barcodeCount,
+        targetLength: group.targetLength,
+        overlap: group.overlap,
+        probes: group.probes || {}
+      }));
+    setCustomProbeTypes(customTypes);
+  };
+
   // Add this useEffect to load custom probe types
   useEffect(() => {
-    const loadCustomProbeTypes = () => {
-      const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
-      const customTypes = savedGroups
-        .filter((group: any) => group.type === 'custom')
-        .map((group: any) => ({
-          id: group.id,
-          name: group.name,
-          type: 'custom',
-          yamlContent: group.yamlContent,
-          createdAt: new Date(group.createdAt),
-          updatedAt: new Date(group.updatedAt),
-          barcodeCount: group.barcodeCount,
-          targetLength: group.targetLength
-        }));
-      setCustomProbeTypes(customTypes);
-    };
-
     loadCustomProbeTypes();
     
     // Add event listener for storage changes
@@ -220,7 +220,8 @@ const DesignWorkflow: React.FC = () => {
           const updatedCustomType = {
             ...customType,
             targetLength: parameters.targetLength,
-            barcodeCount: parameters.barcodeCount
+            barcodeCount: parameters.barcodeCount,
+            probes: parameters.probes
           };
           setSelectedCustomType(updatedCustomType);
           // Set default target length from YAML or custom type
@@ -955,49 +956,94 @@ const DesignWorkflow: React.FC = () => {
         <DialogTitle>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6">Custom Probe Types</Typography>
-            <IconButton onClick={() => setShowCustomProbeTypes(false)}>
-              <CloseIcon />
-            </IconButton>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <IconButton onClick={() => setShowCustomProbeTypes(false)}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
           </Box>
         </DialogTitle>
         <DialogContent>
           <List>
-            {customProbeTypes.map((type) => (
-              <ListItem
-                key={type.id}
-                secondaryAction={
-                  <Box>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => handleProbeTypeSelect(type.name)}
-                      sx={{ mr: 1 }}
-                    >
-                      Select
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      color="error"
-                      onClick={() => {
-                        const updatedTypes = customProbeTypes.filter(t => t.id !== type.id);
-                        setCustomProbeTypes(updatedTypes);
-                        localStorage.setItem('savedProbeGroups', 
-                          JSON.stringify(JSON.parse(localStorage.getItem('savedProbeGroups') || '[]')
-                            .filter((g: any) => g.id !== type.id)));
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </Box>
-                }
-              >
-                <ListItemText
-                  primary={type.name}
-                  secondary={`Created: ${type.createdAt.toLocaleString()}`}
+            {customProbeTypes.length === 0 ? (
+              <ListItem>
+                <ListItemText 
+                  primary="No custom probe types found" 
+                  secondary="No custom probe types available"
                 />
               </ListItem>
-            ))}
+            ) : (
+              customProbeTypes.map((type) => (
+                <ListItem
+                  key={type.id}
+                  secondaryAction={
+                    <Box>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleProbeTypeSelect(type.name)}
+                        sx={{ mr: 1 }}
+                      >
+                        Select
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => {
+                          try {
+                            const blob = new Blob([type.yamlContent], { type: 'text/yaml' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${type.name.replace(/\s+/g, '_')}.yaml`;
+                            
+                            // Show downloading message
+                            setAlert(true, 'Downloading YAML file...', 'success');
+                            
+                            // Start download
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            
+                            // Cleanup and show success message after a delay
+                            setTimeout(() => {
+                              URL.revokeObjectURL(url);
+                              setAlert(true, 'YAML file downloaded successfully!', 'success');
+                            }, 1000);
+                          } catch (error) {
+                            console.error('Error downloading file:', error);
+                            setAlert(true, 'Error downloading YAML file', 'error');
+                          }
+                        }}
+                        sx={{ mr: 1 }}
+                      >
+                        Download
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        color="error"
+                        onClick={() => {
+                          const updatedTypes = customProbeTypes.filter(t => t.id !== type.id);
+                          setCustomProbeTypes(updatedTypes);
+                          localStorage.setItem('savedProbeGroups', 
+                            JSON.stringify(JSON.parse(localStorage.getItem('savedProbeGroups') || '[]')
+                              .filter((g: any) => g.id !== type.id)));
+                          setAlert(true, 'Custom probe type deleted successfully!', 'success');
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </Box>
+                  }
+                >
+                  <ListItemText
+                    primary={type.name}
+                    secondary={`Created: ${type.createdAt.toLocaleString()}`}
+                  />
+                </ListItem>
+              ))
+            )}
           </List>
         </DialogContent>
       </Dialog>
@@ -1023,31 +1069,7 @@ const DesignWorkflow: React.FC = () => {
           <LinearProgress variant="determinate" value={progress} />
         </Box>
       )}
-
-      {/* Download button */}
-      {downloadUrl && (
-        <Box display="flex" justifyContent="center" alignItems="center" mt={4} gap={2}>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => {
-              const link = document.createElement('a');
-              link.href = downloadUrl;
-              link.download = 'result.zip';
-              link.click();
-            }}
-          >
-            Download .zip
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={navigateToJobs}
-          >
-            View in Jobs Panel
-          </Button>
-        </Box>
-      )}
+      
 
       {/* Alert */}
       <Snackbar open={alertOpen} autoHideDuration={6000} onClose={handleAlertClose}>

@@ -1,74 +1,24 @@
-export type ServerRouter = "job" | "task" | "file" | "proxy"
-
-export type UserMode = "free" | "mono" | "hub"
-
-export type JobStatus = "pending" | "running" | "done" | "failed" | "canceled"
-
-export interface TaskArg {
-  name: string,
-  type: string,
-  range: Array<string | number> | null,
-  default: string | null,
-}
-
+// Task
 export interface Task {
-  name: string,
-  description: string,
-  args: Array<TaskArg>,
+  id: string;
+  name: string;
+  description: string;
+  status: "pending" | "running" | "completed" | "failed" | "paused";
+  progress: number;
+  created_at: string;
+  updated_at: string;
+  genome: string;
+  parameters: Record<string, any>;
+  result_url?: string;
 }
 
-export interface JobAttr {
-  cmd?: string,
-  address?: string,
-}
-
-export interface Job {
-  id: string,
-  status: JobStatus,
-  name: string,
-  job_type: string,
-  check_time: string,
-  created_time: string,
-  submit_time: string | null,
-  stoped_time: string | null,
-  condition: Condition | null
-  attrs: JobAttr,
-}
-
-export interface Condition {
-  type: string,
-  arguments: ConditionAfterAnoter
-}
-
-export interface ConditionAfterAnoter {
-  job_id: string,
-  statuses: JobStatus[]
-}
-
-export type PanelLabel = 'home' | 'launch' | 'jobs' | 'files'
-
-export interface Folder {
-  id: string,
-  name: string,
-}
-
-export type FolderChain = Array<Folder>
-
-export interface CallReq {
-  task_name: string,
-  args: any[],
-  kwargs: object,
-  condition: Condition | null
-}
-
-export type JobModify = "re_run" | "cancel" | "remove"
-
-export interface UserInfo {
-  id: number,
-  username: string,
-  role: string,
-}
-
+export const statusColors = {
+  pending: "blue",
+  running: "green",
+  completed: "success",
+  failed: "error",
+  paused: "warning",
+};
 
 // genome
 export interface FileItem {
@@ -147,6 +97,7 @@ export interface CustomProbeType {
     part2: number;
     part3: number;
   };
+  probes?: { [key: string]: any };
 }
 
 export const parseYamlContent = (yamlContent: string) => {
@@ -172,13 +123,22 @@ export const extractParametersFromYaml = (yamlContent: string) => {
     parameters.targetLength = parsed.target_sequence_length;
   }
 
-  // Extract barcode count from probes
+  // Extract overlap from extracts section
+  if (parsed.extracts && parsed.extracts.target_region && parsed.extracts.target_region.overlap) {
+    parameters.overlap = parsed.extracts.target_region.overlap;
+  }
+
+  // Extract probe names and their parts
   if (parsed.probes) {
+    parameters.probeNames = Object.keys(parsed.probes);
+    parameters.probes = parsed.probes;
+    
+    // Extract barcode count from probes
     const barcodeSet = new Set<string>();
     Object.values(parsed.probes).forEach((probe: any) => {
       if (probe.parts) {
         Object.values(probe.parts).forEach((part: any) => {
-          if (part.expr && part.expr.includes('encoding')) {
+          if (part.expr && typeof part.expr === 'string' && part.expr.includes('encoding')) {
             const barcodeMatch = part.expr.match(/'([^']+)'/);
             if (barcodeMatch) {
               barcodeSet.add(barcodeMatch[1]);
@@ -188,6 +148,24 @@ export const extractParametersFromYaml = (yamlContent: string) => {
       }
     });
     parameters.barcodeCount = barcodeSet.size;
+    
+    // Extract part lengths for RCA probes
+    if (parsed.probes.circle_probe && parsed.probes.circle_probe.parts) {
+      parameters.partLengths = {
+        part1: parsed.probes.circle_probe.parts.part1?.length || 0,
+        part2: parsed.probes.circle_probe.parts.part2?.length || 0,
+        part3: parsed.probes.circle_probe.parts.part3?.length || 0
+      };
+    }
+  }
+
+  // Extract post-processing parameters
+  if (parsed.post_process) {
+    parameters.postProcess = {
+      filters: parsed.post_process.filters || {},
+      sorts: parsed.post_process.sorts || {},
+      removeOverlap: parsed.post_process.remove_overlap?.location_interval || 0
+    };
   }
 
   return parameters;

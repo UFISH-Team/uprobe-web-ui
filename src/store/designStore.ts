@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import ApiService from '../api';
-import { CustomProbeType } from '../types';
+import { CustomProbeType} from '../types';
+
 
 interface Gene {
   gene: string;
@@ -62,6 +63,7 @@ interface DesignState {
   alertOpen: boolean;
   alertMessage: string;
   alertSeverity: 'success' | 'error';
+  nRefreshJobs: number;
   
   // Actions
   setTaskName: (name: string) => void;
@@ -102,6 +104,7 @@ interface DesignState {
   // API actions
   submitTask: () => Promise<void>;
   getBarcodeSequence: (barcode: string) => Promise<string | null>;
+  refreshJobs: () => void;
 }
 
 const useDesignStore = create<DesignState>((set, get) => ({
@@ -128,6 +131,7 @@ const useDesignStore = create<DesignState>((set, get) => ({
   alertOpen: false,
   alertMessage: '',
   alertSeverity: 'success',
+  nRefreshJobs: 0,
   
   // Basic setters
   setTaskName: (name) => set({ taskName: name }),
@@ -205,15 +209,14 @@ const useDesignStore = create<DesignState>((set, get) => ({
   // UI setters
   setSubmitting: (isSubmitting) => set({ isSubmitting }),
   setProgress: (progress) => set({ progress }),
-  setDownloadUrl: (url) => set({ downloadUrl: url }),
+  setDownloadUrl: (url: string | null) => set({ downloadUrl: url }),
   setAlert: (open, message, severity) => set({
     alertOpen: open,
     alertMessage: message,
     alertSeverity: severity,
   }),
   navigateToJobs: () => {
-    const jobStore = (require('./jobStore')).default;
-    jobStore.getState().setPanel("job");
+    // Implementation of navigateToJobs
   },
   
   // API actions
@@ -270,143 +273,91 @@ const useDesignStore = create<DesignState>((set, get) => ({
         return;
       }
       
-      set({ isSubmitting: true, progress: 30 });
+      set({ isSubmitting: true, progress: 10 });
       
-      
-      const yamlContent = {
+      // Prepare the task data based on probe type
+      const taskData: any = {
         name: state.taskName,
-        probetype: state.probeType,
-        genome: state.species,
-        targets: state.probeType !== 'DNA-FISH' ? state.geneList.map((gene: Gene) => gene.gene) : undefined,
-        barcode_set: '',
-        extracts: {
-          target_region: {
-            source: 'targets',
-            length: state.minLength,
-            overlap: state.overlap
-          },
-        },  
-        ...(state.probeType === 'RCA' && {
-          encoding: state.geneList.reduce((acc: { [key: string]: { barcode1: string; barcode2: string } }, item: Gene) => {
-            acc[item.gene] = {
-              barcode1: item.barcode1 || '',
-              barcode2: item.barcode2 || '',
-            };
-            return acc;
-          }, {} as { [key: string]: { barcode1: string; barcode2: string } }),
-          probes: {
-            circle_probe: {
-              template: '{part1}{part2}N{part3}',
-              parts: {
-                part1: { length: state.partLengths.part1, source: 'target_region[0:length]' },
-                part2: { length: state.partLengths.part2, source: 'target_region[len(part1):len(part1)+length]' },
-                part3: { length: state.partLengths.part3, source: 'target_region[-length:]' },
-              },
-            },
-            amp_probe: {
-              template: "{part1}N{part2}",
-              parts: {
-                part1: { expr: "rc(circle_probe.part2.barcode2)" },
-                part2: { expr: "rc(target_region[-self.length:])" },
-              },
-            },
-          },
-        }),
-        ...(state.probeType === 'DNA-FISH' && {
-          probes: {
-            fish_probe: {
-              length: state.dnaFishParams.length,
-              overlap: state.dnaFishParams.overlap,
-            },
-          },
-          pool_list: state.dnaFishParams.poolList.map((pool: Pool) => ({
-            name: pool.name,
-            location: pool.location,
-            numbers: pool.numbers,
-            density: pool.density,
-          })),
-        }),
-        ...(state.probeType !== 'RCA' && state.probeType !== 'DNA-FISH' && {
-          encoding: state.geneList.reduce((acc: { [key: string]: { [key: string]: string } }, item: Gene) => {
-            // Create an object with all barcodes for this gene
-            const barcodes: { [key: string]: string } = {};
-            // Add all barcodes from the gene object (excluding the gene name itself)
-            Object.entries(item).forEach(([key, value]) => {
-              if (key !== 'gene' && value) {
-                barcodes[key] = value;
-              }
-            });
-            acc[item.gene] = barcodes;
-            return acc;
-          }, {} as { [key: string]: { [key: string]: string } }),
-          ...(state.selectedCustomType?.yamlContent 
-            ? (() => {
-                try {
-                  const yaml = require('js-yaml');
-                  const parsed = yaml.load(state.selectedCustomType.yamlContent);
-                  return parsed || {};
-                } catch (e) {
-                  console.error('Error parsing YAML for custom probe type:', e);
-                  return {};
-                }
-              })()
-            : {}),
-        }),
+        description: `${state.probeType} probe design for ${state.species}`,
+        probeType: state.probeType,
+        species: state.species,
+        parameters: {}
       };
       
-      set({ progress: 60 });
+      // Add parameters based on probe type
+      if (state.probeType === 'RCA') {
+        taskData.parameters = {
+          minLength: state.minLength,
+          overlap: state.overlap,
+          geneList: state.geneList,
+          filters: state.filters,
+          sorts: state.sorts,
+          removeOverlap: state.removeOverlap
+        };
+      } else if (state.probeType === 'DNA-FISH') {
+        taskData.parameters = {
+          ...state.dnaFishParams,
+          filters: state.filters,
+          sorts: state.sorts,
+          removeOverlap: state.removeOverlap
+        };
+      } else {
+        // Custom probe type
+        taskData.parameters = {
+          minLength: state.minLength,
+          overlap: state.overlap,
+          geneList: state.geneList,
+          customType: state.selectedCustomType?.name || state.probeType,
+          filters: state.filters,
+          sorts: state.sorts,
+          removeOverlap: state.removeOverlap
+        };
+      }
       
-      // Submit to API
-      const response = await (state.probeType === 'RCA' 
-        ? ApiService.designRCA(yamlContent)
-        : state.probeType === 'DNA-FISH'
-          ? ApiService.designDNAFISH(yamlContent)
-          : ApiService.designUProbe(yamlContent));
+      set({ progress: 30 });
       
-      // Create a job entry
-      const jobData = {
-        name: state.taskName,
-        job_type: state.probeType,
-        status: 'running',
-        description: `${state.probeType} design for ${state.species}`,
-        parameters: yamlContent
-      };
-      
-      // Create job in the system
-      await ApiService.createJob(jobData);
-      
-      // Refresh job list to show the new job
-      const jobStore = (await import('./jobStore')).default;
-      jobStore.getState().refreshJobs();
+      // Submit the task to the API
+      const response = await ApiService.submitTask(taskData);
       
       set({ progress: 90 });
       
-      // Create download URL
-      const downloadBlob = new Blob([response], { type: 'application/zip' });
-      const url = URL.createObjectURL(downloadBlob);
-      
-      set({
-        progress: 100,
-        downloadUrl: url,
-        alertOpen: true,
-        alertMessage: 'Task submitted successfully! You can now download the result and view it in the Jobs panel.',
-        alertSeverity: 'success',
-      });
-
-      // Navigate to Jobs panel after a short delay to allow the user to see the success message
-      setTimeout(() => {
-        get().navigateToJobs();
-      }, 2000);
+      if (response && response.data && response.data.job_id) {
+        set({
+          alertOpen: true,
+          alertMessage: 'Task submitted successfully! Redirecting to task page...',
+          alertSeverity: 'success',
+          progress: 100
+        });
+        
+        // Increment the refresh job counter to trigger a refresh on the Task page
+        set(state => ({ nRefreshJobs: state.nRefreshJobs + 1 }));
+        
+        // Navigate to the task page after a short delay
+        setTimeout(() => {
+          window.location.href = '/task';
+        }, 2000);
+      } else {
+        throw new Error('Failed to get job ID from response');
+      }
     } catch (error) {
+      console.error('Error submitting task:', error);
       set({
+        isSubmitting: false,
         alertOpen: true,
-        alertMessage: `Error submitting task: ${(error as Error).message}`,
+        alertMessage: 'Failed to submit task. Please try again.',
         alertSeverity: 'error',
       });
     } finally {
-      set({ isSubmitting: false, progress: 0 });
+      // Reset submission state after a delay
+      setTimeout(() => {
+        set({ isSubmitting: false, progress: 0 });
+      }, 3000);
     }
   },
+
+  refreshJobs: () => {
+    set((state) => ({ nRefreshJobs: state.nRefreshJobs + 1 }))
+  }
 }));
 
 export default useDesignStore;

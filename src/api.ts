@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ApiResponse, PaginatedResponse } from './types';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8124';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8123';
 
 // 创建 axios 实例
 const api = axios.create({
@@ -79,7 +79,7 @@ class ApiService {
   }
 
   static async getSpeciesOptions(): Promise<string[]> {
-    return api.get('/genome/genomes');
+    return api.get('/genome');
   }
 
   static async designRCA(data: any): Promise<Blob> {
@@ -114,14 +114,14 @@ class ApiService {
       responseType: 'blob',
     });
   }
-
+  
   // 基因组相关
   static async getGenomes(): Promise<string[]> {
-    return api.get('/genome/genomes');
+    return api.get('/genome');
   }
 
   static async getGenomeFiles(genomeName: string): Promise<{ genome: string; files: string[] }> {
-    return api.get(`/genome/genomes/${genomeName}/files`);
+    return api.get(`/genome/${genomeName}/files`);
   }
 
   static async getFileMetadata(genomeName: string, fileName: string): Promise<{
@@ -129,13 +129,13 @@ class ApiService {
     created: string;
     modified: string;
   }> {
-    return api.get(`/genome/genomes/${genomeName}/${fileName}/metadata`);
+    return api.get(`/genome/${genomeName}/${fileName}/metadata`);
   }
 
   static async uploadGenomeFile(genomeName: string, file: File): Promise<{ message: string }> {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/genome/genomes/${genomeName}/upload`, formData, {
+    return api.post(`/genome/${genomeName}/upload`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -143,34 +143,21 @@ class ApiService {
   }
 
   static async addGenome(genomeName: string): Promise<{ message: string }> {
-    return api.post(`/genome/genomes/${genomeName}`);
+    return api.post(`/genome/${genomeName}`);
   }
 
   static async deleteGenome(genomeName: string): Promise<{ message: string }> {
-    return api.delete(`/genome/genomes/${genomeName}`);
+    return api.delete(`/genome/${genomeName}`);
   }
 
   static async deleteGenomeFile(genomeName: string, fileName: string): Promise<{ message: string }> {
-    return api.delete(`/genome/genomes/${genomeName}/${fileName}`);
+    return api.delete(`/genome/${genomeName}/${fileName}`);
   }
 
   static async downloadGenomeFile(genomeName: string, fileName: string): Promise<Blob> {
-    return api.get(`/genome/genomes/${genomeName}/${fileName}`, {
+    return api.get(`/genome/${genomeName}/${fileName}`, {
       responseType: 'blob'
     });
-  }
-
-  // 任务相关
-  static async getJobs(params?: { page?: number; pageSize?: number }): Promise<PaginatedResponse<any>> {
-    return api.get('/jobs', { params });
-  }
-
-  static async createJob(data: any): Promise<ApiResponse<any>> {
-    return api.post('/jobs', data);
-  }
-
-  static async cancelJob(id: string): Promise<ApiResponse<void>> {
-    return api.post(`/jobs/${id}/cancel`);
   }
 
   // 用户相关
@@ -192,6 +179,49 @@ class ApiService {
         'Content-Type': 'multipart/form-data',
       },
     });
+  }
+
+  // 任务提交
+  static async submitTask(data: any): Promise<ApiResponse<{ job_id: string }>> {
+    const formData = new FormData();
+    formData.append('file', new Blob([JSON.stringify(data)], { type: 'application/json' }));
+    return api.post('workflow/submit_task', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  }
+
+  static async getAllJobs(): Promise<ApiResponse<any[]>> {
+    return api.get(`/job/list_all`);
+  }
+
+  static async getJobStatus(jobId: string): Promise<ApiResponse<any>> {
+    return api.get(`/job/status/${jobId}`);
+  }
+
+  static async cancelJob(jobId: string): Promise<ApiResponse<any>> {
+    return api.get(`/job/cancel/${jobId}`);
+  }
+
+  static async reRunJob(jobId: string): Promise<ApiResponse<any>> {
+    return api.get(`/job/re_run/${jobId}`);
+  }
+
+  static async removeJob(jobId: string): Promise<ApiResponse<any>> {
+    return api.get(`/job/remove/${jobId}`);
+  }
+
+  static async getJobResult(jobId: string): Promise<ApiResponse<any>> {
+    return api.get(`/job/result/${jobId}`);
+  }
+
+  static async getJobStdout(jobId: string): Promise<ApiResponse<string>> {
+    return api.get(`/job/stdout/${jobId}`);
+  }
+
+  static async getJobStderr(jobId: string): Promise<ApiResponse<string>> {
+    return api.get(`/job/stderr/${jobId}`);
   }
 }
 

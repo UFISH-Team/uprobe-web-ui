@@ -8,7 +8,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import Home from './pages/Home';
 import Design from './pages/Design';
 import Genome from './pages/Genome';
-import JobsPanel from './pages/JobsPanel';
+import Task from './pages/Task';
 import Tutorial from './pages/Tutorial';
 
 
@@ -38,7 +38,7 @@ const navItems = [
   { text: 'Home', icon: HomeIcon, path: '/home' },
   { text: 'Design', icon: DesignIcon, path: '/design' },
   { text: 'Genome', icon: GenomeIcon, path: '/genome' },
-  { text: 'Job', icon: TaskIcon, path: '/job' },
+  { text: 'Task', icon: TaskIcon, path: '/task' },
   { text: 'Tutorial', icon: TutorialIcon, path: '/tutorial' },
 ];
 
@@ -155,7 +155,7 @@ const App: React.FC = () => {
           <Route path="/home" element={<Layout><Home /></Layout>} />
           <Route path="/design" element={<Layout><Design /></Layout>} />
           <Route path="/genome" element={<Layout><Genome /></Layout>} />
-          <Route path="/job" element={<Layout><JobsPanel /></Layout>} />
+          <Route path="/task" element={<Layout><Task /></Layout>} />
           <Route path="/tutorial" element={<Layout><Tutorial /></Layout>} />
           <Route path="/profile" element={<Layout><Profile /></Layout>} />
           <Route path="/myaccount" element={<Layout><MyAccount /></Layout>} />
