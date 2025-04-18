@@ -1,7 +1,7 @@
 // App.tsx
 import React from 'react';
 import { AppBar, Toolbar, Button, Box, IconButton, useMediaQuery, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
-import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import MenuIcon from '@mui/icons-material/Menu';
 
@@ -42,7 +42,7 @@ const navItems = [
   { text: 'Tutorial', icon: TutorialIcon, path: '/tutorial' },
 ];
 
-const App: React.FC = () => {
+function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -57,6 +57,7 @@ const App: React.FC = () => {
     <List>
       {navItems.map((item) => {
         const Icon = item.icon;
+        const isActive = location.pathname.startsWith(item.path);
         return (
           <ListItemButton
             key={item.text}
@@ -64,10 +65,10 @@ const App: React.FC = () => {
               navigate(item.path);
               if (isMobile) handleDrawerToggle();
             }}
-            selected={location.pathname === item.path}
+            selected={isActive}
           >
             <ListItemIcon>
-              <Icon color={location.pathname === item.path ? 'primary' : 'inherit'} />
+              <Icon color={isActive ? 'primary' : 'inherit'} />
             </ListItemIcon>
             <ListItemText primary={item.text} />
           </ListItemButton>
@@ -100,6 +101,7 @@ const App: React.FC = () => {
             <Box sx={{ flexGrow: 1, display: 'flex', gap: 2 }}>
               {navItems.map((item) => {
                 const Icon = item.icon;
+                const isActive = location.pathname.startsWith(item.path);
                 return (
                   <Button
                     key={item.text}
@@ -109,7 +111,7 @@ const App: React.FC = () => {
                     sx={{
                       borderRadius: 1,
                       px: 2,
-                      backgroundColor: location.pathname === item.path ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                      backgroundColor: isActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
                       '&:hover': {
                         backgroundColor: 'rgba(255, 255, 255, 0.2)',
                       },
@@ -133,7 +135,7 @@ const App: React.FC = () => {
           open={mobileOpen}
           onClose={handleDrawerToggle}
           ModalProps={{
-            keepMounted: true, // Better open performance on mobile
+            keepMounted: true,
           }}
           sx={{
             '& .MuiDrawer-paper': { width: 240, boxSizing: 'border-box' },
@@ -147,29 +149,34 @@ const App: React.FC = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          pt: '64px', // AppBar height
+          pt: '64px',
         }}
       >
         <Routes>
-          <Route path="/" element={<Navigate to="/home" replace />} />
-          <Route path="/home" element={<Layout><Home /></Layout>} />
-          <Route path="/design" element={<Layout><Design /></Layout>} />
-          <Route path="/genome" element={<Layout><Genome /></Layout>} />
-          <Route path="/task" element={<Layout><Task /></Layout>} />
-          <Route path="/tutorial" element={<Layout><Tutorial /></Layout>} />
-          <Route path="/profile" element={<Layout><Profile /></Layout>} />
-          <Route path="/myaccount" element={<Layout><MyAccount /></Layout>} />
-          <Route path="/addaccount" element={<Layout><AddAccount /></Layout>} />
-          <Route path="/settings" element={<Layout><Settings /></Layout>} />
-          <Route path="/logout" element={<Layout><Logout /></Layout>} />
-          <Route path="/customprobe" element={<Layout><CustomProbe /></Layout>} />
-          <Route path="/designworkflow" element={<Layout><DesignWorkflow /></Layout>} />
-          <Route path="*" element={<Layout><NotFound /></Layout>} />
+          <Route path="/" element={<Layout><Outlet /></Layout>}>
+            <Route index element={<Navigate to="/home" replace />} />
+            <Route path="home" element={<Home />} />
+            <Route path="design" element={<Design />}>
+              <Route path="customprobe" element={<CustomProbe />} />
+              <Route path="designworkflow" element={<DesignWorkflow />} />
+            </Route>
+            <Route path="genome" element={<Genome />} />
+            <Route path="task" element={<Task />} />
+            <Route path="tutorial" element={<Tutorial />} />
+            <Route path="account" element={<AccountMenu />}>
+              <Route path="profile" element={<Profile />} />
+              <Route path="my-account" element={<MyAccount />} />
+              <Route path="add-account" element={<AddAccount />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="logout" element={<Logout />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Route>
         </Routes>
       </Box>
     </Box>
   );
-};
+}
 
 const MainApp = () => (
   <Router>

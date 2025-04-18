@@ -277,7 +277,13 @@ const DesignWorkflow: React.FC = () => {
   };
 
   return (
-    <Container>
+    <Container
+      maxWidth="xl" 
+      sx={{ 
+        width: '100%',
+        px: { xs: 2, sm: 3, md: 4 },
+        py: 3,
+      }}>
       <Box textAlign="center" mb={4}>
         <Typography variant="h3" sx={{ mt: 2 }} gutterBottom>
           Ready to craft your perfect workflow? 🎨

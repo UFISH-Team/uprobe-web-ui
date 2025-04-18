@@ -210,14 +210,30 @@ interface ProbeGroup {
 }
 
 // Add these type definitions before the convertProbesToYAML function
+interface AttributeValue {
+  min?: number;
+  max?: number;
+}
+
+interface YAMLAttributes {
+  gc_content?: AttributeValue;
+  fold_score?: { max?: number };
+  tm?: AttributeValue;
+  self_match?: { max?: number };
+  mapped_genes?: { max?: number };
+  aligners?: string[];
+}
+
 interface YAMLPartConfig {
   length?: number;
   expr: string;
+  attributes?: YAMLAttributes;
 }
 
 interface YAMLProbeConfig {
   template: string;
   parts: { [key: string]: YAMLPartConfig };
+  attributes?: YAMLAttributes;
 }
 
 interface YAMLProbes {
@@ -276,18 +292,133 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
           };
         }
       }
+
+      // Add part attribute thresholds if they exist
+      if (part.attributeThresholds && part.attributeThresholds.enabledAttributes && part.attributeThresholds.enabledAttributes.length > 0) {
+        const enabledAttributes = part.attributeThresholds.enabledAttributes;
+        const attributes: YAMLAttributes = {};
+
+        if (enabledAttributes.includes('gcContent')) {
+          attributes.gc_content = {};
+          if (part.attributeThresholds.gcContentMin !== undefined) {
+            attributes.gc_content.min = part.attributeThresholds.gcContentMin;
+          }
+          if (part.attributeThresholds.gcContentMax !== undefined) {
+            attributes.gc_content.max = part.attributeThresholds.gcContentMax;
+          }
+        }
+        if (enabledAttributes.includes('foldScore') && part.attributeThresholds.foldScoreMax !== undefined) {
+          attributes.fold_score = {
+            max: part.attributeThresholds.foldScoreMax
+          };
+        }
+        if (enabledAttributes.includes('temperature')) {
+          attributes.tm = {};
+          if (part.attributeThresholds.tmMin !== undefined) {
+            attributes.tm.min = part.attributeThresholds.tmMin;
+          }
+          if (part.attributeThresholds.tmMax !== undefined) {
+            attributes.tm.max = part.attributeThresholds.tmMax;
+          }
+        }
+        if (enabledAttributes.includes('selfMatch') && part.attributeThresholds.selfMatchMax !== undefined) {
+          attributes.self_match = {
+            max: part.attributeThresholds.selfMatchMax
+          };
+        }
+        if (enabledAttributes.includes('mappedGenes') && part.attributeThresholds.nMappedGenesMax !== undefined) {
+          attributes.mapped_genes = {
+            max: part.attributeThresholds.nMappedGenesMax
+          };
+        }
+        if (enabledAttributes.includes('aligners') && part.attributeThresholds.aligners) {
+          attributes.aligners = part.attributeThresholds.aligners;
+        }
+
+        if (Object.keys(attributes).length > 0) {
+          parts[partName].attributes = attributes;
+        }
+      }
     });
     
     yamlProbes[probeName] = {
       template: templateParts.join(''),
       parts: parts
     };
+
+    // Add probe-level attribute thresholds if they exist
+    if (probe.attributeThresholds && probe.attributeThresholds.enabledAttributes && probe.attributeThresholds.enabledAttributes.length > 0) {
+      const enabledAttributes = probe.attributeThresholds.enabledAttributes;
+      const attributes: YAMLAttributes = {};
+
+      if (enabledAttributes.includes('gcContent')) {
+        attributes.gc_content = {};
+        if (probe.attributeThresholds.gcContentMin !== undefined) {
+          attributes.gc_content.min = probe.attributeThresholds.gcContentMin;
+        }
+        if (probe.attributeThresholds.gcContentMax !== undefined) {
+          attributes.gc_content.max = probe.attributeThresholds.gcContentMax;
+        }
+      }
+      if (enabledAttributes.includes('foldScore') && probe.attributeThresholds.foldScoreMax !== undefined) {
+        attributes.fold_score = {
+          max: probe.attributeThresholds.foldScoreMax
+        };
+      }
+      if (enabledAttributes.includes('temperature')) {
+        attributes.tm = {};
+        if (probe.attributeThresholds.tmMin !== undefined) {
+          attributes.tm.min = probe.attributeThresholds.tmMin;
+        }
+        if (probe.attributeThresholds.tmMax !== undefined) {
+          attributes.tm.max = probe.attributeThresholds.tmMax;
+        }
+      }
+      if (enabledAttributes.includes('selfMatch') && probe.attributeThresholds.selfMatchMax !== undefined) {
+        attributes.self_match = {
+          max: probe.attributeThresholds.selfMatchMax
+        };
+      }
+      if (enabledAttributes.includes('mappedGenes') && probe.attributeThresholds.nMappedGenesMax !== undefined) {
+        attributes.mapped_genes = {
+          max: probe.attributeThresholds.nMappedGenesMax
+        };
+      }
+      if (enabledAttributes.includes('aligners') && probe.attributeThresholds.aligners) {
+        attributes.aligners = probe.attributeThresholds.aligners;
+      }
+
+      if (Object.keys(attributes).length > 0) {
+        yamlProbes[probeName].attributes = attributes;
+      }
+    }
   });
   
+  const formatAttributes = (attributes: YAMLAttributes, indent: string): string => {
+    return Object.entries(attributes as Record<string, unknown>)
+      .map(([key, value]) => {
+        if (Array.isArray(value)) {
+          return `${indent}${key}: ${JSON.stringify(value)}`;
+        }
+        if (value && typeof value === 'object') {
+          return `${indent}${key}:\n${Object.entries(value as Record<string, unknown>)
+            .map(([subKey, subValue]) => `${indent}  ${subKey}: ${subValue}`)
+            .join('\n')}`;
+        }
+        return `${indent}${key}: ${value}`;
+      })
+      .join('\n');
+  };
+  
   return `target_sequence_length: ${targetLength}\nprobes:\n${Object.entries<YAMLProbeConfig>(yamlProbes)
-    .map(([name, config]) => `  ${name}:\n    template: "${config.template}"\n    parts:\n${Object.entries<YAMLPartConfig>(config.parts)
+    .map(([name, config]) => `  ${name}:\n    template: "${config.template}"\n${config.attributes ? `    attributes:\n${formatAttributes(config.attributes, '      ')}\n` : ''}    parts:\n${Object.entries<YAMLPartConfig>(config.parts)
       .map(([partName, partConfig]) => `      ${partName}:\n${Object.entries(partConfig)
-        .map(([key, value]) => `        ${key}: ${value}`)
+        .map(([key, value]) => {
+          if (key === 'attributes' && value) {
+            return `        attributes:\n${formatAttributes(value as YAMLAttributes, '          ')}`;
+          }
+          return `        ${key}: ${Array.isArray(value) ? JSON.stringify(value) : value}`;
+        })
         .join('\n')}`)
       .join('\n')}`)
     .join('\n')}`;
