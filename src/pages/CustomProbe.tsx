@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import yaml from 'js-yaml';
 import { 
   Box, 
   Typography, 
@@ -26,10 +27,13 @@ import {
   DialogContent,
   List,
   ListItem,
-  ListItemText
+  ListItemText,
+  Switch,
+  Tab,
+  Tabs
 } from "@mui/material";
-import { styled } from "@mui/material/styles";
-import { Theme, useTheme } from '@mui/material/styles';
+import { styled, alpha } from "@mui/material/styles";
+import {useTheme } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import FlipIcon from '@mui/icons-material/Flip';
@@ -45,13 +49,17 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DownloadIcon from '@mui/icons-material/Download';
 import SaveIcon from '@mui/icons-material/Save';
 import HistoryIcon from '@mui/icons-material/History';
+import TuneIcon from '@mui/icons-material/Tune';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import FormatColorTextIcon from '@mui/icons-material/FormatColorText';
+import CategoryIcon from '@mui/icons-material/Category';
 
 // Styled components
 const StyledContainer = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(3),
   margin: "0 auto",
   borderRadius: theme.shape.borderRadius,
-  boxShadow: theme.shadows[2],
+  boxShadow: theme.shadows[3],
   [theme.breakpoints.up('sm')]: {
     padding: theme.spacing(4),
   }
@@ -106,6 +114,10 @@ const ProbeCard = styled(Card)(({ theme }) => ({
   marginBottom: theme.spacing(2),
   position: 'relative',
   overflow: 'visible',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    boxShadow: theme.shadows[4],
+  },
   '&:before': {
     content: '""',
     position: 'absolute',
@@ -128,6 +140,40 @@ const ProbeCardHeader = styled(Box)(({ theme }) => ({
   padding: theme.spacing(1.5),
   borderBottom: `1px solid ${theme.palette.divider}`,
   backgroundColor: theme.palette.grey[50],
+  borderRadius: `${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0 0`,
+}));
+
+const AttributeChip = styled(Chip)(({ theme }) => ({
+  margin: theme.spacing(0.5),
+  '& .MuiChip-label': {
+    fontSize: '0.75rem',
+  }
+}));
+
+const AttributeSection = styled(Box)(({ theme }) => ({
+  padding: theme.spacing(1.5),
+  marginTop: theme.spacing(1),
+  backgroundColor: alpha(theme.palette.primary.light, 0.05),
+  borderRadius: theme.shape.borderRadius,
+  border: `1px dashed ${alpha(theme.palette.primary.main, 0.3)}`,
+}));
+
+const StyledTabs = styled(Tabs)(({ theme }) => ({
+  marginBottom: theme.spacing(2),
+  borderBottom: `1px solid ${theme.palette.divider}`,
+  '& .MuiTabs-indicator': {
+    backgroundColor: theme.palette.primary.main,
+    height: 3,
+  },
+}));
+
+const StyledTab = styled(Tab)(({ theme }) => ({
+  textTransform: 'none',
+  fontWeight: 500,
+  minWidth: 0,
+  [theme.breakpoints.up('sm')]: {
+    minWidth: 0,
+  },
 }));
 
 // Reverse complement function
@@ -146,7 +192,78 @@ const reverseComplement = (sequence: string): string => {
 };
 
 // Type definitions
+type TargetSource = 'genome' | 'exon' | 'CDS' | 'UTR';
 type PartSource = 'target' | 'barcode' | 'fixed' | 'external' | 'probe';
+type AlignerType = 'BLAST' | 'Bowtie2' | 'MMseqs2';
+
+interface TargetAttributes {
+  gcContent?: {
+    min?: number;
+    max?: number;
+    enabled: boolean;
+  };
+  foldScore?: {
+    max?: number;
+    enabled: boolean;
+  };
+  tm?: {
+    min?: number;
+    max?: number;
+    enabled: boolean;
+  };
+  selfMatch?: {
+    max?: number;
+    enabled: boolean;
+  };
+  mappedGenes?: {
+    max?: number;
+    aligner?: AlignerType;
+    enabled: boolean;
+  };
+  specific?: {
+    threshold?: number;
+    aligner?: AlignerType;
+    enabled: boolean;
+  };
+}
+
+interface TargetConfig {
+  source: TargetSource;
+  sequence: string;
+  length: number;
+  attributes: TargetAttributes;
+}
+
+interface PartAttributes {
+  gcContent?: {
+    min?: number;
+    max?: number;
+    enabled: boolean;
+  };
+  foldScore?: {
+    max?: number;
+    enabled: boolean;
+  };
+  tm?: {
+    min?: number;
+    max?: number;
+    enabled: boolean;
+  };
+  selfMatch?: {
+    max?: number;
+    enabled: boolean;
+  };
+  mappedGenes?: {
+    max?: number;
+    aligner?: AlignerType;
+    enabled: boolean;
+  };
+  specific?: {
+    threshold?: number;
+    aligner?: AlignerType;
+    enabled: boolean;
+  };
+}
 
 interface ProbePart {
   id: string;
@@ -159,19 +276,37 @@ interface ProbePart {
   sourceProbeId?: string;
   sourceStartPos?: number | '';
   sourceEndPos?: number | '';
-  attributeThresholds?: {
-    gcContentMin?: number;
-    gcContentMax?: number;
-    foldScoreMax?: number;
-    tmMin?: number;
-    tmMax?: number;
-    lengthMin?: number;
-    lengthMax?: number;
-    selfMatchMax?: number;
-    nMappedGenesMax?: number;
-    aligners?: string[];
-    enabledAttributes?: string[];
-    [key: string]: any; // Allow for additional custom attribute thresholds
+  attributes?: PartAttributes; // Add attributes to individual parts
+}
+
+interface ProbeAttributes {
+  gcContent?: {
+    min?: number;
+    max?: number;
+    enabled: boolean;
+  };
+  foldScore?: {
+    max?: number;
+    enabled: boolean;
+  };
+  tm?: {
+    min?: number;
+    max?: number;
+    enabled: boolean;
+  };
+  selfMatch?: {
+    max?: number;
+    enabled: boolean;
+  };
+  mappedGenes?: {
+    max?: number;
+    aligner?: AlignerType;
+    enabled: boolean;
+  };
+  specific?: {
+    threshold?: number;
+    aligner?: AlignerType;
+    enabled: boolean;
   };
 }
 
@@ -179,21 +314,8 @@ interface Probe {
   id: string;
   parts: ProbePart[];
   isComplete: boolean;
-  name?: string; // Optional name for the probe
-  attributeThresholds?: {
-    gcContentMin?: number;
-    gcContentMax?: number;
-    foldScoreMax?: number;
-    tmMin?: number;
-    tmMax?: number;
-    lengthMin?: number;
-    lengthMax?: number;
-    selfMatchMax?: number;
-    nMappedGenesMax?: number;
-    aligners?: string[];
-    enabledAttributes?: string[];
-    [key: string]: any; // Allow for additional custom attribute thresholds
-  };
+  name?: string;
+  attributes?: ProbeAttributes; // Add attributes to whole probe
 }
 
 interface ProbeGroup {
@@ -202,17 +324,18 @@ interface ProbeGroup {
   probes: Probe[];
   createdAt: Date;
   updatedAt: Date;
-  isSaved?: boolean; // Whether this group is saved to the database
-  type: string; // Add type field to identify custom probe types
-  yamlContent: string; // Store the YAML content for later use
-  barcodeCount: number; // Number of unique barcodes in the probe group
-  targetLength: number; // Target sequence length
+  isSaved?: boolean;
+  type: string;
+  yamlContent: string;
+  barcodeCount: number;
+  targetLength: number;
+  targetConfig?: TargetConfig;
 }
 
-// Add these type definitions before the convertProbesToYAML function
 interface AttributeValue {
   min?: number;
   max?: number;
+  threshold?: number;
 }
 
 interface YAMLAttributes {
@@ -220,8 +343,16 @@ interface YAMLAttributes {
   fold_score?: { max?: number };
   tm?: AttributeValue;
   self_match?: { max?: number };
-  mapped_genes?: { max?: number };
-  aligners?: string[];
+  mapped_genes?: { max?: number; aligner?: AlignerType };
+  specific?: { threshold?: number; aligner?: AlignerType };
+  aligners?: AlignerType[];
+}
+
+interface YAMLTargetConfig {
+  source: string;
+  sequence: string;
+  length: number;
+  attributes?: YAMLAttributes;
 }
 
 interface YAMLPartConfig {
@@ -240,9 +371,85 @@ interface YAMLProbes {
   [key: string]: YAMLProbeConfig;
 }
 
-// Add this function before the CustomProbe component
-const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[key: string]: string}): string => {
+interface YAMLTargetSequence {
+  source: string;
+  sequence: string;
+  length: number;
+  attributes: {
+    gc_content?: {
+      min?: number;
+      max?: number;
+    };
+    fold_score?: {
+      max?: number;
+    };
+    tm?: {
+      min?: number;
+      max?: number;
+    };
+    self_match?: {
+      max?: number;
+    };
+    mapped_genes?: {
+      max?: number;
+      aligner?: AlignerType;
+    };
+    specific?: {
+      threshold?: number;
+      aligner?: AlignerType;
+    };
+  };
+}
+
+interface YAMLTarget {
+  target_sequence: YAMLTargetSequence;
+}
+
+// Helper function to create properly typed default attributes
+const createDefaultAttributes = (): ProbeAttributes => ({
+  gcContent: { min: 40, max: 60, enabled: false },
+  foldScore: { max: 40, enabled: false },
+  tm: { min: 60, max: 75, enabled: false },
+  selfMatch: { max: 4, enabled: false },
+  mappedGenes: { max: 5, aligner: 'BLAST' as AlignerType, enabled: false },
+  specific: { threshold: 80, aligner: 'BLAST' as AlignerType, enabled: false }
+});
+
+const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[key: string]: string}, targetConfig: TargetConfig): string => {
   const yamlProbes: YAMLProbes = {};
+  
+  // Add target configuration
+  const targetYaml: YAMLTarget = {
+    target_sequence: {
+      source: targetConfig.source,
+      sequence: targetConfig.sequence,
+      length: targetConfig.length,
+      attributes: {
+        gc_content: targetConfig.attributes.gcContent?.enabled ? {
+          min: targetConfig.attributes.gcContent.min,
+          max: targetConfig.attributes.gcContent.max
+        } : undefined,
+        fold_score: targetConfig.attributes.foldScore?.enabled ? {
+          max: targetConfig.attributes.foldScore.max
+        } : undefined,
+        tm: targetConfig.attributes.tm?.enabled ? {
+          min: targetConfig.attributes.tm.min,
+          max: targetConfig.attributes.tm.max
+        } : undefined,
+        self_match: targetConfig.attributes.selfMatch?.enabled ? {
+          max: targetConfig.attributes.selfMatch.max
+        } : undefined,
+        mapped_genes: targetConfig.attributes.mappedGenes?.enabled ? {
+          max: targetConfig.attributes.mappedGenes.max,
+          aligner: targetConfig.attributes.mappedGenes.aligner
+        } : undefined,
+        specific: targetConfig.attributes.specific?.enabled ? {
+          threshold: targetConfig.attributes.specific.threshold,
+          aligner: targetConfig.attributes.specific.aligner
+        } : undefined
+      }
+    }
+  };
   
   probes.forEach((probe, index) => {
     if (!probe.isComplete) return;
@@ -251,177 +458,127 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
     const parts: { [key: string]: YAMLPartConfig } = {};
     let templateParts: string[] = [];
     
+    // Add probe-level attributes if any
+    const probeAttributes: YAMLAttributes = {};
+    if (probe.attributes?.gcContent?.enabled) {
+      probeAttributes.gc_content = {
+        min: probe.attributes.gcContent.min,
+        max: probe.attributes.gcContent.max
+      };
+    }
+    if (probe.attributes?.foldScore?.enabled) {
+      probeAttributes.fold_score = {
+        max: probe.attributes.foldScore.max
+      };
+    }
+    if (probe.attributes?.tm?.enabled) {
+      probeAttributes.tm = {
+        min: probe.attributes.tm.min,
+        max: probe.attributes.tm.max
+      };
+    }
+    if (probe.attributes?.selfMatch?.enabled) {
+      probeAttributes.self_match = {
+        max: probe.attributes.selfMatch.max
+      };
+    }
+    if (probe.attributes?.mappedGenes?.enabled) {
+      probeAttributes.mapped_genes = {
+        max: probe.attributes.mappedGenes.max,
+        aligner: probe.attributes.mappedGenes.aligner
+      };
+    }
+    if (probe.attributes?.specific?.enabled) {
+      probeAttributes.specific = {
+        threshold: probe.attributes.specific.threshold,
+        aligner: probe.attributes.specific.aligner
+      };
+    }
+    
     probe.parts.forEach((part, partIndex) => {
       const partName = `part${partIndex + 1}`;
       templateParts.push(`{${partName}}`);
       
+      // Build part configuration
+      const partConfig: YAMLPartConfig = {
+        length: part.sequence.length,
+        expr: ''
+      };
+      
+      // Add part-level attributes if any
+      if (part.attributes) {
+        partConfig.attributes = {};
+        if (part.attributes.gcContent?.enabled) {
+          partConfig.attributes.gc_content = {
+            min: part.attributes.gcContent.min,
+            max: part.attributes.gcContent.max
+          };
+        }
+        if (part.attributes.foldScore?.enabled) {
+          partConfig.attributes.fold_score = {
+            max: part.attributes.foldScore.max
+          };
+        }
+        if (part.attributes.tm?.enabled) {
+          partConfig.attributes.tm = {
+            min: part.attributes.tm.min,
+            max: part.attributes.tm.max
+          };
+        }
+        if (part.attributes.selfMatch?.enabled) {
+          partConfig.attributes.self_match = {
+            max: part.attributes.selfMatch.max
+          };
+        }
+        if (part.attributes.mappedGenes?.enabled) {
+          partConfig.attributes.mapped_genes = {
+            max: part.attributes.mappedGenes.max,
+            aligner: part.attributes.mappedGenes.aligner
+          };
+        }
+        if (part.attributes.specific?.enabled) {
+          partConfig.attributes.specific = {
+            threshold: part.attributes.specific.threshold,
+            aligner: part.attributes.specific.aligner
+          };
+        }
+      }
+      
       if (part.source === 'target') {
         const start = Number(part.startPos);
         const end = Number(part.endPos);
-        parts[partName] = {
-          length: end - start + 1,
-          expr: part.isReverseComplement 
-            ? `rc(target_region[${start - 1}:${end}])`
-            : `target_region[${start - 1}:${end}]`
-        };
+        partConfig.expr = part.isReverseComplement 
+          ? `rc(target_region[${start - 1}:${end}])`
+          : `target_region[${start - 1}:${end}]`;
       } else if (part.source === 'barcode') {
-        // Extract barcode name from label
         const barcodeName = part.label.split(': ')[1];
-        // Get barcode sequence from barcodes state
         const barcodeSequence = barcodes[barcodeName] || part.sequence;
-        parts[partName] = {
-          length: barcodeSequence.length,
-          expr: `encoding[target_region.gene_id]['${barcodeName}']`
-        };
+        partConfig.expr = `encoding[target_region.gene_id]['${barcodeName}']`;
       } else if (part.source === 'fixed') {
-        parts[partName] = {
-          length: part.sequence.length,
-          expr: `'${part.sequence}'`
-        };
+        partConfig.expr = `'${part.sequence}'`;
       } else if (part.source === 'probe') {
         const sourceProbe = probes.find(p => p.id === part.sourceProbeId);
         if (sourceProbe) {
           const sourceProbeName = sourceProbe.name || `probe_${probes.findIndex(p => p.id === part.sourceProbeId) + 1}`;
           const start = Number(part.sourceStartPos);
           const end = Number(part.sourceEndPos);
-          parts[partName] = {
-            length: end - start + 1,
-            expr: part.isReverseComplement
-              ? `rc(${sourceProbeName}.part${part.sourceStartPos})`
-              : `${sourceProbeName}[${start - 1}:${end}]`
-          };
+          partConfig.expr = part.isReverseComplement
+            ? `rc(${sourceProbeName}.part${part.sourceStartPos})`
+            : `${sourceProbeName}[${start - 1}:${end}]`;
         }
       }
-
-      // Add part attribute thresholds if they exist
-      if (part.attributeThresholds && part.attributeThresholds.enabledAttributes && part.attributeThresholds.enabledAttributes.length > 0) {
-        const enabledAttributes = part.attributeThresholds.enabledAttributes;
-        const attributes: YAMLAttributes = {};
-
-        if (enabledAttributes.includes('gcContent')) {
-          attributes.gc_content = {};
-          if (part.attributeThresholds.gcContentMin !== undefined) {
-            attributes.gc_content.min = part.attributeThresholds.gcContentMin;
-          }
-          if (part.attributeThresholds.gcContentMax !== undefined) {
-            attributes.gc_content.max = part.attributeThresholds.gcContentMax;
-          }
-        }
-        if (enabledAttributes.includes('foldScore') && part.attributeThresholds.foldScoreMax !== undefined) {
-          attributes.fold_score = {
-            max: part.attributeThresholds.foldScoreMax
-          };
-        }
-        if (enabledAttributes.includes('temperature')) {
-          attributes.tm = {};
-          if (part.attributeThresholds.tmMin !== undefined) {
-            attributes.tm.min = part.attributeThresholds.tmMin;
-          }
-          if (part.attributeThresholds.tmMax !== undefined) {
-            attributes.tm.max = part.attributeThresholds.tmMax;
-          }
-        }
-        if (enabledAttributes.includes('selfMatch') && part.attributeThresholds.selfMatchMax !== undefined) {
-          attributes.self_match = {
-            max: part.attributeThresholds.selfMatchMax
-          };
-        }
-        if (enabledAttributes.includes('mappedGenes') && part.attributeThresholds.nMappedGenesMax !== undefined) {
-          attributes.mapped_genes = {
-            max: part.attributeThresholds.nMappedGenesMax
-          };
-        }
-        if (enabledAttributes.includes('aligners') && part.attributeThresholds.aligners) {
-          attributes.aligners = part.attributeThresholds.aligners;
-        }
-
-        if (Object.keys(attributes).length > 0) {
-          parts[partName].attributes = attributes;
-        }
-      }
+      
+      parts[partName] = partConfig;
     });
     
     yamlProbes[probeName] = {
       template: templateParts.join(''),
-      parts: parts
+      parts: parts,
+      attributes: Object.keys(probeAttributes).length > 0 ? probeAttributes : undefined
     };
-
-    // Add probe-level attribute thresholds if they exist
-    if (probe.attributeThresholds && probe.attributeThresholds.enabledAttributes && probe.attributeThresholds.enabledAttributes.length > 0) {
-      const enabledAttributes = probe.attributeThresholds.enabledAttributes;
-      const attributes: YAMLAttributes = {};
-
-      if (enabledAttributes.includes('gcContent')) {
-        attributes.gc_content = {};
-        if (probe.attributeThresholds.gcContentMin !== undefined) {
-          attributes.gc_content.min = probe.attributeThresholds.gcContentMin;
-        }
-        if (probe.attributeThresholds.gcContentMax !== undefined) {
-          attributes.gc_content.max = probe.attributeThresholds.gcContentMax;
-        }
-      }
-      if (enabledAttributes.includes('foldScore') && probe.attributeThresholds.foldScoreMax !== undefined) {
-        attributes.fold_score = {
-          max: probe.attributeThresholds.foldScoreMax
-        };
-      }
-      if (enabledAttributes.includes('temperature')) {
-        attributes.tm = {};
-        if (probe.attributeThresholds.tmMin !== undefined) {
-          attributes.tm.min = probe.attributeThresholds.tmMin;
-        }
-        if (probe.attributeThresholds.tmMax !== undefined) {
-          attributes.tm.max = probe.attributeThresholds.tmMax;
-        }
-      }
-      if (enabledAttributes.includes('selfMatch') && probe.attributeThresholds.selfMatchMax !== undefined) {
-        attributes.self_match = {
-          max: probe.attributeThresholds.selfMatchMax
-        };
-      }
-      if (enabledAttributes.includes('mappedGenes') && probe.attributeThresholds.nMappedGenesMax !== undefined) {
-        attributes.mapped_genes = {
-          max: probe.attributeThresholds.nMappedGenesMax
-        };
-      }
-      if (enabledAttributes.includes('aligners') && probe.attributeThresholds.aligners) {
-        attributes.aligners = probe.attributeThresholds.aligners;
-      }
-
-      if (Object.keys(attributes).length > 0) {
-        yamlProbes[probeName].attributes = attributes;
-      }
-    }
   });
   
-  const formatAttributes = (attributes: YAMLAttributes, indent: string): string => {
-    return Object.entries(attributes as Record<string, unknown>)
-      .map(([key, value]) => {
-        if (Array.isArray(value)) {
-          return `${indent}${key}: ${JSON.stringify(value)}`;
-        }
-        if (value && typeof value === 'object') {
-          return `${indent}${key}:\n${Object.entries(value as Record<string, unknown>)
-            .map(([subKey, subValue]) => `${indent}  ${subKey}: ${subValue}`)
-            .join('\n')}`;
-        }
-        return `${indent}${key}: ${value}`;
-      })
-      .join('\n');
-  };
-  
-  return `target_sequence_length: ${targetLength}\nprobes:\n${Object.entries<YAMLProbeConfig>(yamlProbes)
-    .map(([name, config]) => `  ${name}:\n    template: "${config.template}"\n${config.attributes ? `    attributes:\n${formatAttributes(config.attributes, '      ')}\n` : ''}    parts:\n${Object.entries<YAMLPartConfig>(config.parts)
-      .map(([partName, partConfig]) => `      ${partName}:\n${Object.entries(partConfig)
-        .map(([key, value]) => {
-          if (key === 'attributes' && value) {
-            return `        attributes:\n${formatAttributes(value as YAMLAttributes, '          ')}`;
-          }
-          return `        ${key}: ${Array.isArray(value) ? JSON.stringify(value) : value}`;
-        })
-        .join('\n')}`)
-      .join('\n')}`)
-    .join('\n')}`;
+  return `${yaml.dump(targetYaml)}\nprobes:\n${yaml.dump(yamlProbes)}`;
 };
 
 const CustomProbe: React.FC = () => {
@@ -429,12 +586,40 @@ const CustomProbe: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
   // Target sequence state
-  const [targetLength, setTargetLength] = useState<number>(100);
+  const [targetLength, setTargetLength] = useState<number>(50);
   const [targetSequence, setTargetSequence] = useState<string>('');
+  const [targetConfig, setTargetConfig] = useState<TargetConfig>({
+    source: 'genome',
+    sequence: '',
+    length: 100,
+    attributes: {
+      gcContent: { min: 40, max: 60, enabled: false },
+      foldScore: { max: 40, enabled: false },
+      tm: { min: 60, max: 75, enabled: false },
+      selfMatch: { max: 4, enabled: false },
+      mappedGenes: { max: 5, aligner: 'BLAST' as AlignerType, enabled: false },
+      specific: { threshold: 80, aligner: 'BLAST' as AlignerType, enabled: false }
+    }
+  });
+
+  // Available aligners
+  const availableAligners: AlignerType[] = ['BLAST', 'Bowtie2', 'MMseqs2'];
   
   // Probes state
   const [probes, setProbes] = useState<Probe[]>([
-    { id: '1', parts: [], isComplete: false }
+    { 
+      id: '1', 
+      parts: [], 
+      isComplete: false,
+      attributes: {
+        gcContent: { min: 40, max: 60, enabled: false },
+        foldScore: { max: 40, enabled: false },
+        tm: { min: 60, max: 75, enabled: false },
+        selfMatch: { max: 4, enabled: false },
+        mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
+        specific: { threshold: 80, aligner: 'BLAST', enabled: false }
+      }
+    }
   ]);
   
   // Probe group state
@@ -471,6 +656,10 @@ const CustomProbe: React.FC = () => {
     severity: 'info'
   });
   
+  // Tab state for probe attributes
+  const [attributeTab, setAttributeTab] = useState<number>(0);
+  const [showAttributes, setShowAttributes] = useState<Record<string, boolean>>({});
+  
   // Predefined barcodes and fixed sequences
   const [barcodes, setBarcodes] = useState<{[key: string]: string}>({
     'BC1': 'ACGTACGTACGT',
@@ -480,6 +669,64 @@ const CustomProbe: React.FC = () => {
   
   // Add state for barcode length
   const [barcodeLength, setBarcodeLength] = useState<number>(12);
+  
+  // State for editing part attributes
+  const [editingPartId, setEditingPartId] = useState<string | null>(null);
+  
+  // State for new part
+  const [newPart, setNewPart] = useState<{
+    source: PartSource;
+    sequence: string;
+    startPos: string;
+    endPos: string;
+    isReverseComplement: boolean;
+    externalType: string;
+    externalName: string;
+    customFixedSequence: string;
+    sourceProbeId: string;
+    sourceStartPos: string;
+    sourceEndPos: string;
+    attributes?: PartAttributes;
+  }>({
+    source: 'target',
+    sequence: '',
+    startPos: '1',
+    endPos: '10',
+    isReverseComplement: false,
+    externalType: 'barcode',
+    externalName: '',
+    customFixedSequence: '',
+    sourceProbeId: '',
+    sourceStartPos: '1',
+    sourceEndPos: '10',
+    attributes: {
+      gcContent: { min: 40, max: 60, enabled: false },
+      foldScore: { max: 40, enabled: false },
+      tm: { min: 60, max: 75, enabled: false },
+      selfMatch: { max: 4, enabled: false },
+      mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
+      specific: { threshold: 80, aligner: 'BLAST', enabled: false }
+    }
+  });
+  
+  // Generate random sequence as Target when targetLength changes
+  useEffect(() => {
+    generateRandomSequence(targetLength);
+  }, [targetLength]);
+  
+  const generateRandomSequence = (length: number) => {
+    const bases = ['A', 'T', 'G', 'C'];
+    let sequence = '';
+    for (let i = 0; i < length; i++) {
+      sequence += bases[Math.floor(Math.random() * bases.length)];
+    }
+    setTargetSequence(sequence);
+    setTargetConfig(prev => ({
+      ...prev,
+      sequence,
+      length
+    }));
+  };
   
   // Add function to generate random barcode
   const generateRandomBarcode = (length: number) => {
@@ -502,47 +749,6 @@ const CustomProbe: React.FC = () => {
     showAlert(`New barcode ${newBarcodeName} generated!`, 'success');
   };
   
-  // State for new part
-  const [newPart, setNewPart] = useState<{
-    source: PartSource;
-    sequence: string;
-    startPos: string;
-    endPos: string;
-    isReverseComplement: boolean;
-    externalType: string;
-    externalName: string;
-    customFixedSequence: string;
-    sourceProbeId: string;
-    sourceStartPos: string;
-    sourceEndPos: string;
-  }>({
-    source: 'target',
-    sequence: '',
-    startPos: '1',
-    endPos: '10',
-    isReverseComplement: false,
-    externalType: 'barcode',
-    externalName: '',
-    customFixedSequence: '',
-    sourceProbeId: '',
-    sourceStartPos: '1',
-    sourceEndPos: '10'
-  });
-  
-  // Generate random sequence as Target when targetLength changes
-  useEffect(() => {
-    generateRandomSequence(targetLength);
-  }, [targetLength]);
-  
-  const generateRandomSequence = (length: number) => {
-    const bases = ['A', 'T', 'G', 'C'];
-    let sequence = '';
-    for (let i = 0; i < length; i++) {
-      sequence += bases[Math.floor(Math.random() * bases.length)];
-    }
-    setTargetSequence(sequence);
-  };
-  
   // Modify the handleTargetLengthChange function
   const handleTargetLengthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const length = parseInt(e.target.value, 10);
@@ -560,6 +766,14 @@ const CustomProbe: React.FC = () => {
     setExpandedCards(prev => ({
       ...prev,
       [probeId]: !prev[probeId]
+    }));
+  };
+  
+  // Toggle showing attributes section
+  const toggleAttributes = (id: string) => {
+    setShowAttributes(prev => ({
+      ...prev,
+      [id]: !prev[id]
     }));
   };
   
@@ -672,12 +886,189 @@ const CustomProbe: React.FC = () => {
           sequence
         }));
       }
+    } else if (field.startsWith('attributes.')) {
+      // Handle attribute changes
+      const [_, attributeType, property] = field.split('.');
+      setNewPart(prev => {
+        const updatedAttributes = { ...prev.attributes };
+        if (attributeType === 'gcContent') {
+          updatedAttributes.gcContent = {
+            ...updatedAttributes.gcContent,
+            [property]: property === 'enabled' ? value : Number(value),
+            enabled: property === 'enabled' ? value : (updatedAttributes.gcContent?.enabled || false)
+          };
+        } else if (attributeType === 'foldScore') {
+          updatedAttributes.foldScore = {
+            ...updatedAttributes.foldScore,
+            [property]: property === 'enabled' ? value : Number(value),
+            enabled: property === 'enabled' ? value : (updatedAttributes.foldScore?.enabled || false)
+          };
+        } else if (attributeType === 'tm') {
+          updatedAttributes.tm = {
+            ...updatedAttributes.tm,
+            [property]: property === 'enabled' ? value : Number(value),
+            enabled: property === 'enabled' ? value : (updatedAttributes.tm?.enabled || false)
+          };
+        } else if (attributeType === 'selfMatch') {
+          updatedAttributes.selfMatch = {
+            ...updatedAttributes.selfMatch,
+            [property]: property === 'enabled' ? value : Number(value),
+            enabled: property === 'enabled' ? value : (updatedAttributes.selfMatch?.enabled || false)
+          };
+        } else if (attributeType === 'mappedGenes') {
+          updatedAttributes.mappedGenes = {
+            ...updatedAttributes.mappedGenes,
+            [property]: property === 'enabled' ? value : 
+                        property === 'aligner' ? value : Number(value),
+            enabled: property === 'enabled' ? value : (updatedAttributes.mappedGenes?.enabled || false)
+          };
+        } else if (attributeType === 'specific') {
+          updatedAttributes.specific = {
+            ...updatedAttributes.specific,
+            [property]: property === 'enabled' ? value : 
+                        property === 'aligner' ? value : Number(value),
+            enabled: property === 'enabled' ? value : (updatedAttributes.specific?.enabled || false)
+          };
+        }
+        return {
+          ...prev,
+          attributes: updatedAttributes
+        };
+      });
     } else {
       setNewPart(prev => ({
         ...prev,
         [field]: value
       }));
     }
+  };
+  
+  // Update probe attributes
+  const handleProbeAttributeChange = (probeIndex: number, field: string, value: any) => {
+    const [attributeType, property] = field.split('.');
+    setProbes(prev => {
+      const updatedProbes = [...prev];
+      const probe = { ...updatedProbes[probeIndex] };
+      
+      if (!probe.attributes) {
+        probe.attributes = {
+          gcContent: { min: 40, max: 60, enabled: false },
+          foldScore: { max: 40, enabled: false },
+          tm: { min: 60, max: 75, enabled: false },
+          selfMatch: { max: 4, enabled: false },
+          mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
+          specific: { threshold: 80, aligner: 'BLAST', enabled: false }
+        };
+      }
+      
+      if (attributeType === 'gcContent') {
+        probe.attributes.gcContent = {
+          ...probe.attributes.gcContent,
+          [property]: property === 'enabled' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (probe.attributes.gcContent?.enabled || false)
+        };
+      } else if (attributeType === 'foldScore') {
+        probe.attributes.foldScore = {
+          ...probe.attributes.foldScore,
+          [property]: property === 'enabled' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (probe.attributes.foldScore?.enabled || false)
+        };
+      } else if (attributeType === 'tm') {
+        probe.attributes.tm = {
+          ...probe.attributes.tm,
+          [property]: property === 'enabled' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (probe.attributes.tm?.enabled || false)
+        };
+      } else if (attributeType === 'selfMatch') {
+        probe.attributes.selfMatch = {
+          ...probe.attributes.selfMatch,
+          [property]: property === 'enabled' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (probe.attributes.selfMatch?.enabled || false)
+        };
+      } else if (attributeType === 'mappedGenes') {
+        probe.attributes.mappedGenes = {
+          ...probe.attributes.mappedGenes,
+          [property]: property === 'enabled' ? value : 
+                     property === 'aligner' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (probe.attributes.mappedGenes?.enabled || false)
+        };
+      } else if (attributeType === 'specific') {
+        probe.attributes.specific = {
+          ...probe.attributes.specific,
+          [property]: property === 'enabled' ? value : 
+                     property === 'aligner' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (probe.attributes.specific?.enabled || false)
+        };
+      }
+      
+      updatedProbes[probeIndex] = probe;
+      return updatedProbes;
+    });
+  };
+  
+  // Update part attributes
+  const handlePartAttributeChange = (probeIndex: number, partIndex: number, field: string, value: any) => {
+    const [attributeType, property] = field.split('.');
+    setProbes(prev => {
+      const updatedProbes = [...prev];
+      const updatedParts = [...updatedProbes[probeIndex].parts];
+      const part = { ...updatedParts[partIndex] };
+      
+      if (!part.attributes) {
+        part.attributes = {
+          gcContent: { min: 40, max: 60, enabled: false },
+          foldScore: { max: 40, enabled: false },
+          tm: { min: 60, max: 75, enabled: false },
+          selfMatch: { max: 4, enabled: false },
+          mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
+          specific: { threshold: 80, aligner: 'BLAST', enabled: false }
+        };
+      }
+      
+      if (attributeType === 'gcContent') {
+        part.attributes.gcContent = {
+          ...part.attributes.gcContent,
+          [property]: property === 'enabled' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (part.attributes.gcContent?.enabled || false)
+        };
+      } else if (attributeType === 'foldScore') {
+        part.attributes.foldScore = {
+          ...part.attributes.foldScore,
+          [property]: property === 'enabled' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (part.attributes.foldScore?.enabled || false)
+        };
+      } else if (attributeType === 'tm') {
+        part.attributes.tm = {
+          ...part.attributes.tm,
+          [property]: property === 'enabled' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (part.attributes.tm?.enabled || false)
+        };
+      } else if (attributeType === 'selfMatch') {
+        part.attributes.selfMatch = {
+          ...part.attributes.selfMatch,
+          [property]: property === 'enabled' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (part.attributes.selfMatch?.enabled || false)
+        };
+      } else if (attributeType === 'mappedGenes') {
+        part.attributes.mappedGenes = {
+          ...part.attributes.mappedGenes,
+          [property]: property === 'enabled' ? value : 
+                     property === 'aligner' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (part.attributes.mappedGenes?.enabled || false)
+        };
+      } else if (attributeType === 'specific') {
+        part.attributes.specific = {
+          ...part.attributes.specific,
+          [property]: property === 'enabled' ? value : 
+                     property === 'aligner' ? value : Number(value),
+          enabled: property === 'enabled' ? value : (part.attributes.specific?.enabled || false)
+        };
+      }
+      
+      updatedParts[partIndex] = part;
+      updatedProbes[probeIndex].parts = updatedParts;
+      return updatedProbes;
+    });
   };
   
   // Apply reverse complement
@@ -689,44 +1080,7 @@ const CustomProbe: React.FC = () => {
     }));
   };
   
-  // Add this after the toggleReverseComplement function
-  const calculateGCContent = (sequence: string): number => {
-    if (!sequence) return 0;
-    const gcCount = (sequence.match(/[GCgc]/g) || []).length;
-    return parseFloat(((gcCount / sequence.length) * 100).toFixed(2));
-  };
-
-  // Replace updatePartAttributes function
-  const updatePartThresholds = (probeIndex: number, partIndex: number, thresholds: Partial<ProbePart['attributeThresholds']>) => {
-    const updatedProbes = [...probes];
-    if (!updatedProbes[probeIndex].parts[partIndex].attributeThresholds) {
-      updatedProbes[probeIndex].parts[partIndex].attributeThresholds = {};
-    }
-    updatedProbes[probeIndex].parts[partIndex].attributeThresholds = {
-      ...updatedProbes[probeIndex].parts[partIndex].attributeThresholds,
-      ...thresholds
-    };
-    setProbes(updatedProbes);
-  };
-
-  // Replace initializePartAttributes function
-  const initializePartThresholds = (): NonNullable<ProbePart['attributeThresholds']> => {
-    // Default threshold values
-    return {
-      length: 0, // 固定值，将在添加部分时设置为序列长度
-      gcContentMin: 40,
-      gcContentMax: 60,
-      foldScoreMax: 40,
-      tmMin: 60,
-      tmMax: 75,
-      selfMatchMax: 4,
-      nMappedGenesMax: 5,
-      aligners: ['BLAST'],
-      enabledAttributes: ['length'] // 默认启用length属性
-    };
-  };
-
-  // Modify addPartToProbe to use thresholds instead of attributes
+  // Add part to probe
   const addPartToProbe = () => {
     if (!newPart.sequence) {
       showAlert('Please select a sequence first', 'error');
@@ -759,11 +1113,6 @@ const CustomProbe: React.FC = () => {
       sourceProbeId = newPart.sourceProbeId;
     }
     
-    // 初始化属性阈值
-    const thresholds = initializePartThresholds();
-    // 设置length属性为序列长度
-    thresholds.length = newPart.sequence.length;
-    
     const newProbePart: ProbePart = {
       id: partId,
       source,
@@ -775,7 +1124,7 @@ const CustomProbe: React.FC = () => {
       endPos: newPart.source === 'target' ? parseInt(newPart.endPos, 10) : undefined,
       sourceStartPos: newPart.source === 'probe' ? parseInt(newPart.sourceStartPos, 10) : undefined,
       sourceEndPos: newPart.source === 'probe' ? parseInt(newPart.sourceEndPos, 10) : undefined,
-      attributeThresholds: thresholds
+      attributes: newPart.attributes // Include attributes with the part
     };
     
     const updatedProbes = [...probes];
@@ -794,7 +1143,15 @@ const CustomProbe: React.FC = () => {
       customFixedSequence: '',
       sourceProbeId: '',
       sourceStartPos: '1',
-      sourceEndPos: '10'
+      sourceEndPos: '10',
+      attributes: {
+        gcContent: { min: 40, max: 60, enabled: false },
+        foldScore: { max: 40, enabled: false },
+        tm: { min: 60, max: 75, enabled: false },
+        selfMatch: { max: 4, enabled: false },
+        mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
+        specific: { threshold: 80, aligner: 'BLAST', enabled: false }
+      }
     });
     
     showAlert('Part added successfully!', 'success');
@@ -841,7 +1198,12 @@ const CustomProbe: React.FC = () => {
   // Add new probe
   const addProbe = () => {
     const newProbeId = (parseInt(probes[probes.length - 1].id) + 1).toString();
-    const newProbe = { id: newProbeId, parts: [], isComplete: false };
+    const newProbe: Probe = { 
+      id: newProbeId, 
+      parts: [], 
+      isComplete: false,
+      attributes: createDefaultAttributes()
+    };
     
     setProbes([...probes, newProbe]);
     setActiveProbeIndex(probes.length);
@@ -911,7 +1273,7 @@ const CustomProbe: React.FC = () => {
     return true;
   };
   
-  // Modify the validatePositions function
+  // Validate positions
   const validatePositions = (start: string, end: string, maxLength: number): boolean => {
     if (!start || !end) {
       showAlert('Start and end positions cannot be empty', 'error');
@@ -962,7 +1324,7 @@ const CustomProbe: React.FC = () => {
     }));
   };
 
-  // Modify the saveProbeGroup function
+  // Save probe group
   const saveProbeGroup = () => {
     if (!probeGroup.name.trim()) {
       showAlert('Please enter a name for the probe group', 'error');
@@ -979,7 +1341,7 @@ const CustomProbe: React.FC = () => {
       });
     });
 
-    const yamlContent = convertProbesToYAML(probes, targetLength, barcodes);
+    const yamlContent = convertProbesToYAML(probes, targetLength, barcodes, targetConfig);
 
     const updatedGroup: ProbeGroup = {
       ...probeGroup,
@@ -989,7 +1351,8 @@ const CustomProbe: React.FC = () => {
       type: 'custom',
       yamlContent: yamlContent,
       barcodeCount: barcodeSet.size,
-      targetLength: targetLength
+      targetLength: targetLength,
+      targetConfig: targetConfig
     };
 
     // Save to localStorage for persistence
@@ -1024,6 +1387,11 @@ const CustomProbe: React.FC = () => {
     } else {
       setProbeGroup(group);
       setProbes(group.probes);
+      if (group.targetConfig) {
+        setTargetConfig(group.targetConfig);
+        setTargetLength(group.targetConfig.length);
+        setTargetSequence(group.targetConfig.sequence);
+      }
       setShowHistory(false);
       showAlert('Probe group loaded successfully!', 'success');
     }
@@ -1031,11 +1399,13 @@ const CustomProbe: React.FC = () => {
 
   // Delete probe group from history
   const deleteProbeGroup = (groupId: string) => {
-    setSavedProbeGroups(prev => prev.filter(g => g.id !== groupId));
+    const updatedGroups = savedProbeGroups.filter(g => g.id !== groupId);
+    setSavedProbeGroups(updatedGroups);
+    localStorage.setItem('savedProbeGroups', JSON.stringify(updatedGroups));
     showAlert('Probe group deleted from history', 'info');
   };
 
-  // Add this function before the CustomProbe component
+  // Handle position change
   const handlePositionChange = (
     field: 'startPos' | 'endPos' | 'sourceStartPos' | 'sourceEndPos',
     value: string,
@@ -1046,632 +1416,278 @@ const CustomProbe: React.FC = () => {
       if (pos > maxLength) {
         showAlert(`Position cannot exceed sequence length (${maxLength})`, 'warning');
       }
-      handleNewPartChange(field, pos);
+      handleNewPartChange(field, pos.toString());
+    } else {
+      handleNewPartChange(field, '');
     }
   };
-
-  // 初始化探针属性阈值
-  const initializeProbeThresholds = (): NonNullable<Probe['attributeThresholds']> => {
-    // 与部分阈值相同但值略有不同
-    return {
-      gcContentMin: 35,
-      gcContentMax: 65,
-      foldScoreMax: 50,
-      tmMin: 55,
-      tmMax: 80,
-      selfMatchMax: 6,
-      nMappedGenesMax: 10,
-      aligners: ['BLAST'],
-      enabledAttributes: [] // 默认不启用任何属性
-    };
-  };
-
-  // 更新探针阈值
-  const updateProbeThresholds = (probeIndex: number, thresholds: Partial<Probe['attributeThresholds']>) => {
+  
+  // Probe name change
+  const handleProbeNameChange = (probeIndex: number, name: string) => {
     const updatedProbes = [...probes];
-    if (!updatedProbes[probeIndex].attributeThresholds) {
-      updatedProbes[probeIndex].attributeThresholds = initializeProbeThresholds();
-    }
-    updatedProbes[probeIndex].attributeThresholds = {
-      ...updatedProbes[probeIndex].attributeThresholds,
-      ...thresholds
-    };
+    updatedProbes[probeIndex].name = name;
     setProbes(updatedProbes);
   };
+  
+  // Toggle edit part attributes
+  const toggleEditPartAttributes = (partId: string | null) => {
+    setEditingPartId(partId);
+  };
 
-  // 探针级别的属性编辑组件
-  const ProbeThresholdsEdit = ({ 
-    probeIndex, 
-    probe,
-    onClose
-  }: { 
-    probeIndex: number; 
-    probe: Probe;
-    onClose: () => void;
-  }) => {
-    // 获取初始阈值和启用的属性
-    const defaultThresholds = initializeProbeThresholds();
-    const initialThresholds = probe.attributeThresholds || defaultThresholds;
-    
-    const [thresholds, setThresholds] = useState<NonNullable<Probe['attributeThresholds']>>({
-      ...defaultThresholds,
-      ...initialThresholds
-    });
-    
-    const [enabledAttributes, setEnabledAttributes] = useState<string[]>(
-      initialThresholds.enabledAttributes || []
-    );
-    
-    const [availableAligners] = useState(['BLAST', 'Bowtie2', 'MMseqs2', 'Jellyfish']);
-    
-    // 检查属性是否启用
-    const isAttributeEnabled = (attributeName: string): boolean => {
-      return enabledAttributes.includes(attributeName);
-    };
-    
-    // 切换属性的启用状态
-    const toggleAttribute = (attributeName: string) => {
-      if (isAttributeEnabled(attributeName)) {
-        setEnabledAttributes(prev => prev.filter(a => a !== attributeName));
-      } else {
-        setEnabledAttributes(prev => [...prev, attributeName]);
-      }
-    };
-    
-    const handleThresholdChange = (name: string, value: any) => {
-      setThresholds(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    };
-    
-    const handleSave = () => {
-      // 保存时更新启用的属性
-      const updatedThresholds = {
-        ...thresholds,
-        enabledAttributes
-      };
-      
-      updateProbeThresholds(probeIndex, updatedThresholds);
-      onClose();
-      showAlert('Probe attribute conditions updated successfully!', 'success');
-    };
-
-    const handleAlignerChange = (aligner: string) => {
-      setThresholds(prev => {
-        const currentAligners = prev.aligners || [];
-        if (currentAligners.includes(aligner)) {
-          return {
-            ...prev,
-            aligners: currentAligners.filter(a => a !== aligner)
-          };
-        } else {
-          return {
-            ...prev,
-            aligners: [...currentAligners, aligner]
-          };
-        }
-      });
-    };
-    
-    // AttributeField组件与部分属性编辑复用相同逻辑
-    const AttributeField = ({ 
-      label, 
-      attributeName, 
-      children
-    }: { 
-      label: string; 
-      attributeName: string; 
-      children: React.ReactNode;
-    }) => (
-      <Grid item xs={12} sm={6} md={4}>
-        <Box sx={{ 
-          border: '1px solid', 
-          borderColor: isAttributeEnabled(attributeName) ? 'primary.main' : 'divider', 
-          borderRadius: 1,
-          p: 2,
-          position: 'relative',
-          backgroundColor: isAttributeEnabled(attributeName) ? 'rgba(25, 118, 210, 0.04)' : 'transparent'
-        }}>
-          <Box sx={{ 
-            position: 'absolute', 
-            top: -1, 
-            right: 8,
-            transform: 'translateY(-50%)',
-            zIndex: 1,
-            backgroundColor: 'background.paper',
-            px: 0.5
-          }}>
-            <Chip
-              label={label}
-              size="small"
-              color={isAttributeEnabled(attributeName) ? "primary" : "default"}
-              onClick={() => toggleAttribute(attributeName)}
-              variant={isAttributeEnabled(attributeName) ? "filled" : "outlined"}
-            />
-          </Box>
-          <Box sx={{ 
-            opacity: isAttributeEnabled(attributeName) ? 1 : 0.5,
-            transition: 'opacity 0.2s'
-          }}>
-            {children}
-          </Box>
-        </Box>
-      </Grid>
-    );
-    
+  // Render attributes form
+  const renderAttributesForm = (attributes: any, onChange: (field: string, value: any) => void) => {
     return (
-      <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-            Whole Probe Attribute Conditions
-          </Typography>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={onClose}
-            startIcon={<CloseIcon />}
-          >
-            Close
-          </Button>
-        </Box>
+      <Box>
+        <StyledTabs 
+          value={attributeTab} 
+          onChange={(_, newValue) => setAttributeTab(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+        >
+          <StyledTab label="GC Content" icon={<FormatColorTextIcon fontSize="small" />} />
+          <StyledTab label="Fold Score" icon={<TuneIcon fontSize="small" />} />
+          <StyledTab label="Temperature" icon={<TuneIcon fontSize="small" />} />
+          <StyledTab label="Self Match" icon={<TuneIcon fontSize="small" />} />
+          <StyledTab label="Mapping" icon={<CategoryIcon fontSize="small" />} />
+          <StyledTab label="Specificity" icon={<FilterListIcon fontSize="small" />} />
+        </StyledTabs>
         
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Set conditions for the entire probe. Click on the attribute chips to enable/disable specific attributes.
-        </Typography>
-        
-        <Grid container spacing={2}>
-          {/* GC Content Range */}
-          <AttributeField label="GC Content" attributeName="gcContent">
-            <Grid container spacing={1}>
-              <Grid item xs={6}>
-                <TextField
-                  label="Min (%)"
-                  type="number"
-                  value={thresholds.gcContentMin || ''}
-                  onChange={(e) => handleThresholdChange('gcContentMin', parseFloat(e.target.value))}
-                  fullWidth
-                  size="small"
-                  InputProps={{
-                    endAdornment: <Typography variant="caption">%</Typography>
-                  }}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  label="Max (%)"
-                  type="number"
-                  value={thresholds.gcContentMax || ''}
-                  onChange={(e) => handleThresholdChange('gcContentMax', parseFloat(e.target.value))}
-                  fullWidth
-                  size="small"
-                  InputProps={{
-                    endAdornment: <Typography variant="caption">%</Typography>
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </AttributeField>
-          
-          {/* Fold Score */}
-          <AttributeField label="Fold Score" attributeName="foldScore">
-            <TextField
-              label="Maximum Score"
-              type="number"
-              value={thresholds.foldScoreMax || ''}
-              onChange={(e) => handleThresholdChange('foldScoreMax', parseFloat(e.target.value))}
-              fullWidth
-              size="small"
-              helperText="Lower is better stability"
-            />
-          </AttributeField>
-          
-          {/* Temperature range */}
-          <AttributeField label="Melting Temp" attributeName="temperature">
-            <Grid container spacing={1}>
-              <Grid item xs={6}>
-                <TextField
-                  label="Min (°C)"
-                  type="number"
-                  value={thresholds.tmMin || ''}
-                  onChange={(e) => handleThresholdChange('tmMin', parseFloat(e.target.value))}
-                  fullWidth
-                  size="small"
-                  InputProps={{
-                    endAdornment: <Typography variant="caption">°C</Typography>
-                  }}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  label="Max (°C)"
-                  type="number"
-                  value={thresholds.tmMax || ''}
-                  onChange={(e) => handleThresholdChange('tmMax', parseFloat(e.target.value))}
-                  fullWidth
-                  size="small"
-                  InputProps={{
-                    endAdornment: <Typography variant="caption">°C</Typography>
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </AttributeField>
-          
-          {/* Self match */}
-          <AttributeField label="Self-Match" attributeName="selfMatch">
-            <TextField
-              label="Maximum Value"
-              type="number"
-              value={thresholds.selfMatchMax || ''}
-              onChange={(e) => handleThresholdChange('selfMatchMax', parseFloat(e.target.value))}
-              fullWidth
-              size="small"
-              helperText="Lower reduces self-complementarity"
-            />
-          </AttributeField>
-          
-          {/* Mapped genes */}
-          <AttributeField label="Mapped Genes" attributeName="mappedGenes">
-            <TextField
-              label="Maximum Count"
-              type="number"
-              value={thresholds.nMappedGenesMax || ''}
-              onChange={(e) => handleThresholdChange('nMappedGenesMax', parseFloat(e.target.value))}
-              fullWidth
-              size="small"
-              helperText="Lower is more specific"
-            />
-          </AttributeField>
-          
-          {/* Aligners */}
-          <AttributeField label="Aligners" attributeName="aligners">
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {availableAligners.map((aligner) => (
-                <Chip
-                  key={aligner}
-                  label={aligner}
-                  onClick={() => handleAlignerChange(aligner)}
-                  color={(thresholds.aligners || []).includes(aligner) ? "primary" : "default"}
-                  variant={(thresholds.aligners || []).includes(aligner) ? "filled" : "outlined"}
-                  size="small"
-                />
-              ))}
+        {/* GC Content Tab */}
+        {attributeTab === 0 && (
+          <Box sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="subtitle2">GC Content Check</Typography>
+              <Switch
+                checked={attributes.gcContent?.enabled}
+                onChange={(e) => onChange('gcContent.enabled', e.target.checked)}
+                size="small"
+              />
             </Box>
-          </AttributeField>
-          
-          <Grid item xs={12}>
-            <Divider sx={{ my: 1 }}/>
-          </Grid>
-          
-          <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-            <Button 
-              variant="contained" 
-              color="primary"
-              onClick={handleSave}
-            >
-              Save Probe Attributes
-            </Button>
-          </Grid>
-        </Grid>
+            {attributes.gcContent?.enabled && (
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <TextField
+                    label="Min %"
+                    type="number"
+                    value={attributes.gcContent?.min}
+                    onChange={(e) => onChange('gcContent.min', e.target.value)}
+                    size="small"
+                    fullWidth
+                    InputProps={{
+                      endAdornment: <Typography variant="caption">%</Typography>
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    label="Max %"
+                    type="number"
+                    value={attributes.gcContent?.max}
+                    onChange={(e) => onChange('gcContent.max', e.target.value)}
+                    size="small"
+                    fullWidth
+                    InputProps={{
+                      endAdornment: <Typography variant="caption">%</Typography>
+                    }}
+                  />
+                </Grid>
+              </Grid>
+            )}
+          </Box>
+        )}
+        
+        {/* Fold Score Tab */}
+        {attributeTab === 1 && (
+          <Box sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="subtitle2">Fold Score Check</Typography>
+              <Switch
+                checked={attributes.foldScore?.enabled}
+                onChange={(e) => onChange('foldScore.enabled', e.target.checked)}
+                size="small"
+              />
+            </Box>
+            {attributes.foldScore?.enabled && (
+              <TextField
+                label="Maximum Score"
+                type="number"
+                value={attributes.foldScore?.max}
+                onChange={(e) => onChange('foldScore.max', e.target.value)}
+                size="small"
+                fullWidth
+              />
+            )}
+          </Box>
+        )}
+        
+        {/* Temperature Tab */}
+        {attributeTab === 2 && (
+          <Box sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="subtitle2">Melting Temperature Check</Typography>
+              <Switch
+                checked={attributes.tm?.enabled}
+                onChange={(e) => onChange('tm.enabled', e.target.checked)}
+                size="small"
+              />
+            </Box>
+            {attributes.tm?.enabled && (
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <TextField
+                    label="Min °C"
+                    type="number"
+                    value={attributes.tm?.min}
+                    onChange={(e) => onChange('tm.min', e.target.value)}
+                    size="small"
+                    fullWidth
+                    InputProps={{
+                      endAdornment: <Typography variant="caption">°C</Typography>
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    label="Max °C"
+                    type="number"
+                    value={attributes.tm?.max}
+                    onChange={(e) => onChange('tm.max', e.target.value)}
+                    size="small"
+                    fullWidth
+                    InputProps={{
+                      endAdornment: <Typography variant="caption">°C</Typography>
+                    }}
+                  />
+                </Grid>
+              </Grid>
+            )}
+          </Box>
+        )}
+        
+        {/* Self Match Tab */}
+        {attributeTab === 3 && (
+          <Box sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="subtitle2">Self Match Check</Typography>
+              <Switch
+                checked={attributes.selfMatch?.enabled}
+                onChange={(e) => onChange('selfMatch.enabled', e.target.checked)}
+                size="small"
+              />
+            </Box>
+            {attributes.selfMatch?.enabled && (
+              <TextField
+                label="Maximum Value"
+                type="number"
+                value={attributes.selfMatch?.max}
+                onChange={(e) => onChange('selfMatch.max', e.target.value)}
+                size="small"
+                fullWidth
+              />
+            )}
+          </Box>
+        )}
+        
+        {/* Mapped Genes Tab */}
+        {attributeTab === 4 && (
+          <Box sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="subtitle2">Mapped Genes Check</Typography>
+              <Switch
+                checked={attributes.mappedGenes?.enabled}
+                onChange={(e) => onChange('mappedGenes.enabled', e.target.checked)}
+                size="small"
+              />
+            </Box>
+            {attributes.mappedGenes?.enabled && (
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    label="Maximum Count"
+                    type="number"
+                    value={attributes.mappedGenes?.max}
+                    onChange={(e) => onChange('mappedGenes.max', e.target.value)}
+                    size="small"
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Aligner</InputLabel>
+                    <Select
+                      value={attributes.mappedGenes?.aligner}
+                      label="Aligner"
+                      onChange={(e) => onChange('mappedGenes.aligner', e.target.value)}
+                    >
+                      {availableAligners.map((aligner) => (
+                        <MenuItem key={aligner} value={aligner}>
+                          {aligner}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            )}
+          </Box>
+        )}
+        
+        {/* Specificity Tab */}
+        {attributeTab === 5 && (
+          <Box sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="subtitle2">Specificity Check</Typography>
+              <Switch
+                checked={attributes.specific?.enabled}
+                onChange={(e) => onChange('specific.enabled', e.target.checked)}
+                size="small"
+              />
+            </Box>
+            {attributes.specific?.enabled && (
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    label="Specificity Threshold"
+                    type="number"
+                    value={attributes.specific?.threshold}
+                    onChange={(e) => onChange('specific.threshold', e.target.value)}
+                    size="small"
+                    fullWidth
+                    InputProps={{
+                      endAdornment: <Typography variant="caption">%</Typography>
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Aligner</InputLabel>
+                    <Select
+                      value={attributes.specific?.aligner}
+                      label="Aligner"
+                      onChange={(e) => onChange('specific.aligner', e.target.value)}
+                    >
+                      {availableAligners.map((aligner) => (
+                        <MenuItem key={aligner} value={aligner}>
+                          {aligner}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            )}
+          </Box>
+        )}
       </Box>
     );
   };
-
-  // 部分级别的属性编辑组件
-  const PartThresholdsEdit = ({ 
-    probeIndex, 
-    partIndex, 
-    part,
-    onClose
-  }: { 
-    probeIndex: number; 
-    partIndex: number; 
-    part: ProbePart;
-    onClose: () => void;
-  }) => {
-    // 获取初始阈值和启用的属性
-    const defaultThresholds = initializePartThresholds();
-    const initialThresholds = part.attributeThresholds || defaultThresholds;
-    
-    const [thresholds, setThresholds] = useState<NonNullable<ProbePart['attributeThresholds']>>({
-      ...defaultThresholds,
-      ...initialThresholds
-    });
-    
-    const [enabledAttributes, setEnabledAttributes] = useState<string[]>(
-      initialThresholds.enabledAttributes || []
-    );
-    
-    const [availableAligners] = useState(['BLAST', 'Bowtie2', 'MMseqs2', 'Jellyfish']);
-    
-    // 检查属性是否启用
-    const isAttributeEnabled = (attributeName: string): boolean => {
-      return enabledAttributes.includes(attributeName);
-    };
-    
-    // 切换属性的启用状态
-    const toggleAttribute = (attributeName: string) => {
-      if (isAttributeEnabled(attributeName)) {
-        setEnabledAttributes(prev => prev.filter(a => a !== attributeName));
-      } else {
-        setEnabledAttributes(prev => [...prev, attributeName]);
-      }
-    };
-    
-    const handleThresholdChange = (name: string, value: any) => {
-      setThresholds(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    };
-    
-    const handleSave = () => {
-      // 保存时更新启用的属性
-      const updatedThresholds = {
-        ...thresholds,
-        enabledAttributes
-      };
-      
-      updatePartThresholds(probeIndex, partIndex, updatedThresholds);
-      onClose();
-      showAlert('Part attribute conditions updated successfully!', 'success');
-    };
-
-    const handleAlignerChange = (aligner: string) => {
-      setThresholds(prev => {
-        const currentAligners = prev.aligners || [];
-        if (currentAligners.includes(aligner)) {
-          return {
-            ...prev,
-            aligners: currentAligners.filter(a => a !== aligner)
-          };
-        } else {
-          return {
-            ...prev,
-            aligners: [...currentAligners, aligner]
-          };
-        }
-      });
-    };
-    
-    // 修改AttributeField组件，添加readOnly属性
-    const AttributeField = ({ 
-      label, 
-      attributeName, 
-      children,
-      readOnly = false
-    }: { 
-      label: string; 
-      attributeName: string; 
-      children: React.ReactNode;
-      readOnly?: boolean;
-    }) => (
-      <Grid item xs={12} sm={6} md={4}>
-        <Box sx={{ 
-          border: '1px solid', 
-          borderColor: isAttributeEnabled(attributeName) ? 'primary.main' : 'divider', 
-          borderRadius: 1,
-          p: 2,
-          position: 'relative',
-          backgroundColor: isAttributeEnabled(attributeName) ? 'rgba(25, 118, 210, 0.04)' : 'transparent'
-        }}>
-          <Box sx={{ 
-            position: 'absolute', 
-            top: -1, 
-            right: 8,
-            transform: 'translateY(-50%)',
-            zIndex: 1,
-            backgroundColor: 'background.paper',
-            px: 0.5
-          }}>
-            <Chip
-              label={label}
-              size="small"
-              color={isAttributeEnabled(attributeName) ? "primary" : "default"}
-              onClick={readOnly ? undefined : () => toggleAttribute(attributeName)}
-              variant={isAttributeEnabled(attributeName) ? "filled" : "outlined"}
-              sx={{ cursor: readOnly ? 'default' : 'pointer' }}
-            />
-          </Box>
-          <Box sx={{ 
-            opacity: isAttributeEnabled(attributeName) ? 1 : 0.5,
-            transition: 'opacity 0.2s'
-          }}>
-            {children}
-          </Box>
-        </Box>
-      </Grid>
-    );
-    
-    return (
-      <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-            Part Attribute Conditions
-          </Typography>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={onClose}
-            startIcon={<CloseIcon />}
-          >
-            Close
-          </Button>
-        </Box>
-        
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Click on the attribute name chips to enable/disable specific attributes. Only enabled attributes will be used for probe design.
-        </Typography>
-        
-        <Grid container spacing={2}>
-          {/* Length - 固定值，只读 */}
-          <AttributeField label="Length" attributeName="length" readOnly={true}>
-            <TextField
-              label="Length (bp)"
-              type="number"
-              value={thresholds.length || ''}
-              fullWidth
-              size="small"
-              InputProps={{
-                readOnly: true,
-                endAdornment: <Typography variant="caption">bp</Typography>
-              }}
-            />
-          </AttributeField>
-          
-          {/* GC Content Range */}
-          <AttributeField label="GC Content" attributeName="gcContent">
-            <Grid container spacing={1}>
-              <Grid item xs={6}>
-                <TextField
-                  label="Min (%)"
-                  type="number"
-                  value={thresholds.gcContentMin || ''}
-                  onChange={(e) => handleThresholdChange('gcContentMin', parseFloat(e.target.value))}
-                  fullWidth
-                  size="small"
-                  InputProps={{
-                    endAdornment: <Typography variant="caption">%</Typography>
-                  }}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  label="Max (%)"
-                  type="number"
-                  value={thresholds.gcContentMax || ''}
-                  onChange={(e) => handleThresholdChange('gcContentMax', parseFloat(e.target.value))}
-                  fullWidth
-                  size="small"
-                  InputProps={{
-                    endAdornment: <Typography variant="caption">%</Typography>
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </AttributeField>
-          
-          {/* Fold Score */}
-          <AttributeField label="Fold Score" attributeName="foldScore">
-            <TextField
-              label="Maximum Score"
-              type="number"
-              value={thresholds.foldScoreMax || ''}
-              onChange={(e) => handleThresholdChange('foldScoreMax', parseFloat(e.target.value))}
-              fullWidth
-              size="small"
-              helperText="Lower is better stability"
-            />
-          </AttributeField>
-          
-          {/* Temperature range */}
-          <AttributeField label="Melting Temp" attributeName="temperature">
-            <Grid container spacing={1}>
-              <Grid item xs={6}>
-                <TextField
-                  label="Min (°C)"
-                  type="number"
-                  value={thresholds.tmMin || ''}
-                  onChange={(e) => handleThresholdChange('tmMin', parseFloat(e.target.value))}
-                  fullWidth
-                  size="small"
-                  InputProps={{
-                    endAdornment: <Typography variant="caption">°C</Typography>
-                  }}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  label="Max (°C)"
-                  type="number"
-                  value={thresholds.tmMax || ''}
-                  onChange={(e) => handleThresholdChange('tmMax', parseFloat(e.target.value))}
-                  fullWidth
-                  size="small"
-                  InputProps={{
-                    endAdornment: <Typography variant="caption">°C</Typography>
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </AttributeField>
-          
-          {/* Self match */}
-          <AttributeField label="Self-Match" attributeName="selfMatch">
-            <TextField
-              label="Maximum Value"
-              type="number"
-              value={thresholds.selfMatchMax || ''}
-              onChange={(e) => handleThresholdChange('selfMatchMax', parseFloat(e.target.value))}
-              fullWidth
-              size="small"
-              helperText="Lower reduces self-complementarity"
-            />
-          </AttributeField>
-          
-          {/* Mapped genes */}
-          <AttributeField label="Mapped Genes" attributeName="mappedGenes">
-            <TextField
-              label="Maximum Count"
-              type="number"
-              value={thresholds.nMappedGenesMax || ''}
-              onChange={(e) => handleThresholdChange('nMappedGenesMax', parseFloat(e.target.value))}
-              fullWidth
-              size="small"
-              helperText="Lower is more specific"
-            />
-          </AttributeField>
-          
-          {/* Aligners */}
-          <AttributeField label="Aligners" attributeName="aligners">
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {availableAligners.map((aligner) => (
-                <Chip
-                  key={aligner}
-                  label={aligner}
-                  onClick={() => handleAlignerChange(aligner)}
-                  color={(thresholds.aligners || []).includes(aligner) ? "primary" : "default"}
-                  variant={(thresholds.aligners || []).includes(aligner) ? "filled" : "outlined"}
-                  size="small"
-                />
-              ))}
-            </Box>
-          </AttributeField>
-          
-          <Grid item xs={12}>
-            <Divider sx={{ my: 1 }}/>
-          </Grid>
-          
-          <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-            <Button 
-              variant="contained" 
-              color="primary"
-              onClick={handleSave}
-            >
-              Save Attributes
-            </Button>
-          </Grid>
-        </Grid>
-      </Box>
-    );
-  };
-
-  // 添加状态跟踪当前编辑的探针
-  const [editingProbeThresholds, setEditingProbeThresholds] = useState<number | null>(null);
-
-  // Add this state for tracking which part is being edited
-  const [editingPartInfo, setEditingPartInfo] = useState<{
-    probeIndex: number;
-    partIndex: number;
-  } | null>(null);
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <StyledContainer>
         <Typography variant="h3" gutterBottom align="center" sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
           <DnaIcon color="primary" fontSize="large" />
-          Create Your Own Probe Type, Please Follow the Steps!
+          Create Your Own Probe Type
         </Typography>
         
         {/* Alert for notifications */}
@@ -1709,34 +1725,54 @@ const CustomProbe: React.FC = () => {
           </DialogTitle>
           <DialogContent>
             <List>
-              {savedProbeGroups.map((group) => (
-                <ListItem
-                  key={group.id}
-                  secondaryAction={
-                    <Box>
-                      <IconButton
-                        edge="end"
-                        onClick={() => loadProbeGroup(group, true)}
-                        sx={{ mr: 1 }}
-                      >
-                        <DownloadIcon />
-                      </IconButton>
-                      <IconButton
-                        edge="end"
-                        onClick={() => deleteProbeGroup(group.id)}
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Box>
-                  }
-                >
-                  <ListItemText
-                    primary={group.name}
-                    secondary={`Created: ${group.createdAt.toLocaleString()} | Probes: ${group.probes.length}`}
-                  />
-                </ListItem>
-              ))}
+              {savedProbeGroups.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 2 }}>
+                  No saved probe groups found
+                </Typography>
+              ) : (
+                savedProbeGroups.map((group) => (
+                  <ListItem
+                    key={group.id}
+                    secondaryAction={
+                      <Box>
+                        <Tooltip title="Download YAML">
+                          <IconButton
+                            edge="end"
+                            onClick={() => loadProbeGroup(group, true)}
+                            sx={{ mr: 1 }}
+                          >
+                            <DownloadIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Load group">
+                          <IconButton
+                            edge="end"
+                            onClick={() => loadProbeGroup(group)}
+                            color="primary"
+                            sx={{ mr: 1 }}
+                          >
+                            <SaveIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete group">
+                          <IconButton
+                            edge="end"
+                            onClick={() => deleteProbeGroup(group.id)}
+                            color="error"
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    }
+                  >
+                    <ListItemText
+                      primary={group.name}
+                      secondary={`Created: ${new Date(group.createdAt).toLocaleString()} | Probes: ${group.probes.length} | Target: ${group.targetLength} bp`}
+                    />
+                  </ListItem>
+                ))
+              )}
             </List>
           </DialogContent>
         </Dialog>
@@ -1759,44 +1795,147 @@ const CustomProbe: React.FC = () => {
             </Typography>
           </SectionTitle>
           
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: isMobile ? 'column' : 'row', 
-            alignItems: isMobile ? 'flex-start' : 'center',
-            gap: 2,
-            mb: 2 
-          }}>
-            <TextField
-              label="Sequence Length"
-              type="number"
-              value={targetLength}
-              onChange={handleTargetLengthChange}
-              size="small"
-              InputProps={{ 
-                inputProps: { 
-                  min: 1,
-                  step: 1
-                } 
-              }}
-              sx={{ minWidth: '180px' }}
-            />
-            <Tooltip title="Generate a new random sequence">
-              <Button 
-                variant="outlined" 
-                startIcon={<RefreshIcon />}
-                onClick={() => generateRandomSequence(targetLength)}
+          <Grid container spacing={2}>
+            {/* Source Selection */}
+            <Grid item xs={12} sm={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Source Type</InputLabel>
+                <Select
+                  value={targetConfig.source}
+                  label="Source Type"
+                  onChange={(e) => setTargetConfig(prev => ({
+                    ...prev,
+                    source: e.target.value as TargetSource
+                  }))}
+                >
+                  <MenuItem value="genome">Target Genome</MenuItem>
+                  <MenuItem value="exon">Exon</MenuItem>
+                  <MenuItem value="CDS">CDS</MenuItem>
+                  <MenuItem value="UTR">UTR</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Sequence Length */}
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="Sequence Length"
+                type="number"
+                value={targetLength}
+                onChange={handleTargetLengthChange}
+                size="small"
+                fullWidth
+                InputProps={{ 
+                  inputProps: { 
+                    min: 1,
+                    step: 1
+                  } 
+                }}
+              />
+            </Grid>
+
+            {/* Regenerate Button */}
+            <Grid item xs={12} sm={4}>
+              <Tooltip title="Generate a new random sequence">
+                <Button 
+                  variant="outlined" 
+                  startIcon={<RefreshIcon />}
+                  onClick={() => generateRandomSequence(targetLength)}
+                  fullWidth
+                >
+                  Regenerate
+                </Button>
+              </Tooltip>
+            </Grid>
+
+            {/* Sequence Display */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" gutterBottom>
+                Target Sequence ({targetSequence.length} bp):
+              </Typography>
+              <SequenceDisplay>
+                {targetSequence}
+              </SequenceDisplay>
+            </Grid>
+            
+            {/* Attributes Button */}
+            <Grid item xs={12}>
+              <Button
+                variant="outlined"
+                startIcon={<TuneIcon />}
+                onClick={() => toggleAttributes('target')}
+                fullWidth
+                sx={{ mt: 1 }}
               >
-                Regenerate
+                {showAttributes['target'] ? 'Hide Target Attributes' : 'Configure Target Attributes'}
               </Button>
-            </Tooltip>
-          </Box>
-          
-          <Typography variant="subtitle2" gutterBottom>
-            Target Sequence ({targetSequence.length} bp):
-          </Typography>
-          <SequenceDisplay>
-            {targetSequence}
-          </SequenceDisplay>
+            </Grid>
+            
+            {/* Target Attributes Collapse */}
+            <Grid item xs={12}>
+              <Collapse in={showAttributes['target']}>
+                <AttributeSection>
+                  <Typography variant="subtitle2" gutterBottom sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1 
+                  }}>
+                    <FilterListIcon fontSize="small" color="primary" />
+                    Target Sequence Attributes
+                  </Typography>
+                  
+                  {renderAttributesForm(targetConfig.attributes, (field, value) => {
+                    setTargetConfig(prev => {
+                      const newConfig = { ...prev };
+                      const [attributeType, property] = field.split('.');
+                      
+                      if (attributeType === 'gcContent') {
+                        newConfig.attributes.gcContent = {
+                          ...newConfig.attributes.gcContent,
+                          [property]: property === 'enabled' ? value : Number(value),
+                          enabled: property === 'enabled' ? value : (newConfig.attributes.gcContent?.enabled || false)
+                        };
+                      } else if (attributeType === 'foldScore') {
+                        newConfig.attributes.foldScore = {
+                          ...newConfig.attributes.foldScore,
+                          [property]: property === 'enabled' ? value : Number(value),
+                          enabled: property === 'enabled' ? value : (newConfig.attributes.foldScore?.enabled || false)
+                        };
+                      } else if (attributeType === 'tm') {
+                        newConfig.attributes.tm = {
+                          ...newConfig.attributes.tm,
+                          [property]: property === 'enabled' ? value : Number(value),
+                          enabled: property === 'enabled' ? value : (newConfig.attributes.tm?.enabled || false)
+                        };
+                      } else if (attributeType === 'selfMatch') {
+                        newConfig.attributes.selfMatch = {
+                          ...newConfig.attributes.selfMatch,
+                          [property]: property === 'enabled' ? value : Number(value),
+                          enabled: property === 'enabled' ? value : (newConfig.attributes.selfMatch?.enabled || false)
+                        };
+                      } else if (attributeType === 'mappedGenes') {
+                        newConfig.attributes.mappedGenes = {
+                          ...newConfig.attributes.mappedGenes,
+                          [property]: property === 'enabled' ? value : 
+                                      property === 'aligner' ? value : Number(value),
+                          enabled: property === 'enabled' ? value : (newConfig.attributes.mappedGenes?.enabled || false)
+                        };
+                      } else if (attributeType === 'specific') {
+                        newConfig.attributes.specific = {
+                          ...newConfig.attributes.specific,
+                          [property]: property === 'enabled' ? value : 
+                                      property === 'aligner' ? value : Number(value),
+                          enabled: property === 'enabled' ? value : (newConfig.attributes.specific?.enabled || false)
+                        };
+                      }
+                      
+                      return newConfig;
+                    });
+                  })}
+                </AttributeSection>
+              </Collapse>
+            </Grid>
+          </Grid>
         </Paper>
         
         {/* Probe design section */}
@@ -1877,21 +2016,44 @@ const CustomProbe: React.FC = () => {
                 <ProbeCardHeader>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <DnaIcon color={probe.isComplete ? "success" : "primary"} fontSize="small" />
-                    <Typography variant="h6" component="h3">
-                      Probe {probe.id}
-                      {probe.name && ` - ${probe.name}`}
-                    </Typography>
-                    {probe.isComplete && (
-                      <Chip 
-                        size="small" 
-                        color="success" 
-                        icon={<CheckCircleIcon />} 
-                        label="Completed" 
-                      />
-                    )}
+                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="subtitle1" component="h3">
+                          Probe {probe.id}
+                          {probe.name && ` - ${probe.name}`}
+                        </Typography>
+                        {probe.isComplete && (
+                          <Chip 
+                            size="small" 
+                            color="success" 
+                            icon={<CheckCircleIcon />} 
+                            label="Completed" 
+                          />
+                        )}
+                      </Box>
+                      {!probe.isComplete && (
+                        <TextField
+                          placeholder="Probe name (optional)"
+                          variant="standard"
+                          size="small"
+                          value={probe.name || ''}
+                          onChange={(e) => handleProbeNameChange(index, e.target.value)}
+                          sx={{ width: '170px' }}
+                        />
+                      )}
+                    </Box>
                   </Box>
                   
                   <Box>
+                    <Tooltip title="Probe Attributes">
+                      <IconButton 
+                        onClick={() => toggleAttributes(`probe${probe.id}`)}
+                        color="primary"
+                        size="small"
+                      >
+                        <TuneIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title={probe.isComplete ? "Reopen for editing" : "Mark as complete"}>
                       <IconButton 
                         onClick={() => toggleProbeCompletion(index)}
@@ -1927,19 +2089,25 @@ const CustomProbe: React.FC = () => {
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-
-                    <Tooltip title="Edit probe attributes">
-                      <IconButton 
-                        onClick={() => setEditingProbeThresholds(index)}
-                        color="primary"
-                        size="small"
-                        disabled={!probe.isComplete}
-                      >
-                        <SettingsIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
                   </Box>
                 </ProbeCardHeader>
+                
+                {/* Probe Attributes */}
+                <Collapse in={showAttributes[`probe${probe.id}`]}>
+                  <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                    <Typography variant="subtitle2" gutterBottom sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 1 
+                    }}>
+                      <FilterListIcon fontSize="small" color="primary" />
+                      Probe Attributes
+                    </Typography>
+                    
+                    {renderAttributesForm(probe.attributes || createDefaultAttributes(), 
+                      (field, value) => handleProbeAttributeChange(index, field, value))}
+                  </Box>
+                </Collapse>
                 
                 <Collapse in={expandedCards[probe.id]}>
                   <CardContent>
@@ -1965,6 +2133,58 @@ const CustomProbe: React.FC = () => {
                           <Typography variant="caption" display="block">
                             Total Length: {getProbeFullSequence(probe).length} bp
                           </Typography>
+                          
+                          {/* Display active attributes as chips */}
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1 }}>
+                            {probe.attributes?.gcContent?.enabled && (
+                              <AttributeChip 
+                                size="small" 
+                                label={`GC: ${probe.attributes.gcContent.min}%-${probe.attributes.gcContent.max}%`} 
+                                color="primary" 
+                                variant="outlined"
+                              />
+                            )}
+                            {probe.attributes?.foldScore?.enabled && (
+                              <AttributeChip 
+                                size="small" 
+                                label={`Fold: max ${probe.attributes.foldScore.max}`} 
+                                color="secondary" 
+                                variant="outlined"
+                              />
+                            )}
+                            {probe.attributes?.tm?.enabled && (
+                              <AttributeChip 
+                                size="small" 
+                                label={`Tm: ${probe.attributes.tm.min}°C-${probe.attributes.tm.max}°C`} 
+                                color="error" 
+                                variant="outlined"
+                              />
+                            )}
+                            {probe.attributes?.selfMatch?.enabled && (
+                              <AttributeChip 
+                                size="small" 
+                                label={`Self: max ${probe.attributes.selfMatch.max}`} 
+                                color="warning" 
+                                variant="outlined"
+                              />
+                            )}
+                            {probe.attributes?.mappedGenes?.enabled && (
+                              <AttributeChip 
+                                size="small" 
+                                label={`Map: max ${probe.attributes.mappedGenes.max}`} 
+                                color="info" 
+                                variant="outlined"
+                              />
+                            )}
+                            {probe.attributes?.specific?.enabled && (
+                              <AttributeChip 
+                                size="small" 
+                                label={`Spec: ${probe.attributes.specific.threshold}%`} 
+                                color="success" 
+                                variant="outlined"
+                              />
+                            )}
+                          </Box>
                         </>
                       )}
                     </Box>
@@ -1987,141 +2207,129 @@ const CustomProbe: React.FC = () => {
                                 p: 1,
                                 border: '1px solid',
                                 borderColor: 'divider',
-                                borderRadius: 1
+                                borderRadius: 1,
+                                transition: 'all 0.2s ease',
+                                '&:hover': {
+                                  backgroundColor: alpha(theme.palette.primary.light, 0.05),
+                                }
                               }}
                             >
-                              <Typography variant="body2" sx={{ 
+                              <Box sx={{ 
                                 flex: isMobile ? 'none' : 1,
-                                mb: isMobile ? 1 : 0
+                                mb: isMobile ? 1 : 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 0.5
                               }}>
-                                {idx + 1}. {part.label} 
-                                {part.isReverseComplement ? ' (Reverse Complement)' : ''}
-                              </Typography>
+                                <Typography variant="body2">
+                                  {idx + 1}. {part.label} 
+                                  {part.isReverseComplement ? ' (Reverse Complement)' : ''}
+                                </Typography>
+                                
+                                {/* Part attributes */}
+                                {part.attributes && (
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {part.attributes.gcContent?.enabled && (
+                                      <Chip 
+                                        size="small" 
+                                        label={`GC: ${part.attributes.gcContent.min}%-${part.attributes.gcContent.max}%`} 
+                                        variant="outlined"
+                                        sx={{ height: 20, fontSize: '0.7rem' }}
+                                      />
+                                    )}
+                                    {part.attributes.specific?.enabled && (
+                                      <Chip 
+                                        size="small" 
+                                        label={`Spec: ${part.attributes.specific.threshold}%`} 
+                                        variant="outlined"
+                                        sx={{ height: 20, fontSize: '0.7rem' }}
+                                      />
+                                    )}
+                                    {(part.attributes.foldScore?.enabled || 
+                                      part.attributes.tm?.enabled || 
+                                      part.attributes.selfMatch?.enabled || 
+                                      part.attributes.mappedGenes?.enabled) && (
+                                      <Chip 
+                                        size="small" 
+                                        label="+ more" 
+                                        variant="outlined"
+                                        sx={{ height: 20, fontSize: '0.7rem' }}
+                                      />
+                                    )}
+                                  </Box>
+                                )}
+                              </Box>
+                              
                               <Typography variant="body2" sx={{ 
                                 flex: isMobile ? 'none' : 2,
                                 fontFamily: 'monospace',
                                 mb: isMobile ? 1 : 0,
-                                px: 1
+                                px: 1,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
                               }}>
                                 {part.sequence}
                               </Typography>
+                              
                               <Box sx={{ display: 'flex', gap: 1 }}>
-                                <Tooltip title="Edit filter conditions">
-                                  <IconButton 
-                                    size="small" 
-                                    onClick={() => setEditingPartInfo({ probeIndex: index, partIndex: idx })}
-                                    color="primary"
-                                    disabled={probe.isComplete}
-                                  >
-                                    <SettingsIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                <IconButton 
-                                  size="small" 
-                                  onClick={() => removePart(index, idx)}
-                                  color="error"
-                                  disabled={probe.isComplete}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
+                                {!probe.isComplete && (
+                                  <>
+                                    <Tooltip title="Edit Part Attributes">
+                                      <IconButton 
+                                        size="small" 
+                                        onClick={() => toggleEditPartAttributes(part.id)}
+                                        color="primary"
+                                      >
+                                        <TuneIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <IconButton 
+                                      size="small" 
+                                      onClick={() => removePart(index, idx)}
+                                      color="error"
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </>
+                                )}
                               </Box>
                             </Box>
                             
-                            {/* Display attribute summary */}
-                            {part.attributeThresholds && (
-                              <Box 
-                                sx={{ 
-                                  ml: 2, 
-                                  mb: 2, 
-                                  display: 'flex', 
-                                  flexWrap: 'wrap', 
-                                  gap: 1,
-                                  alignItems: 'center'
-                                }}
-                              >
-                                <Typography variant="caption" color="text.secondary">
-                                  Part Attributes:
-                                </Typography>
-                                {part.attributeThresholds.enabledAttributes && part.attributeThresholds.enabledAttributes.length > 0 ? (
-                                  <>
-                                    {part.attributeThresholds.enabledAttributes.includes('gcContent') && part.attributeThresholds.gcContentMin !== undefined && part.attributeThresholds.gcContentMax !== undefined && (
-                                      <Chip 
-                                        size="small" 
-                                        label={`GC: ${part.attributeThresholds.gcContentMin}-${part.attributeThresholds.gcContentMax}%`} 
-                                        color="primary" 
-                                        variant="outlined"
-                                      />
-                                    )}
-                                    {part.attributeThresholds.length !== undefined && (
-                                      <Chip 
-                                        size="small" 
-                                        label={`Length: ${part.attributeThresholds.length} bp`} 
-                                        color="success" 
-                                        variant="outlined"
-                                      />
-                                    )}
-                                    {part.attributeThresholds.enabledAttributes.includes('temperature') && part.attributeThresholds.tmMin !== undefined && part.attributeThresholds.tmMax !== undefined && (
-                                      <Chip 
-                                        size="small" 
-                                        label={`Tm: ${part.attributeThresholds.tmMin}-${part.attributeThresholds.tmMax}°C`}
-                                        color="info" 
-                                        variant="outlined"
-                                      />
-                                    )}
-                                    {part.attributeThresholds.enabledAttributes.includes('foldScore') && part.attributeThresholds.foldScoreMax !== undefined && (
-                                      <Chip 
-                                        size="small" 
-                                        label={`Fold: ≤${part.attributeThresholds.foldScoreMax}`}
-                                        color="secondary" 
-                                        variant="outlined"
-                                      />
-                                    )}
-                                    {part.attributeThresholds.enabledAttributes.includes('selfMatch') && part.attributeThresholds.selfMatchMax !== undefined && (
-                                      <Chip 
-                                        size="small" 
-                                        label={`Self: ≤${part.attributeThresholds.selfMatchMax}`}
-                                        color="warning" 
-                                        variant="outlined"
-                                      />
-                                    )}
-                                    {part.attributeThresholds.enabledAttributes.includes('mappedGenes') && part.attributeThresholds.nMappedGenesMax !== undefined && (
-                                      <Chip 
-                                        size="small" 
-                                        label={`Genes: ≤${part.attributeThresholds.nMappedGenesMax}`}
-                                        color="error" 
-                                        variant="outlined"
-                                      />
-                                    )}
-                                    {part.attributeThresholds.enabledAttributes.includes('aligners') && part.attributeThresholds.aligners && part.attributeThresholds.aligners.length > 0 && (
-                                      <Tooltip title={part.attributeThresholds.aligners.join(', ')}>
-                                        <Chip 
-                                          size="small" 
-                                          label={`Aligners: ${part.attributeThresholds.aligners.length}`}
-                                          color="default" 
-                                          variant="outlined"
-                                        />
-                                      </Tooltip>
-                                    )}
-                                  </>
-                                ) : (
-                                  <Typography variant="caption" color="text.secondary">
-                                    No active attributes
-                                  </Typography>
-                                )}
-                              </Box>
-                            )}
-                            
-                            {/* Display attribute editor when needed */}
-                            {editingPartInfo && 
-                             editingPartInfo.probeIndex === index && 
-                             editingPartInfo.partIndex === idx && (
-                              <PartThresholdsEdit
-                                probeIndex={index}
-                                partIndex={idx}
-                                part={part}
-                                onClose={() => setEditingPartInfo(null)}
-                              />
-                            )}
+                            {/* Part attributes dialog */}
+                            <Dialog
+                              open={editingPartId === part.id}
+                              onClose={() => toggleEditPartAttributes(null)}
+                              maxWidth="sm"
+                              fullWidth
+                            >
+                              <DialogTitle>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Typography variant="h6">Edit Part Attributes</Typography>
+                                  <IconButton onClick={() => toggleEditPartAttributes(null)}>
+                                    <CloseIcon />
+                                  </IconButton>
+                                </Box>
+                              </DialogTitle>
+                              <DialogContent>
+                                {renderAttributesForm(part.attributes || {
+                                  gcContent: { min: 40, max: 60, enabled: false },
+                                  foldScore: { max: 40, enabled: false },
+                                  tm: { min: 60, max: 75, enabled: false },
+                                  selfMatch: { max: 4, enabled: false },
+                                  mappedGenes: { max: 5, aligner: 'BLAST' as AlignerType, enabled: false },
+                                  specific: { threshold: 80, aligner: 'BLAST' as AlignerType, enabled: false }
+                                }, (field, value) => handlePartAttributeChange(index, idx, field, value))}
+                                
+                                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                                  <Button 
+                                    onClick={() => toggleEditPartAttributes(null)}
+                                    variant="contained"
+                                  >
+                                    Done
+                                  </Button>
+                                </Box>
+                              </DialogContent>
+                            </Dialog>
                           </Box>
                         ))}
                       </Box>
@@ -2218,7 +2426,7 @@ const CustomProbe: React.FC = () => {
                               {newPart.externalType === 'barcode' ? (
                                 <Grid item xs={12} sm={6}>
                                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', width: '100%' }}>
-                                    <FormControl size="small" sx={{ width: '30%' }}>
+                                    <FormControl size="small" sx={{ flexGrow: 1 }}>
                                       <InputLabel>Barcode</InputLabel>
                                       <Select
                                         value={newPart.externalName}
@@ -2230,7 +2438,7 @@ const CustomProbe: React.FC = () => {
                                         ))}
                                       </Select>
                                     </FormControl>
-                                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flex: 1 }}>
+                                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexGrow: 1 }}>
                                       <TextField
                                         label="Length"
                                         type="number"
@@ -2276,7 +2484,7 @@ const CustomProbe: React.FC = () => {
                           {/* Probe Source Selection */}
                           {newPart.source === 'probe' && (
                             <>
-                              <Grid item xs={12} sm={6}>
+                              <Grid item xs={12} sm={3}>
                                 <FormControl fullWidth size="small">
                                   <InputLabel>Select Probe</InputLabel>
                                   <Select
@@ -2362,6 +2570,37 @@ const CustomProbe: React.FC = () => {
                             </SequenceDisplay>
                           </Grid>
                           
+                          {/* Part Attributes */}
+                          <Grid item xs={12}>
+                            <Button
+                              variant="outlined"
+                              startIcon={<TuneIcon />}
+                              onClick={() => toggleAttributes('newPart')}
+                              fullWidth
+                              size="small"
+                              sx={{ mb: 2 }}
+                            >
+                              {showAttributes['newPart'] ? 'Hide Part Attributes' : 'Configure Part Attributes'}
+                            </Button>
+                            
+                            <Collapse in={showAttributes['newPart']}>
+                              <AttributeSection>
+                                <Typography variant="subtitle2" gutterBottom sx={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: 1 
+                                }}>
+                                  <FilterListIcon fontSize="small" color="primary" />
+                                  Part-specific Attributes
+                                </Typography>
+                                
+                                {renderAttributesForm(newPart.attributes, (field, value) => 
+                                  handleNewPartChange(`attributes.${field}`, value)
+                                )}
+                              </AttributeSection>
+                            </Collapse>
+                          </Grid>
+                          
                           {/* Action Buttons */}
                           <Grid item xs={12} sm={6}>
                             <Tooltip title={newPart.sequence ? "Reverse and complement the selected sequence" : "Select a sequence first"}>
@@ -2398,84 +2637,6 @@ const CustomProbe: React.FC = () => {
                         </Grid>
                       </>
                     )}
-
-                    {/* 探针属性编辑器 */}
-                    {editingProbeThresholds === index && (
-                      <ProbeThresholdsEdit
-                        probeIndex={index}
-                        probe={probe}
-                        onClose={() => setEditingProbeThresholds(null)}
-                      />
-                    )}
-                    
-                    {/* 探针属性摘要显示 */}
-                    {probe.attributeThresholds && probe.isComplete && (
-                      <Box sx={{ mt: 2, mb: 1 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                          Whole Probe Attributes:
-                        </Typography>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {probe.attributeThresholds.enabledAttributes && probe.attributeThresholds.enabledAttributes.length > 0 ? (
-                            <>
-                              {probe.attributeThresholds.enabledAttributes.includes('gcContent') && probe.attributeThresholds.gcContentMin !== undefined && probe.attributeThresholds.gcContentMax !== undefined && (
-                                <Chip 
-                                  size="small" 
-                                  label={`GC: ${probe.attributeThresholds.gcContentMin}-${probe.attributeThresholds.gcContentMax}%`} 
-                                  color="primary" 
-                                  variant="outlined"
-                                />
-                              )}
-                              {probe.attributeThresholds.enabledAttributes.includes('temperature') && probe.attributeThresholds.tmMin !== undefined && probe.attributeThresholds.tmMax !== undefined && (
-                                <Chip 
-                                  size="small" 
-                                  label={`Tm: ${probe.attributeThresholds.tmMin}-${probe.attributeThresholds.tmMax}°C`}
-                                  color="info" 
-                                  variant="outlined"
-                                />
-                              )}
-                              {probe.attributeThresholds.enabledAttributes.includes('foldScore') && probe.attributeThresholds.foldScoreMax !== undefined && (
-                                <Chip 
-                                  size="small" 
-                                  label={`Fold: ≤${probe.attributeThresholds.foldScoreMax}`}
-                                  color="secondary" 
-                                  variant="outlined"
-                                />
-                              )}
-                              {probe.attributeThresholds.enabledAttributes.includes('selfMatch') && probe.attributeThresholds.selfMatchMax !== undefined && (
-                                <Chip 
-                                  size="small" 
-                                  label={`Self: ≤${probe.attributeThresholds.selfMatchMax}`}
-                                  color="warning" 
-                                  variant="outlined"
-                                />
-                              )}
-                              {probe.attributeThresholds.enabledAttributes.includes('mappedGenes') && probe.attributeThresholds.nMappedGenesMax !== undefined && (
-                                <Chip 
-                                  size="small" 
-                                  label={`Genes: ≤${probe.attributeThresholds.nMappedGenesMax}`}
-                                  color="error" 
-                                  variant="outlined"
-                                />
-                              )}
-                              {probe.attributeThresholds.enabledAttributes.includes('aligners') && probe.attributeThresholds.aligners && probe.attributeThresholds.aligners.length > 0 && (
-                                <Tooltip title={probe.attributeThresholds.aligners.join(', ')}>
-                                  <Chip 
-                                    size="small" 
-                                    label={`Aligners: ${probe.attributeThresholds.aligners.length}`}
-                                    color="default" 
-                                    variant="outlined"
-                                  />
-                                </Tooltip>
-                              )}
-                            </>
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">
-                              No probe-level attributes set
-                            </Typography>
-                          )}
-                        </Box>
-                      </Box>
-                    )}
                   </CardContent>
                 </Collapse>
               </ProbeCard>
@@ -2489,19 +2650,21 @@ const CustomProbe: React.FC = () => {
               sx={{ 
                 p: 2, 
                 mt: 3, 
-                backgroundColor: theme.palette.info.light,
-                color: theme.palette.info.contrastText
+                backgroundColor: alpha(theme.palette.info.light, 0.1),
+                borderColor: theme.palette.info.main
               }}
             >
-              <Typography variant="subtitle1" gutterBottom>
-                <b>🔍 How to Design Multiple Probes:</b>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600, color: theme.palette.info.dark }}>
+                🔍 How to Design Your Probe Type:
               </Typography>
               <ol style={{ margin: 0, paddingLeft: '1.5rem' }}>
-                <li>Design your first probe by adding parts from target sequence or external sources</li>
-                <li>Click the checkmark button to mark the probe as complete when finished</li>
-                <li>Add a new probe using the "Add Probe" button</li>
-                <li>When designing subsequent probes, you can use completed probes as sources</li>
-                <li>Continue until all desired probes are designed</li>
+                <li>Configure target sequence attributes by clicking the "Configure Target Attributes" button</li>
+                <li>Design each probe by adding parts from the target sequence or external sources</li>
+                <li>Set attributes for individual parts and whole probes using the attribute buttons</li>
+                <li>Click the checkmark button to mark a probe as complete when finished</li>
+                <li>Add new probes using the "Add Probe" button at the top</li>
+                <li>Use completed probes as sources for new probes to create complex designs</li>
+                <li>Name and save your probe group when finished</li>
               </ol>
             </Paper>
       </StyledContainer>

@@ -160,14 +160,5 @@ export const extractParametersFromYaml = (yamlContent: string) => {
     }
   }
 
-  // Extract post-processing parameters
-  if (parsed.post_process) {
-    parameters.postProcess = {
-      filters: parsed.post_process.filters || {},
-      sorts: parsed.post_process.sorts || {},
-      removeOverlap: parsed.post_process.remove_overlap?.location_interval || 0
-    };
-  }
-
   return parameters;
 };

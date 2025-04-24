@@ -605,37 +605,6 @@ const Task: React.FC = () => {
                   </>
                 )}
                 
-                {/* Display filters if present */}
-                {currentTask.parameters.filters && currentTask.parameters.filters.length > 0 && (
-                  <Col span={24}>
-                    <Text strong>Filters: </Text>
-                    {currentTask.parameters.filters.map((filter: any, index: number) => (
-                      <Tag key={index} color="orange">
-                        {filter.type}: {typeof filter.value === 'object' 
-                          ? `${filter.value.min || 0} - ${filter.value.max || 100}` 
-                          : filter.value}
-                      </Tag>
-                    ))}
-                  </Col>
-                )}
-                
-                {/* Display sorts if present */}
-                {currentTask.parameters.sorts && currentTask.parameters.sorts.length > 0 && (
-                  <Col span={24}>
-                    <Text strong>Sorts: </Text>
-                    {currentTask.parameters.sorts.map((sort: any, index: number) => (
-                      <Tag key={index} color="cyan">{sort.type} {sort.order}</Tag>
-                    ))}
-                  </Col>
-                )}
-                
-                {/* Display remove overlap if present */}
-                {currentTask.parameters.removeOverlap > 0 && (
-                  <Col span={24}>
-                    <Text strong>Remove Overlap: </Text>{currentTask.parameters.removeOverlap}
-                  </Col>
-                )}
-                
                 {/* Legacy parameter display for compatibility */}
                 {currentTask.parameters.target_regions && (
                   <Col span={24}><Text strong>Target Regions: </Text>{currentTask.parameters.target_regions}</Col>

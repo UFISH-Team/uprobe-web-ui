@@ -58,8 +58,7 @@ const DesignWorkflow: React.FC = () => {
     species: true,
     probeType: true,
     targetParams: true,
-    geneMap: true,
-    postProcess: true
+    geneMap: true
   });
 
   const {
@@ -71,9 +70,6 @@ const DesignWorkflow: React.FC = () => {
     minLength,
     overlap,
     dnaFishParams,
-    filters,
-    sorts,
-    removeOverlap,
     isSubmitting,
     progress,
     alertOpen,
@@ -94,14 +90,7 @@ const DesignWorkflow: React.FC = () => {
     addPool,
     removePool,
     updatePool,
-    addFilter,
-    removeFilter,
-    updateFilter,
-    addSort,
-    removeSort,
-    setRemoveOverlap,
     setAlert,
-    submitTask,
   } = useDesignStore();
 
   // Fetch species and barcode options on mount
@@ -204,10 +193,6 @@ const DesignWorkflow: React.FC = () => {
     setAlert(false, '', 'success');
   };
 
-  const isFilterSelected = (type: string) => filters.some(filter => filter.type === type);
-  const isSortSelected = (type: string, order: '↑' | '↓') =>
-    sorts.some(sort => sort.type === type && sort.order === order);
-
   // Modify the handleProbeTypeSelect function
   const handleProbeTypeSelect = (type: string) => {
     setProbeType(type);
@@ -308,9 +293,6 @@ const DesignWorkflow: React.FC = () => {
         </Step>
         <Step>
           <StepLabel>Gene Map</StepLabel>
-        </Step>
-        <Step>
-          <StepLabel>Post Process</StepLabel>
         </Step>
       </Stepper>
 
@@ -684,376 +666,6 @@ const DesignWorkflow: React.FC = () => {
         </Collapse>
       </Card>
 
-      {/* Post Process Section */}
-      <Card sx={{ mb: 3 }}>
-        <CardHeader 
-          title="🧹 Post Process" 
-          subheader="Set filtering parameters, thresholds, sorting (ascending or descending), and whether to remove overlap between probes."
-          action={
-            <IconButton onClick={() => toggleSection('postProcess')}>
-              {expandedSections.postProcess ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            </IconButton>
-          }
-        />
-        <Collapse in={expandedSections.postProcess}>
-          <CardContent>
-            <Box display="flex" flexDirection="column">
-              {/* Filters */}
-              <Button
-                variant="outlined"
-                sx={{ width: '15%' }}
-                onClick={(e) => handleMenuClick(e, 'filters')}
-                startIcon={<FilterListIcon />}
-              >
-                Filters
-              </Button>
-
-              {/* Show Filter Input */}
-              {filters.length > 0 &&
-                filters.map((filter, index) => (
-                  <Box key={index} mt={2}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={10}>
-                        <Typography>{filter.type}</Typography>
-                        {filter.type === 'tm' ? (
-                          <Grid container spacing={2}>
-                            <Grid item xs={6}>
-                              <TextField
-                                fullWidth
-                                label="Min"
-                                type="number"
-                                value={filter.value.min || ''}
-                                onChange={(e) =>
-                                  updateFilter(index, { ...filter.value, min: +e.target.value })
-                                }
-                              />
-                            </Grid>
-                            <Grid item xs={6}>
-                              <TextField
-                                fullWidth
-                                label="Max"
-                                type="number"
-                                value={filter.value.max || ''}
-                                onChange={(e) =>
-                                  updateFilter(index, { ...filter.value, max: +e.target.value })
-                                }
-                              />
-                            </Grid>
-                          </Grid>
-                        ) : (
-                          <TextField
-                            fullWidth
-                            label={`Enter ${filter.type}`}
-                            type="number"
-                            value={filter.value}
-                            onChange={(e) => updateFilter(index, e.target.value)}
-                          />
-                        )}
-                      </Grid>
-                      <Grid item xs={2}>
-                        <IconButton onClick={() => removeFilter(index)}>
-                          <DeleteIcon />
-                        </IconButton>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                ))}
-
-              {/* Sorts */}
-              <Button
-                variant="outlined"
-                sx={{ mt: 2, width: '15%' }}
-                onClick={(e) => handleMenuClick(e, 'sorts')}
-                startIcon={<SortIcon />}
-              >
-                Sorts
-              </Button>
-
-              {/* Show Sort Input */}
-              {sorts.length > 0 &&
-                sorts.map((sort, index) => (
-                  <Box key={index} mt={2}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={10}>
-                        <Typography>{`${sort.type} (${sort.order})`}</Typography>
-                      </Grid>
-                      <Grid item xs={2}>
-                        <IconButton onClick={() => removeSort(index)}>
-                          <DeleteIcon />
-                        </IconButton>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                ))}
-
-              {/* Remove Overlap */}
-              <Button
-                variant="outlined"
-                sx={{ mt: 2, width: '15%' }}
-                onClick={(e) => handleMenuClick(e, 'remove_overlap')}
-                startIcon={<RemoveCircleIcon />}
-              >
-                Remove Overlap
-              </Button>
-
-              {/* Show Remove Overlap Input */}
-              {activeSection === 'remove_overlap' && (
-                <Box mt={2}>
-                  <TextField
-                    fullWidth
-                    type="number"
-                    label="Location Interval"
-                    value={removeOverlap}
-                    onChange={(e) => setRemoveOverlap(Number(e.target.value))}
-                  />
-                </Box>
-              )}
-            </Box>
-
-            {/* Menu for Filters and Sorts, dynamically disabling selected options */}
-            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
-              {activeSection === 'filters' && (
-                <>
-                  <MenuItem
-                    disabled={isFilterSelected('n_mapped_genes')}
-                    onClick={() => {
-                      addFilter({ type: 'n_mapped_genes', value: '' });
-                      handleMenuClose();
-                    }}
-                  >
-                    n_mapped_genes
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isFilterSelected('tm')}
-                    onClick={() => {
-                      addFilter({ type: 'tm', value: { min: '', max: '' } });
-                      handleMenuClose();
-                    }}
-                  >
-                    Tm
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isFilterSelected('target_fold_score')}
-                    onClick={() => {
-                      addFilter({ type: 'target_fold_score', value: '' });
-                      handleMenuClose();
-                    }}
-                  >
-                    target_fold_score
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isFilterSelected('gc_content')}
-                    onClick={() => {
-                      addFilter({ type: 'gc_content', value: '' });
-                      handleMenuClose();
-                    }}
-                  >
-                    gc_content
-                  </MenuItem>
-                </>
-              )}
-
-              {activeSection === 'sorts' && (
-                <>
-                  <MenuItem
-                    disabled={isSortSelected('tm', '↑')}
-                    onClick={() => {
-                      addSort({ type: 'tm', order: '↑' });
-                      handleMenuClose();
-                    }}
-                  >
-                    Tm (↑)
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isSortSelected('tm', '↓')}
-                    onClick={() => {
-                      addSort({ type: 'tm', order: '↓' });
-                      handleMenuClose();
-                    }}
-                  >
-                    Tm (↓)
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isSortSelected('n_mapped_genes', '↑')}
-                    onClick={() => {
-                      addSort({ type: 'n_mapped_genes', order: '↑' });
-                      handleMenuClose();
-                    }}
-                  >
-                    n_mapped_genes (↑)
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isSortSelected('n_mapped_genes', '↓')}
-                    onClick={() => {
-                      addSort({ type: 'n_mapped_genes', order: '↓' });
-                      handleMenuClose();
-                    }}
-                  >
-                    n_mapped_genes (↓)
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isSortSelected('target_blocks', '↑')}
-                    onClick={() => {
-                      addSort({ type: 'target_blocks', order: '↑' });
-                      handleMenuClose();
-                    }}
-                  >
-                    target_blocks (↑)
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isSortSelected('target_blocks', '↓')}
-                    onClick={() => {
-                      addSort({ type: 'target_blocks', order: '↓' });
-                      handleMenuClose();
-                    }}
-                  >
-                    target_blocks (↓)
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isSortSelected('target_fold_score', '↑')}
-                    onClick={() => {
-                      addSort({ type: 'target_fold_score', order: '↑' });
-                      handleMenuClose();
-                    }}
-                  >
-                    target_fold_score (↑)
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isSortSelected('target_fold_score', '↓')}
-                    onClick={() => {
-                      addSort({ type: 'target_fold_score', order: '↓' });
-                      handleMenuClose();
-                    }}
-                  >
-                    target_fold_score (↓)
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isSortSelected('target_gc_content', '↑')}
-                    onClick={() => {
-                      addSort({ type: 'target_gc_content', order: '↑' });
-                      handleMenuClose();
-                    }}
-                  >
-                    target_gc_content (↑)
-                  </MenuItem>
-                  <MenuItem
-                    disabled={isSortSelected('target_gc_content', '↓')}
-                    onClick={() => {
-                      addSort({ type: 'target_gc_content', order: '↓' });
-                      handleMenuClose();
-                    }}
-                  >
-                    target_gc_content (↓)
-                  </MenuItem>
-                </>
-              )}
-            </Menu>
-          </CardContent>
-        </Collapse>
-      </Card>
-
-      {/* Custom Probe Types Dialog */}
-      <Dialog
-        open={showCustomProbeTypes}
-        onClose={() => setShowCustomProbeTypes(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">Custom Probe Types</Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <IconButton onClick={() => setShowCustomProbeTypes(false)}>
-                <CloseIcon />
-              </IconButton>
-            </Box>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <List>
-            {customProbeTypes.length === 0 ? (
-              <ListItem>
-                <ListItemText 
-                  primary="No custom probe types found" 
-                  secondary="No custom probe types available"
-                />
-              </ListItem>
-            ) : (
-              customProbeTypes.map((type) => (
-                <ListItem
-                  key={type.id}
-                  secondaryAction={
-                    <Box>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => handleProbeTypeSelect(type.name)}
-                        sx={{ mr: 1 }}
-                      >
-                        Select
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => {
-                          try {
-                            const blob = new Blob([type.yamlContent], { type: 'text/yaml' });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `${type.name.replace(/\s+/g, '_')}.yaml`;
-                            
-                            // Show downloading message
-                            setAlert(true, 'Downloading YAML file...', 'success');
-                            
-                            // Start download
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            
-                            // Cleanup and show success message after a delay
-                            setTimeout(() => {
-                              URL.revokeObjectURL(url);
-                              setAlert(true, 'YAML file downloaded successfully!', 'success');
-                            }, 1000);
-                          } catch (error) {
-                            console.error('Error downloading file:', error);
-                            setAlert(true, 'Error downloading YAML file', 'error');
-                          }
-                        }}
-                        sx={{ mr: 1 }}
-                      >
-                        Download
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        color="error"
-                        onClick={() => {
-                          const updatedTypes = customProbeTypes.filter(t => t.id !== type.id);
-                          setCustomProbeTypes(updatedTypes);
-                          localStorage.setItem('savedProbeGroups', 
-                            JSON.stringify(JSON.parse(localStorage.getItem('savedProbeGroups') || '[]')
-                              .filter((g: any) => g.id !== type.id)));
-                          setAlert(true, 'Custom probe type deleted successfully!', 'success');
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    </Box>
-                  }
-                >
-                  <ListItemText
-                    primary={type.name}
-                    secondary={`Created: ${type.createdAt.toLocaleString()}`}
-                  />
-                </ListItem>
-              ))
-            )}
-          </List>
-        </DialogContent>
-      </Dialog>
-
       <Divider sx={{ my: 4 }} />
 
       {/* Submit button and progress bar */}
@@ -1061,7 +673,10 @@ const DesignWorkflow: React.FC = () => {
         <Button
           variant="contained"
           color={isSubmitting ? 'secondary' : 'primary'}
-          onClick={submitTask}
+          onClick={() => {
+            // TODO: Implement submit task
+            setAlert(true, 'Submit task functionality is not implemented yet', 'error');
+          }}
           disabled={isSubmitting}
           size="large"
         >

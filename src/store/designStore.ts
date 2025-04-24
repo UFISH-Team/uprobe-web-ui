@@ -15,16 +15,6 @@ interface Pool {
   density: number;
 }
 
-interface Filter {
-  type: string;
-  value: any;
-}
-
-interface Sort {
-  type: string;
-  order: '↑' | '↓';
-}
-
 interface DesignState {
   // Basic task info
   taskName: string;
@@ -50,11 +40,6 @@ interface DesignState {
 
   // Custom probe type specific
   selectedCustomType: CustomProbeType | null;
-  
-  // Post processing
-  filters: Filter[];
-  sorts: Sort[];
-  removeOverlap: number;
   
   // UI state
   isSubmitting: boolean;
@@ -86,14 +71,6 @@ interface DesignState {
   removePool: (index: number) => void;
   updatePool: (index: number, field: keyof Pool, value: any) => void;
   
-  // Post processing actions
-  addFilter: (filter: Filter) => void;
-  removeFilter: (index: number) => void;
-  updateFilter: (index: number, value: any) => void;
-  addSort: (sort: Sort) => void;
-  removeSort: (index: number) => void;
-  setRemoveOverlap: (value: number) => void;
-  
   // UI actions
   setSubmitting: (isSubmitting: boolean) => void;
   setProgress: (progress: number) => void;
@@ -102,9 +79,7 @@ interface DesignState {
   navigateToJobs: () => void;
   
   // API actions
-  submitTask: () => Promise<void>;
   getBarcodeSequence: (barcode: string) => Promise<string | null>;
-  refreshJobs: () => void;
 }
 
 const useDesignStore = create<DesignState>((set, get) => ({
@@ -122,9 +97,6 @@ const useDesignStore = create<DesignState>((set, get) => ({
     poolList: [{ name: '', location: '', numbers: 8000, density: 0.00005 }],
   },
   selectedCustomType: null,
-  filters: [],
-  sorts: [],
-  removeOverlap: 0,
   isSubmitting: false,
   progress: 0,
   downloadUrl: null,
@@ -186,26 +158,6 @@ const useDesignStore = create<DesignState>((set, get) => ({
     },
   })),
   
-  // Post processing setters
-  addFilter: (filter) => set((state) => ({
-    filters: [...state.filters, filter],
-  })),
-  removeFilter: (index) => set((state) => ({
-    filters: state.filters.filter((_, i) => i !== index),
-  })),
-  updateFilter: (index, value) => set((state) => ({
-    filters: state.filters.map((filter, i) =>
-      i === index ? { ...filter, value } : filter
-    ),
-  })),
-  addSort: (sort) => set((state) => ({
-    sorts: [...state.sorts, sort],
-  })),
-  removeSort: (index) => set((state) => ({
-    sorts: state.sorts.filter((_, i) => i !== index),
-  })),
-  setRemoveOverlap: (value) => set({ removeOverlap: value }),
-  
   // UI setters
   setSubmitting: (isSubmitting) => set({ isSubmitting }),
   setProgress: (progress) => set({ progress }),
@@ -229,135 +181,6 @@ const useDesignStore = create<DesignState>((set, get) => ({
       return null;
     }
   },
-  
-  submitTask: async () => {
-    try {
-      const state = get();
-      
-      // Input validation
-      if (!state.taskName || !state.probeType || !state.species) {
-        set({
-          alertOpen: true,
-          alertMessage: 'Please fill in all required fields before submitting.',
-          alertSeverity: 'error',
-        });
-        return;
-      }
-      
-      if (state.probeType === 'RCA' && state.geneList.some(gene => !gene.gene)) {
-        set({
-          alertOpen: true,
-          alertMessage: 'Please fill in all gene names for RCA design.',
-          alertSeverity: 'error',
-        });
-        return;
-      }
-      
-      if (state.probeType === 'DNA-FISH' && state.dnaFishParams.poolList.some(pool => 
-        !pool.name || !pool.location || pool.numbers === 0 || pool.density === 0
-      )) {
-        set({
-          alertOpen: true,
-          alertMessage: 'Please fill in all pool details for DNA-FISH design.',
-          alertSeverity: 'error',
-        });
-        return;
-      }
-
-      if (state.probeType === 'U-Probe' && state.geneList.some(gene => !gene.gene)) {
-        set({
-          alertOpen: true,
-          alertMessage: 'Please fill in all gene names for U-Probe design.',
-          alertSeverity: 'error',
-        });
-        return;
-      }
-      
-      set({ isSubmitting: true, progress: 10 });
-      
-      // Prepare the task data based on probe type
-      const taskData: any = {
-        name: state.taskName,
-        description: `${state.probeType} probe design for ${state.species}`,
-        probeType: state.probeType,
-        species: state.species,
-        parameters: {}
-      };
-      
-      // Add parameters based on probe type
-      if (state.probeType === 'RCA') {
-        taskData.parameters = {
-          minLength: state.minLength,
-          overlap: state.overlap,
-          geneList: state.geneList,
-          filters: state.filters,
-          sorts: state.sorts,
-          removeOverlap: state.removeOverlap
-        };
-      } else if (state.probeType === 'DNA-FISH') {
-        taskData.parameters = {
-          ...state.dnaFishParams,
-          filters: state.filters,
-          sorts: state.sorts,
-          removeOverlap: state.removeOverlap
-        };
-      } else {
-        // Custom probe type
-        taskData.parameters = {
-          minLength: state.minLength,
-          overlap: state.overlap,
-          geneList: state.geneList,
-          customType: state.selectedCustomType?.name || state.probeType,
-          filters: state.filters,
-          sorts: state.sorts,
-          removeOverlap: state.removeOverlap
-        };
-      }
-      
-      set({ progress: 30 });
-      
-      // Submit the task to the API
-      const response = await ApiService.submitTask(taskData);
-      
-      set({ progress: 90 });
-      
-      if (response && response.data && response.data.job_id) {
-        set({
-          alertOpen: true,
-          alertMessage: 'Task submitted successfully! Redirecting to task page...',
-          alertSeverity: 'success',
-          progress: 100
-        });
-        
-        // Increment the refresh job counter to trigger a refresh on the Task page
-        set(state => ({ nRefreshJobs: state.nRefreshJobs + 1 }));
-        
-        // Navigate to the task page after a short delay
-        setTimeout(() => {
-          window.location.href = '/task';
-        }, 2000);
-      } else {
-        throw new Error('Failed to get job ID from response');
-      }
-    } catch (error) {
-      console.error('Error submitting task:', error);
-      set({
-        isSubmitting: false,
-        alertOpen: true,
-        alertMessage: 'Failed to submit task. Please try again.',
-        alertSeverity: 'error',
-      });
-    } finally {
-      // Reset submission state after a delay
-      setTimeout(() => {
-        set({ isSubmitting: false, progress: 0 });
-      }, 3000);
-    }
-  },
-
-  refreshJobs: () => {
-    set((state) => ({ nRefreshJobs: state.nRefreshJobs + 1 }))
-  }
 }));
 
 export default useDesignStore;
