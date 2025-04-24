@@ -1,184 +1,470 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Snackbar, 
-  Paper,
-  useTheme,
-  useMediaQuery,
+import React, { useEffect, useState } from 'react';
+import {
+  Typography,
+  Space,
+  Button,
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Input,
+  Table,
+  Tag,
+  Modal,
+  Spin,
+  Tooltip,
+  message,
   Divider,
-  IconButton
-} from '@mui/material';
-import InfoIcon from '@mui/icons-material/Info';
-import CloseIcon from '@mui/icons-material/Close';
+  Badge,
+  Empty
+} from 'antd';
+import {
+  ReloadOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  ExclamationCircleOutlined,
+  DatabaseOutlined,
+  FileOutlined,
+  FileTextOutlined,
+  UploadOutlined
+} from '@ant-design/icons';
+import { useGenomeData } from '../hooks/useGenomeData';
+import FileUpload from '../components/genome/FileUpload';
 import GenomeSelector from '../components/genome/GenomeSelector';
-import FileTable from '../components/genome/FileTable';
-import GenomeMetadata from '../components/genome/GenomeMetadata';
-import { useGenomeData } from '../components/genome/hooks/useGenomeData';
-import { useFileOperations } from '../components/genome/hooks/useFileOperations';
-import { useNotification } from '../components/genome/hooks/useNotification';
-import { GenomeHeader } from '../components/genome/GenomeHeader';
-import { GenomeInfoPanel } from '../components/genome/GenomeInfoPanel';
-import { useGenomeStatsVisualization } from '../components/genome/GenomeStatsVisualization';
+import './Genome.css';
+
+const { confirm } = Modal;
+const { Title, Text } = Typography;
 
 const Genome: React.FC = () => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+  const {
+    genomes,
+    selectedGenome,
+    genomeFiles,
+    isLoading,
+    setSelectedGenome,
+    fetchGenomes,
+    fetchGenomeFiles,
+    uploadGenomeFile,
+    deleteGenomeFile,
+    downloadGenomeFile,
+    addGenome,
+    deleteGenome,
+  } = useGenomeData();
 
-  // Custom hooks for better separation of concerns
-  const { genomes, selectedGenome, setSelectedGenome, customGenome, setCustomGenome, fetchGenomes, deleteGenome } = useGenomeData();
-  const { files, handleFileUpload, deleteFile, downloadFile } = useFileOperations(selectedGenome, customGenome);
-  const { notification, hideNotification } = useNotification();
-  const [showMetadata, setShowMetadata] = useState<boolean>(!isMobile);
-
-  // Get stats visualization component
-  const StatsVisualization = useGenomeStatsVisualization(selectedGenome || '', files);
+  const [searchText, setSearchText] = useState<string>('');
+  const [addGenomeModalVisible, setAddGenomeModalVisible] = useState<boolean>(false);
+  const [newGenomeName, setNewGenomeName] = useState<string>('');
 
   useEffect(() => {
     fetchGenomes();
   }, [fetchGenomes]);
 
-  // Update showMetadata based on screen size
   useEffect(() => {
-    setShowMetadata(!isMobile);
-  }, [isMobile]);
+    if (selectedGenome) {
+      fetchGenomeFiles(selectedGenome);
+    }
+  }, [selectedGenome, fetchGenomeFiles]);
+
+  const handleFileUpload = async (file: File) => {
+    if (!selectedGenome) {
+      message.error('Please select a genome first');
+      return;
+    }
+    await uploadGenomeFile(selectedGenome, file);
+  };
+
+  const handleFileDelete = async (fileName: string) => {
+    if (!selectedGenome) return;
+    
+    confirm({
+      title: 'Are you sure you want to delete this file?',
+      icon: <ExclamationCircleOutlined />,
+      content: 'This action cannot be undone.',
+      onOk() {
+        return deleteGenomeFile(selectedGenome, fileName);
+      },
+    });
+  };
+
+  const handleFileDownload = async (fileName: string) => {
+    if (!selectedGenome) return;
+    await downloadGenomeFile(selectedGenome, fileName);
+  };
+
+  const handleAddGenome = () => {
+    if (newGenomeName.trim()) {
+      addGenome(newGenomeName.trim());
+      setNewGenomeName('');
+      setAddGenomeModalVisible(false);
+    } else {
+      message.error('Genome name cannot be empty');
+    }
+  };
+
+  const handleDeleteGenomeConfirm = () => {
+    if (!selectedGenome) return;
+    
+    confirm({
+      title: 'Are you sure you want to delete this genome?',
+      icon: <ExclamationCircleOutlined />,
+      content: 'All associated files will also be deleted. This action cannot be undone.',
+      onOk() {
+        return deleteGenome(selectedGenome);
+      },
+    });
+  };
+
+  // Statistics for the dashboard
+  const getGenomeStats = () => {
+    const totalGenomes = genomes.length;
+    const totalFiles = genomeFiles.length;
+    const filesByType = genomeFiles.reduce((acc, file) => {
+      const type = file.split('.').pop() || 'unknown';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const fastaFiles = Object.entries(filesByType)
+      .filter(([type]) => ['fasta', 'fa', 'fna', 'faa', 'ffn', 'frn'].includes(type))
+      .reduce((sum, [, count]) => sum + count, 0);
+      
+    const otherFiles = totalFiles - fastaFiles;
+    
+    return {
+      totalGenomes,
+      totalFiles,
+      fastaFiles,
+      otherFiles,
+    };
+  };
+
+  const stats = getGenomeStats();
+
+  // Get file type color
+  const getFileTypeColor = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      'fasta': 'green',
+      'fa': 'green',
+      'fna': 'green',
+      'faa': 'green', 
+      'ffn': 'green',
+      'frn': 'green',
+      'gtf': 'orange',
+      'gff': 'orange',
+      'gz': 'blue',
+      'zip': 'blue',
+      'txt': 'purple',
+    };
+    
+    return typeMap[type.toLowerCase()] || 'default';
+  };
+
+  // Table columns for file list
+  const columns = [
+    {
+      title: 'File Name',
+      dataIndex: 'name',
+      key: 'name',
+      render: (text: string, record: any) => {
+        const fileIcon = record.type.match(/fa|fasta|fna|faa|ffn|frn/i) ? (
+          <FileTextOutlined style={{ marginRight: 8 }} />
+        ) : (
+          <FileOutlined style={{ marginRight: 8 }} />
+        );
+        
+        return (
+          <Tooltip title={text}>
+            <div className="file-name">
+              {fileIcon}
+              {text}
+            </div>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: 'Type',
+      dataIndex: 'type',
+      key: 'type',
+      width: 120,
+      render: (text: string) => (
+        <Tag color={getFileTypeColor(text)}>
+          {text.toUpperCase() || 'Unknown'}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 200,
+      render: (_: any, record: any) => (
+        <Space size="small">
+          <Button
+            type="primary"
+            size="small"
+            icon={<DownloadOutlined />}
+            onClick={() => handleFileDownload(record.name)}
+          >
+            Download
+          </Button>
+          <Button
+            type="primary"
+            danger
+            size="small"
+            icon={<DeleteOutlined />}
+            onClick={() => handleFileDelete(record.name)}
+          >
+            Delete
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+
+  // Convert genomeFiles to table data format
+  const fileTableData = genomeFiles
+    .filter(fileName => fileName.toLowerCase().includes(searchText.toLowerCase()))
+    .map(fileName => ({
+      key: fileName,
+      name: fileName,
+      type: fileName.split('.').pop() || 'Unknown',
+    }));
 
   return (
-    <Box 
-      sx={{ 
-        minHeight: '100vh',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        bgcolor: theme.palette.background.default
-      }}
-    >
-      <GenomeHeader />
-      
-      <Box 
-        sx={{ 
-          flex: 1,
-          width: '100%',
-          maxWidth: '1800px',
-          margin: '0 auto',
-          padding: {
-            xs: 1,
-            sm: 2,
-            md: 3,
-            lg: 4
-          }
+    <div className="genome-page">
+      <div className="page-header">
+        <div>
+          <Title level={2}>
+            <DatabaseOutlined /> Genome Management
+          </Title>
+          <Text type="secondary">Manage your genome references and associated files</Text>
+        </div>
+        <Space>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setAddGenomeModalVisible(true)}
+          >
+            Add Genome
+          </Button>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={fetchGenomes}
+            loading={isLoading}
+          >
+            Refresh
+          </Button>
+        </Space>
+      </div>
+
+      <Row gutter={16} className="statistics-cards">
+        <Col span={6}>
+          <Card size="small">
+            <Statistic 
+              title="Total Genomes" 
+              value={stats.totalGenomes} 
+              prefix={<DatabaseOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Statistic 
+              title="Total Files" 
+              value={stats.totalFiles}
+              prefix={<FileOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Statistic 
+              title="FASTA Files" 
+              value={stats.fastaFiles} 
+              valueStyle={{ color: '#3f8600' }}
+              prefix={<FileTextOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Statistic 
+              title="Other Files" 
+              value={stats.otherFiles}
+              valueStyle={{ color: '#1890ff' }}
+              prefix={<FileOutlined />}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row 
+        gutter={{ xs: 8, sm: 16, md: 24 }} 
+        className="genome-content"
+      >
+        <Col span={6}>
+          <div className="left-column">
+            <Card 
+              title={
+                <span>
+                  <DatabaseOutlined /> Genome Selection
+                </span>
+              } 
+              className="genome-card"
+            >
+              {genomes.length === 0 && !isLoading ? (
+                <Empty 
+                  image={Empty.PRESENTED_IMAGE_SIMPLE} 
+                  description="No genomes available" 
+                />
+              ) : (
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <GenomeSelector
+                    genomes={genomes}
+                    selectedGenome={selectedGenome}
+                    onSelectGenome={setSelectedGenome}
+                    onAddGenome={addGenome}
+                    onDeleteGenome={deleteGenome}
+                    isLoading={isLoading}
+                  />
+                  
+                  {selectedGenome && (
+                    <>
+                      <Divider plain>Selected Genome</Divider>
+                      <div className="genome-info">
+                        <Badge status="processing" text={selectedGenome} />
+                        <div style={{ marginTop: 8 }}>
+                          <Text type="secondary">
+                            {genomeFiles.length} file(s) available
+                          </Text>
+                        </div>
+                        <Button 
+                          danger 
+                          icon={<DeleteOutlined />} 
+                          onClick={handleDeleteGenomeConfirm}
+                          style={{ marginTop: 16 }}
+                        >
+                          Delete Genome
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </Space>
+              )}
+            </Card>
+            
+            <Card 
+              title={
+                <span>
+                  <UploadOutlined /> Upload Files
+                </span>
+              } 
+              className="genome-card upload-card" 
+              style={{ marginTop: 16 }}
+            >
+              <FileUpload
+                onUpload={handleFileUpload}
+                disabled={!selectedGenome || isLoading}
+              />
+              
+              {!selectedGenome && (
+                <div className="upload-warning">
+                  <Text type="warning">
+                    <ExclamationCircleOutlined style={{ marginRight: 8 }} />
+                    Please select a genome first
+                  </Text>
+                </div>
+              )}
+            </Card>
+          </div>
+        </Col>
+        
+        <Col span={18}>
+          <Card className="files-card">
+            <div className="card-header">
+              <div>
+                <Title level={4}>
+                  <FileOutlined /> Files
+                </Title>
+                {selectedGenome && (
+                  <Text type="secondary">
+                    Files for genome: <Text strong>{selectedGenome}</Text>
+                  </Text>
+                )}
+              </div>
+              <Input
+                placeholder="Search files"
+                prefix={<SearchOutlined />}
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                style={{ width: 250 }}
+                allowClear
+              />
+            </div>
+            
+            {isLoading ? (
+              <div className="loading-container">
+                <Spin size="large" />
+              </div>
+            ) : (
+              <>
+                {!selectedGenome ? (
+                  <div className="empty-state">
+                    <Empty 
+                      description="Please select a genome to view files" 
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
+                  </div>
+                ) : genomeFiles.length === 0 ? (
+                  <div className="empty-state">
+                    <Empty 
+                      description="No files available for this genome" 
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
+                  </div>
+                ) : (
+                  <Table
+                    columns={columns}
+                    dataSource={fileTableData}
+                    pagination={{ pageSize: 10 }}
+                    className="file-table"
+                    bordered
+                    size="middle"
+                    loading={isLoading}
+                  />
+                )}
+              </>
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Add Genome Modal */}
+      <Modal
+        title={
+          <span>
+            <DatabaseOutlined /> Add New Genome
+          </span>
+        }
+        open={addGenomeModalVisible}
+        onOk={handleAddGenome}
+        onCancel={() => {
+          setAddGenomeModalVisible(false);
+          setNewGenomeName('');
         }}
       >
-        <Paper 
-          elevation={2}
-          sx={{ 
-            borderRadius: 2,
-            overflow: 'hidden'
-          }}
-        >
-          {/* Top Section: Genome Selection and Quick Stats */}
-          <Box sx={{ p: 3, bgcolor: theme.palette.background.default }}>
-            <GenomeSelector 
-              genomes={genomes}
-              selectedGenome={selectedGenome}
-              setSelectedGenome={setSelectedGenome}
-              customGenome={customGenome}
-              setCustomGenome={setCustomGenome}
-              onUpload={handleFileUpload}
-              onDeleteGenome={deleteGenome}
-              showMetadata={() => setShowMetadata(!showMetadata)}
-            />
-          </Box>
-
-          <Divider />
-
-          {/* Main Content Area */}
-          <Box 
-            sx={{ 
-              display: 'grid',
-              gridTemplateColumns: {
-                xs: '1fr',
-                md: '3fr 1fr'
-              },
-              gap: 0,
-              minHeight: '600px'
-            }}
-          >
-            {/* Left Side: File Table */}
-            <Box 
-              sx={{ 
-                borderRight: { md: `1px solid ${theme.palette.divider}` },
-                bgcolor: theme.palette.background.paper,
-                p: 3
-              }}
-            >
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Genome Files
-                </Typography>
-                <FileTable 
-                  files={files} 
-                  onDelete={deleteFile} 
-                  onDownload={downloadFile} 
-                />
-              </Box>
-
-              {!isTablet && selectedGenome && (
-                <Box sx={{ mt: 4 }}>
-                  {StatsVisualization}
-                </Box>
-              )}
-            </Box>
-
-            {/* Right Side: Info Panels */}
-            <Box 
-              sx={{ 
-                bgcolor: theme.palette.grey[50],
-                display: { xs: showMetadata ? 'block' : 'none', md: 'block' },
-                p: 3,
-                position: 'relative'
-              }}
-            >
-              {isMobile && (
-                <IconButton
-                  onClick={() => setShowMetadata(false)}
-                  sx={{ position: 'absolute', right: 8, top: 8 }}
-                >
-                  <CloseIcon />
-                </IconButton>
-              )}
-
-              {selectedGenome ? (
-                <>
-                  <GenomeInfoPanel 
-                    genomeName={selectedGenome}
-                    fileCount={files.length}
-                  />
-                  <GenomeMetadata genomeName={selectedGenome} />
-                  {isTablet && StatsVisualization}
-                </>
-              ) : (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <InfoIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-                  <Typography color="text.secondary">
-                    Select a genome to view detailed information
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          </Box>
-        </Paper>
-      </Box>
-
-      <Snackbar
-        open={notification.open}
-        onClose={hideNotification}
-        message={notification.message}
-        autoHideDuration={3000}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      />
-    </Box>
+        <Input 
+          placeholder="Enter genome name"
+          value={newGenomeName}
+          onChange={(e) => setNewGenomeName(e.target.value)}
+          onPressEnter={handleAddGenome}
+          prefix={<DatabaseOutlined />}
+        />
+      </Modal>
+    </div>
   );
 };
 

@@ -1,0 +1,270 @@
+.genome-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: calc(100vh - 64px);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 16px 24px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.statistics-cards {
+  margin-bottom: 24px;
+}
+
+.statistics-cards .ant-card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  transition: all 0.3s;
+}
+
+.statistics-cards .ant-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.genome-content {
+  margin-top: 16px;
+}
+
+/* 左侧列布局 */
+.left-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.genome-card {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.upload-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.upload-card .ant-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.files-card {
+  height: 100%;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.files-card .ant-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 48px;
+  background: #f9fafc;
+  border-radius: 4px;
+  border: 1px dashed #d9d9d9;
+  flex: 1;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 48px;
+  flex: 1;
+}
+
+.file-name {
+  display: inline-block;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-table {
+  margin-top: 16px;
+  flex: 1;
+}
+
+/* 表格样式优化 */
+.file-table .ant-table-thead > tr > th {
+  background-color: #f7f9fc;
+  color: #1f1f1f;
+}
+
+.file-table .ant-table-tbody > tr:hover > td {
+  background-color: #e6f7ff;
+}
+
+.file-table .ant-table-row:nth-child(even) {
+  background-color: #fafafa;
+}
+
+/* 按钮样式优化 */
+.genome-page .ant-btn {
+  border-radius: 4px;
+}
+
+.genome-page .ant-btn-primary {
+  background-color: #1890ff;
+  border-color: #1890ff;
+}
+
+.genome-page .ant-btn-primary:hover {
+  background-color: #40a9ff;
+  border-color: #40a9ff;
+}
+
+/* Card 标题样式 */
+.genome-card .ant-card-head,
+.files-card .ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0 16px;
+}
+
+.genome-card .ant-card-head-title,
+.files-card .ant-card-head-title {
+  font-weight: 600;
+  color: #1f1f1f;
+}
+
+/* 新增样式 */
+.genome-info {
+  padding: 12px;
+  background-color: #f9fafc;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+.upload-warning {
+  text-align: center;
+  margin-top: 16px;
+  padding: 8px;
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  border-radius: 4px;
+}
+
+/* 动画效果 */
+.ant-table-row {
+  transition: all 0.3s;
+}
+
+.ant-badge-status-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.ant-badge-status-processing:after {
+  animation-duration: 1.5s;
+}
+
+/* 空状态优化 */
+.ant-empty {
+  margin: 32px 0;
+}
+
+.ant-empty-image {
+  height: 80px;
+}
+
+/* 表格内状态样式 */
+.file-status {
+  display: flex;
+  align-items: center;
+}
+
+.file-size {
+  color: #8c8c8c;
+  margin-left: 8px;
+}
+
+/* 额外的间距 */
+.card-header div {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-header div .ant-typography {
+  margin-bottom: 0;
+}
+
+.card-header div .ant-typography + .ant-typography {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+/* 让 Dragger 组件占据更多空间 */
+.ant-upload-drag {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* 响应式设计优化 */
+@media (max-width: 767px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .page-header .ant-space {
+    margin-top: 16px;
+  }
+  
+  .statistics-cards .ant-card {
+    margin-bottom: 16px;
+  }
+  
+  .genome-content .ant-col {
+    margin-bottom: 16px;
+  }
+}
+
+/* 让两列高度等同 */
+.genome-content > .ant-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.genome-content .ant-card {
+  margin-bottom: 0;
+}
+
+.file-upload-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 200px;
+} 

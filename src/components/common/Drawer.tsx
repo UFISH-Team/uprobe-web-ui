@@ -16,7 +16,7 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import HomeIcon from '@mui/icons-material/Home';
 
 import { PanelLabel } from '../../types';
-import useStore from '../../store';
+import useJobStore from '../../store/jobStore';
 
 
 const drawerWidth = 240;
@@ -46,7 +46,7 @@ export default function CustomDrawer(props: IProps) {
     props.setOpen(false);
   }
 
-  const { monitorMode, allowedRouters } = useStore((state) => state)
+  const { monitorMode, allowedRouters } = useJobStore((state) => state)
 
   return (
     <Drawer

@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
-import { NotificationState } from '../types';
+import { SnackbarState } from '../types';
 
 export const useNotification = () => {
-  const [notification, setNotification] = useState<NotificationState>({
+  const [notification, setNotification] = useState<SnackbarState>({
     open: false,
     message: '',
     severity: 'info'
@@ -17,15 +17,15 @@ export const useNotification = () => {
   }, []);
 
   const hideNotification = useCallback(() => {
-    setNotification((prev) => ({
+    setNotification(prev => ({
       ...prev,
-      open: false
+      open: false,
     }));
   }, []);
 
   return {
     notification,
     showNotification,
-    hideNotification
+    hideNotification,
   };
 };
