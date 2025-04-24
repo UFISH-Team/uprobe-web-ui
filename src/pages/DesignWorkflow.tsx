@@ -21,6 +21,7 @@ import {
   List, 
   ListItem, 
   ListItemText,
+  ListItemSecondaryAction,
   Stepper,
   Step,
   StepLabel,
@@ -38,6 +39,7 @@ import RemoveCircleIcon from '@mui/icons-material/RemoveCircle';
 import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import DownloadIcon from '@mui/icons-material/Download';
 import Papa from 'papaparse';
 import useDesignStore from '../store/designStore';
 import ApiService from '../api';
@@ -259,6 +261,28 @@ const DesignWorkflow: React.FC = () => {
       ...prev,
       [section]: !prev[section]
     }));
+  };
+
+  // Function to handle downloading YAML content
+  const handleDownload = (type: CustomProbeType) => {
+    const blob = new Blob([type.yamlContent], { type: 'text/yaml' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type.name}.yaml`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Function to handle deleting a custom probe type
+  const handleDelete = (typeId: string) => {
+    const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
+    const updatedGroups = savedGroups.filter((group: any) => group.id !== typeId);
+    localStorage.setItem('savedProbeGroups', JSON.stringify(updatedGroups));
+    loadCustomProbeTypes(); // Reload the list
+    setAlert(true, 'Custom probe type deleted successfully', 'success');
   };
 
   return (
@@ -698,6 +722,73 @@ const DesignWorkflow: React.FC = () => {
           {alertMessage}
         </Alert>
       </Snackbar>
+
+      {/* Custom Probe Types Dialog */}
+      <Dialog
+        open={showCustomProbeTypes}
+        onClose={() => setShowCustomProbeTypes(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Custom Probe Types</Typography>
+            <IconButton onClick={() => setShowCustomProbeTypes(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {customProbeTypes.length === 0 ? (
+            <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
+              No custom probe types available
+            </Typography>
+          ) : (
+            <List>
+              {customProbeTypes.map((type) => (
+                <ListItem
+                  key={type.id}
+                  divider
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                    },
+                  }}
+                >
+                  <ListItemText
+                    primary={type.name}
+                    secondary={
+                      <Typography variant="body2" color="text.secondary">
+                        Created: {new Date(type.createdAt).toLocaleDateString()}<br />
+                        Barcode Count: {type.barcodeCount}<br />
+                        Target Length: {type.targetLength}
+                      </Typography>
+                    }
+                  />
+                  <ListItemSecondaryAction>
+                    <IconButton
+                      edge="end"
+                      onClick={() => handleDownload(type)}
+                      title="Download YAML"
+                      sx={{ mr: 1 }}
+                    >
+                      <DownloadIcon />
+                    </IconButton>
+                    <IconButton
+                      edge="end"
+                      onClick={() => handleDelete(type.id)}
+                      title="Delete"
+                      color="error"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+      </Dialog>
     </Container>
   );
 };
