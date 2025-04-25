@@ -113,6 +113,23 @@ interface AttributeValue {
   enabled: boolean;
 }
 
+interface SortOption {
+  category: string;
+  field: string;
+  order: 'asc' | 'desc';
+}
+
+interface SortField {
+  value: string;
+  label: string;
+}
+
+interface SortCategory {
+  category: string;
+  icon: string;
+  fields: SortField[];
+}
+
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
   const [barcodeOptions, setBarcodeOptions] = useState<string[]>([]);
@@ -135,6 +152,9 @@ const DesignWorkflow: React.FC = () => {
   const [currentProbeName, setCurrentProbeName] = useState<string>('');
   const [currentPartName, setCurrentPartName] = useState<string>('');
   const [editingAttribute, setEditingAttribute] = useState<AttributeValue | null>(null);
+  const [sortOptions, setSortOptions] = useState<SortOption[]>([]);
+  const [showPostProcess, setShowPostProcess] = useState(true);
+  const [overlapThreshold, setOverlapThreshold] = useState(20);
 
   const {
     // State
@@ -175,6 +195,35 @@ const DesignWorkflow: React.FC = () => {
     { id: 'selfMatch', label: 'Self Match', icon: '🔍' },
     { id: 'mappedGenes', label: 'Mapped Genes', icon: '🧬' },
     { id: 'specific', label: 'Specificity', icon: '🎯' }
+  ];
+
+  const sortCategories: SortCategory[] = [
+    {
+      category: 'Target Sequence',
+      icon: '🎯',
+      fields: [
+        { value: 'target.gcContent', label: 'GC Content' },
+        { value: 'target.foldScore', label: 'Fold Score' },
+        { value: 'target.tm', label: 'Melting Temperature' },
+        { value: 'target.selfMatch', label: 'Self Match' },
+        { value: 'target.mappedGenes', label: 'Mapped Genes' },
+        { value: 'target.specific', label: 'Specificity' },
+        { value: 'target.length', label: 'Length' }
+      ]
+    },
+    {
+      category: 'Whole Probe',
+      icon: '🧬',
+      fields: [
+        { value: 'probe.gcContent', label: 'GC Content' },
+        { value: 'probe.foldScore', label: 'Fold Score' },
+        { value: 'probe.tm', label: 'Melting Temperature' },
+        { value: 'probe.selfMatch', label: 'Self Match' },
+        { value: 'probe.mappedGenes', label: 'Mapped Genes' },
+        { value: 'probe.specific', label: 'Specificity' },
+        { value: 'probe.length', label: 'Length' }
+      ]
+    }
   ];
 
   // Fetch species and barcode options on mount
@@ -284,14 +333,25 @@ const DesignWorkflow: React.FC = () => {
     if (type !== 'RCA' && type !== 'DNA-FISH') {
       const customType = customProbeTypes.find(t => t.name === type);
       if (customType) {
+        console.log('Debug - Found custom type:', customType);
         const parameters = extractParametersFromYaml(customType.yamlContent);
-        if (parameters) {
+        console.log('Debug - YAML parameters:', parameters);
+        if (parameters && parameters.target_sequence) {
+          const targetConfig = {
+            source: parameters.target_sequence.source,
+            sequence: parameters.target_sequence.sequence,
+            length: parameters.target_sequence.length,
+            attributes: parameters.target_sequence.attributes || {}
+          };
+          console.log('Debug - Constructed targetConfig:', targetConfig);
           const updatedCustomType = {
             ...customType,
             targetLength: parameters.targetLength,
             barcodeCount: parameters.barcodeCount,
-            probes: parameters.probes
+            probes: parameters.probes,
+            targetConfig
           };
+          console.log('Debug - Updated custom type:', updatedCustomType);
           setSelectedCustomType(updatedCustomType);
           // Set default target length from YAML or custom type
           if (customType.targetLength) {
@@ -299,19 +359,17 @@ const DesignWorkflow: React.FC = () => {
           } else if (parameters.targetLength) {
             setMinLength(parameters.targetLength);
           } else {
-            // If no target length in YAML or custom type, use default value
             setMinLength(100);
           }
           // Set default overlap if specified in YAML
           if (parameters.overlap) {
             setOverlap(parameters.overlap);
           } else {
-            // If no overlap in YAML, use default value
             setOverlap(20);
           }
         } else {
+          console.log('Debug - Failed to parse YAML parameters or missing target_sequence');
           setSelectedCustomType(customType);
-          // Set default values if YAML parsing fails
           if (customType.targetLength) {
             setMinLength(customType.targetLength);
           } else {
@@ -320,20 +378,19 @@ const DesignWorkflow: React.FC = () => {
           setOverlap(20);
         }
       } else {
+        console.log('Debug - Custom type not found');
         setSelectedCustomType(null);
-        // Set default values if custom type not found
         setMinLength(100);
         setOverlap(20);
       }
     } else {
       setSelectedCustomType(null);
-      // Set default values for RCA and DNA-FISH
       if (type === 'RCA') {
-        setMinLength(100); // Default RCA target length
-        setOverlap(20); // Default RCA overlap
+        setMinLength(100);
+        setOverlap(20);
       } else if (type === 'DNA-FISH') {
-        setMinLength(50); // Default DNA-FISH target length
-        setOverlap(10); // Default DNA-FISH overlap
+        setMinLength(50);
+        setOverlap(10);
       }
     }
   };
@@ -389,7 +446,7 @@ const DesignWorkflow: React.FC = () => {
     if (currentAttributeType === 'target') {
       if (!updatedType.targetConfig) {
         updatedType.targetConfig = {
-          source: 'genome',
+          source: '',
           sequence: '',
           length: updatedType.targetLength || 0,
           attributes: {}
@@ -571,6 +628,171 @@ const DesignWorkflow: React.FC = () => {
     }
   };
 
+  const isGenomeLikeSource = () => {
+    console.log('Debug - selectedCustomType:', selectedCustomType);
+    
+    if (!selectedCustomType?.yamlContent) {
+      return false;
+    }
+
+    const yamlContent = selectedCustomType.yamlContent;
+    const sourceMatch = yamlContent.match(/target_sequence:\s*\n\s*source:\s*['"]?([^'\n]+)['"]?/);
+    const extractedSource = sourceMatch ? sourceMatch[1] : null;
+    
+    return extractedSource === 'genome';
+  };
+
+  const handleAddProbe = () => {
+    if (!selectedCustomType) return;
+    
+    const newProbeName = `probe${Object.keys(selectedCustomType.probes || {}).length + 1}`;
+    const updatedType = {
+      ...selectedCustomType,
+      probes: {
+        ...selectedCustomType.probes,
+        [newProbeName]: {
+          template: '',
+          parts: {},
+          attributes: {}
+        }
+      }
+    };
+    setSelectedCustomType(updatedType);
+  };
+
+  const handleAddPart = (probeName: string) => {
+    if (!selectedCustomType) return;
+    
+    const probe = selectedCustomType.probes?.[probeName];
+    if (!probe) return;
+    
+    const newPartName = `part${Object.keys(probe.parts).length + 1}`;
+    const updatedType = {
+      ...selectedCustomType,
+      probes: {
+        ...selectedCustomType.probes,
+        [probeName]: {
+          ...probe,
+          parts: {
+            ...probe.parts,
+            [newPartName]: {
+              expr: '',
+              attributes: {}
+            }
+          }
+        }
+      }
+    };
+    setSelectedCustomType(updatedType);
+  };
+
+  const handleAddSortOption = () => {
+    setSortOptions([...sortOptions, { category: '', field: '', order: 'asc' }]);
+  };
+
+  const handleRemoveSortOption = (index: number) => {
+    const newOptions = [...sortOptions];
+    newOptions.splice(index, 1);
+    setSortOptions(newOptions);
+  };
+
+  const handleSortOptionChange = (index: number, field: string, order: 'asc' | 'desc') => {
+    const newOptions = [...sortOptions];
+    newOptions[index] = { ...newOptions[index], field, order };
+    setSortOptions(newOptions);
+  };
+
+  const handleOverlapThresholdChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setOverlapThreshold(Number(event.target.value));
+  };
+
+  // 根据选中的探针类型动态生成排序选项
+  const getAvailableSortFields = (): SortCategory[] => {
+    if (!selectedCustomType) return [];
+
+    const categories: SortCategory[] = [];
+    
+    // 添加目标序列属性
+    if (selectedCustomType.targetConfig?.attributes) {
+      const targetFields: SortField[] = [];
+      Object.entries(selectedCustomType.targetConfig.attributes).forEach(([key, value]) => {
+        if (value.enabled) {
+          const fieldLabel = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+          targetFields.push({
+            value: `target.${key}`,
+            label: fieldLabel
+          });
+        }
+      });
+      if (targetFields.length > 0) {
+        categories.push({
+          category: 'Target Sequence',
+          icon: '🎯',
+          fields: targetFields
+        });
+      }
+    }
+
+    // 添加探针属性
+    if (selectedCustomType.probes) {
+      const probeFields: SortField[] = [];
+      Object.entries(selectedCustomType.probes).forEach(([probeName, probe]) => {
+        if (probe.attributes) {
+          Object.entries(probe.attributes).forEach(([key, value]) => {
+            if (value.enabled) {
+              const fieldLabel = `${probeName} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
+              probeFields.push({
+                value: `probe.${probeName}.${key}`,
+                label: fieldLabel
+              });
+            }
+          });
+        }
+      });
+      if (probeFields.length > 0) {
+        categories.push({
+          category: 'Probe Attributes',
+          icon: '🧬',
+          fields: probeFields
+        });
+      }
+
+      // 添加探针部分属性
+      const partFields: SortField[] = [];
+      Object.entries(selectedCustomType.probes).forEach(([probeName, probe]) => {
+        if (probe.parts) {
+          Object.entries(probe.parts).forEach(([partName, part]) => {
+            if (part.attributes) {
+              Object.entries(part.attributes).forEach(([key, value]) => {
+                if (value.enabled) {
+                  const fieldLabel = `${probeName} - ${partName} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
+                  partFields.push({
+                    value: `part.${probeName}.${partName}.${key}`,
+                    label: fieldLabel
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+      if (partFields.length > 0) {
+        categories.push({
+          category: 'Part Attributes',
+          icon: '🔬',
+          fields: partFields
+        });
+      }
+    }
+
+    return categories;
+  };
+
+  // 当探针类型改变时重置排序选项
+  useEffect(() => {
+    setSortOptions([]);
+  }, [selectedCustomType]);
+
   return (
     <Container
       maxWidth="xl" 
@@ -602,7 +824,10 @@ const DesignWorkflow: React.FC = () => {
           <StepLabel>Custom Probe Parameters</StepLabel>
         </Step>
         <Step>
-          <StepLabel>Sample List</StepLabel>
+          <StepLabel>Sample Input</StepLabel>
+        </Step>
+        <Step>
+          <StepLabel>Post Processing</StepLabel>
         </Step>
       </Stepper>
 
@@ -686,7 +911,7 @@ const DesignWorkflow: React.FC = () => {
                   <MenuItem value="DNA-FISH">DNA-FISH</MenuItem>
                   {customProbeTypes.map((type) => (
                     <MenuItem key={type.id} value={type.name}>
-                      {type.name} (Custom)
+                      {type.name} 
                     </MenuItem>
                   ))}
                 </Select>
@@ -940,10 +1165,13 @@ const DesignWorkflow: React.FC = () => {
         <CardHeader 
           title={probeType === 'RCA' ? '🔢 RCA Gene Barcode Map' : 
                  probeType === 'DNA-FISH' ? '🔢 DNA-FISH Pool List' : 
-                 '🔢 Custom Probe Gene Map'} 
+                 isGenomeLikeSource() ? '🔢 DNA-FISH Pool List' :
+                 '🔢 RNA FISH Probe Gene Map'} 
           subheader={probeType === 'RCA' ? 
             'Manually input gene names and select the corresponding barcodes.' :
             probeType === 'DNA-FISH' ? 
+            'Provide pool list for DNA-FISH including name, location(chr:start-end), numbers, and density.' :
+            isGenomeLikeSource() ?
             'Provide pool list for DNA-FISH including name, location(chr:start-end), numbers, and density.' :
             'Input gene names and select barcodes according to your custom probe type configuration.'}
           action={
@@ -1032,7 +1260,7 @@ const DesignWorkflow: React.FC = () => {
               </>
             )}
 
-            {probeType === 'DNA-FISH' && (
+            {(probeType === 'DNA-FISH' || (probeType !== 'RCA' && selectedCustomType && isGenomeLikeSource())) && (
               <>
                 <Button
                   variant="outlined"
@@ -1085,25 +1313,24 @@ const DesignWorkflow: React.FC = () => {
                       />
                     </Grid>
                     <Grid item xs={2}>
-                      <IconButton onClick={() => removePool(index)}>
+                      <IconButton onClick={() => removePool(index)} color="error">
                         <DeleteIcon />
                       </IconButton>
                     </Grid>
                   </Grid>
                 ))}
-
                 <Button
                   variant="outlined"
                   startIcon={<AddIcon />}
-                  onClick={addPool}
-                  sx={{ mt: 2 }}
+                  onClick={() => addPool()}
+                  sx={{ mt: 1 }}
                 >
                   Add Pool
                 </Button>
               </>
             )}
 
-            {probeType !== 'RCA' && probeType !== 'DNA-FISH' && selectedCustomType && (
+            {probeType !== 'RCA' && probeType !== 'DNA-FISH' && selectedCustomType && !isGenomeLikeSource() && (
               <>
                 <Button
                   variant="outlined"
@@ -1164,6 +1391,103 @@ const DesignWorkflow: React.FC = () => {
                 </Button>
               </>
             )}
+          </CardContent>
+        </Collapse>
+      </Card>
+
+      {/* Post Processing Step */}
+      <Card sx={{ mb: 3 }}>
+        <CardHeader
+          title="🛠️ Post Processing"
+          action={
+            <IconButton onClick={() => setShowPostProcess(!showPostProcess)}>
+              {showPostProcess ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          }
+        />
+        <Collapse in={showPostProcess}>
+          <CardContent>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Sorting Options
+              </Typography>
+              {sortOptions.map((option, index) => (
+                <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+                  <FormControl sx={{ minWidth: 250 }}>
+                    <InputLabel>Category</InputLabel>
+                    <Select
+                      value={option.category}
+                      onChange={(e) => {
+                        const category = e.target.value;
+                        const newOptions = [...sortOptions];
+                        newOptions[index] = { ...option, category, field: '' };
+                        setSortOptions(newOptions);
+                      }}
+                    >
+                      {getAvailableSortFields().map((cat) => (
+                        <MenuItem key={cat.category} value={cat.category}>
+                          {cat.icon} {cat.category}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormControl sx={{ minWidth: 250 }}>
+                    <InputLabel>Sort Field</InputLabel>
+                    <Select
+                      value={option.field}
+                      onChange={(e) => handleSortOptionChange(index, e.target.value, option.order)}
+                      disabled={!option.category}
+                    >
+                      {option.category && getAvailableSortFields()
+                        .find(cat => cat.category === option.category)
+                        ?.fields.map((field) => (
+                          <MenuItem key={field.value} value={field.value}>
+                            {field.label}
+                          </MenuItem>
+                        ))}
+                    </Select>
+                  </FormControl>
+                  <FormControl sx={{ minWidth: 120 }}>
+                    <InputLabel>Order</InputLabel>
+                    <Select
+                      value={option.order}
+                      onChange={(e) => handleSortOptionChange(index, option.field, e.target.value as 'asc' | 'desc')}
+                      disabled={!option.field}
+                    >
+                      <MenuItem value="asc">Ascending</MenuItem>
+                      <MenuItem value="desc">Descending</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <IconButton onClick={() => handleRemoveSortOption(index)}>
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+              ))}
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={handleAddSortOption}
+                sx={{ mt: 1 }}
+              >
+                Add Sort Option
+              </Button>
+            </Box>
+
+            <Box>
+              <Typography variant="h6" gutterBottom>
+               Remove Overlap
+              </Typography>
+              <TextField
+                label="Overlap Threshold (bp)"
+                type="number"
+                value={overlapThreshold}
+                onChange={handleOverlapThresholdChange}
+                InputProps={{
+                  endAdornment: <InputAdornment position="end">bp</InputAdornment>,
+                }}
+                sx={{ width: 200 }}
+              />
+            </Box>
           </CardContent>
         </Collapse>
       </Card>
