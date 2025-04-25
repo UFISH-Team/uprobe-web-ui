@@ -83,6 +83,15 @@ export interface GenomeFile {
   updatedAt: string;
 }
 
+export interface ProbeConfig {
+  template: string;
+  parts: Record<string, {
+    expr: string;
+    attributes?: Record<string, any>;
+  }>;
+  attributes?: Record<string, any>;
+}
+
 export interface CustomProbeType {
   id: string;
   name: string;
@@ -93,12 +102,13 @@ export interface CustomProbeType {
   barcodeCount: number;
   targetLength?: number;
   overlap?: number;
-  partLengths?: {
-    part1: number;
-    part2: number;
-    part3: number;
+  targetConfig?: {
+    source: string;
+    sequence: string;
+    length: number;
+    attributes?: Record<string, any>;
   };
-  probes?: { [key: string]: any };
+  probes?: Record<string, ProbeConfig>;
 }
 
 export const parseYamlContent = (yamlContent: string) => {

@@ -28,24 +28,90 @@ import {
   Card,
   CardContent,
   CardHeader,
-  Collapse
+  Collapse,
+  Chip,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  InputAdornment,
+  Paper,
+  DialogActions,
+  Tooltip
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import SortIcon from '@mui/icons-material/Sort';
-import RemoveCircleIcon from '@mui/icons-material/RemoveCircle';
 import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import DownloadIcon from '@mui/icons-material/Download';
+import EditIcon from '@mui/icons-material/Edit';
 import Papa from 'papaparse';
 import useDesignStore from '../store/designStore';
 import ApiService from '../api';
 import { CustomProbeType, extractParametersFromYaml } from '../types';
 
 import { Container } from '../style';
+
+type AlignerType = 'BLAST' | 'Bowtie2' | 'MMseqs2';
+
+interface TargetConfig {
+  source: string;
+  sequence: string;
+  length: number;
+  attributes?: Record<string, any>;
+}
+
+interface PartConfig {
+  expr: string;
+  attributes?: Record<string, any>;
+}
+
+interface ProbeConfig {
+  template: string;
+  parts: Record<string, PartConfig>;
+  attributes?: Record<string, any>;
+}
+
+interface TargetAttributes {
+  gcContent?: {
+    min?: number;
+    max?: number;
+    enabled: boolean;
+  };
+  foldScore?: {
+    max?: number;
+    enabled: boolean;
+  };
+  tm?: {
+    min?: number;
+    max?: number;
+    enabled: boolean;
+  };
+  selfMatch?: {
+    max?: number;
+    enabled: boolean;
+  };
+  mappedGenes?: {
+    max?: number;
+    aligner?: AlignerType;
+    enabled: boolean;
+  };
+  specific?: {
+    threshold?: number;
+    aligner?: AlignerType;
+    enabled: boolean;
+  };
+}
+
+interface AttributeValue {
+  name: string;
+  min?: number;
+  max?: number;
+  threshold?: number;
+  aligner?: 'BLAST' | 'Bowtie2' | 'MMseqs2';
+  enabled: boolean;
+}
 
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
@@ -62,6 +128,13 @@ const DesignWorkflow: React.FC = () => {
     targetParams: true,
     geneMap: true
   });
+  const [showAttributeDialog, setShowAttributeDialog] = useState(false);
+  const [showEditAttributeDialog, setShowEditAttributeDialog] = useState(false);
+  const [showPartSelectionDialog, setShowPartSelectionDialog] = useState(false);
+  const [currentAttributeType, setCurrentAttributeType] = useState<'target' | 'probe' | 'part'>('target');
+  const [currentProbeName, setCurrentProbeName] = useState<string>('');
+  const [currentPartName, setCurrentPartName] = useState<string>('');
+  const [editingAttribute, setEditingAttribute] = useState<AttributeValue | null>(null);
 
   const {
     // State
@@ -94,6 +167,15 @@ const DesignWorkflow: React.FC = () => {
     updatePool,
     setAlert,
   } = useDesignStore();
+
+  const attributeOptions = [
+    { id: 'gcContent', label: 'GC Content', icon: '🧬' },
+    { id: 'foldScore', label: 'Fold Score', icon: '📊' },
+    { id: 'tm', label: 'Melting Temperature', icon: '🌡️' },
+    { id: 'selfMatch', label: 'Self Match', icon: '🔍' },
+    { id: 'mappedGenes', label: 'Mapped Genes', icon: '🧬' },
+    { id: 'specific', label: 'Specificity', icon: '🎯' }
+  ];
 
   // Fetch species and barcode options on mount
   useEffect(() => {
@@ -285,6 +367,210 @@ const DesignWorkflow: React.FC = () => {
     setAlert(true, 'Custom probe type deleted successfully', 'success');
   };
 
+  // Add new function to handle attribute editing
+  const handleEditAttribute = (attribute: Partial<AttributeValue>) => {
+    const updatedAttribute: AttributeValue = {
+      name: attribute.name || '',
+      min: attribute.min || 0,
+      max: attribute.max || 100,
+      threshold: attribute.threshold,
+      aligner: attribute.aligner,
+      enabled: true
+    };
+    setEditingAttribute(updatedAttribute);
+    setShowEditAttributeDialog(true);
+  };
+
+  // Add new function to save edited attribute
+  const handleSaveAttribute = () => {
+    if (!editingAttribute) return;
+
+    const updatedType = { ...selectedCustomType };
+    if (currentAttributeType === 'target') {
+      if (!updatedType.targetConfig) {
+        updatedType.targetConfig = {
+          source: 'genome',
+          sequence: '',
+          length: updatedType.targetLength || 0,
+          attributes: {}
+        };
+      }
+      if (!updatedType.targetConfig.attributes) {
+        updatedType.targetConfig.attributes = {};
+      }
+      updatedType.targetConfig.attributes[editingAttribute.name] = {
+        ...editingAttribute,
+        enabled: true
+      };
+    } else if (currentAttributeType === 'probe') {
+      if (!updatedType.probes?.[currentProbeName]?.attributes) {
+        if (!updatedType.probes) updatedType.probes = {};
+        if (!updatedType.probes[currentProbeName]) updatedType.probes[currentProbeName] = { 
+          template: '',
+          parts: {} 
+        };
+        updatedType.probes[currentProbeName].attributes = {};
+      }
+      updatedType.probes[currentProbeName].attributes![editingAttribute.name] = {
+        ...editingAttribute,
+        enabled: true
+      };
+    } else if (currentAttributeType === 'part') {
+      if (!updatedType.probes?.[currentProbeName]?.parts?.[currentPartName]?.attributes) {
+        if (!updatedType.probes) updatedType.probes = {};
+        if (!updatedType.probes[currentProbeName]) updatedType.probes[currentProbeName] = { 
+          template: '',
+          parts: {} 
+        };
+        if (!updatedType.probes[currentProbeName].parts) updatedType.probes[currentProbeName].parts = {};
+        if (!updatedType.probes[currentProbeName].parts[currentPartName]) {
+          updatedType.probes[currentProbeName].parts[currentPartName] = { 
+            expr: '',
+            attributes: {} 
+          };
+        }
+        updatedType.probes[currentProbeName].parts[currentPartName].attributes = {};
+      }
+      updatedType.probes[currentProbeName].parts[currentPartName].attributes![editingAttribute.name] = {
+        ...editingAttribute,
+        enabled: true
+      };
+    }
+
+    setSelectedCustomType(updatedType as CustomProbeType);
+    setShowEditAttributeDialog(false);
+    setEditingAttribute(null);
+  };
+
+  // Modify the handleAddAttribute function
+  const handleAddAttribute = (attributeId: string) => {
+    const defaultValues: Record<string, Partial<AttributeValue>> = {
+      gcContent: { min: 40, max: 60, enabled: true },
+      foldScore: { max: 40, enabled: true },
+      tm: { min: 60, max: 75, enabled: true },
+      selfMatch: { max: 4, enabled: true },
+      mappedGenes: { max: 5, aligner: 'BLAST', enabled: true },
+      specific: { threshold: 80, aligner: 'BLAST', enabled: true }
+    };
+
+    const attributeValue = defaultValues[attributeId];
+    setEditingAttribute({
+      name: attributeId,
+      ...attributeValue,
+      enabled: true
+    } as AttributeValue);
+    setShowAttributeDialog(false);
+    setShowEditAttributeDialog(true);
+  };
+
+  // Modify the handlePartSelect function
+  const handlePartSelect = (probeName: string, partName: string) => {
+    setCurrentProbeName(probeName);
+    setCurrentPartName(partName);
+    setShowPartSelectionDialog(false);
+    if (editingAttribute) {
+      setShowEditAttributeDialog(true);
+    } else {
+      setShowAttributeDialog(true);
+    }
+  };
+
+  // Add new function to handle part selection button click
+  const handlePartSelectionClick = () => {
+    setShowPartSelectionDialog(true);
+  };
+
+  // Add new function to handle attribute click
+  const handleAttributeClick = (probeName: string, partName: string | null, attrName: string, attrValue: any) => {
+    setCurrentProbeName(probeName);
+    if (partName) {
+      setCurrentPartName(partName);
+      setCurrentAttributeType('part');
+    } else {
+      setCurrentAttributeType('probe');
+    }
+    handleEditAttribute({
+      name: attrName,
+      ...attrValue
+    });
+  };
+
+  // Add new function to format attribute value display
+  const formatAttributeValue = (attrValue: any) => {
+    if (typeof attrValue === 'object') {
+      if (attrValue.threshold !== undefined) {
+        return `${attrValue.threshold}%`;
+      }
+      return `${attrValue.min}% <= value <= ${attrValue.max}%`;
+    }
+    return attrValue;
+  };
+
+  // Modify the renderAttributeChip function
+  const renderAttributeChip = (probeName: string, partName: string | null, attrName: string, attrValue: any) => {
+    if (!attrValue?.enabled) return null;
+
+    const chipProps = {
+      size: "small" as const,
+      variant: "outlined" as const,
+      sx: { height: 20, fontSize: '0.7rem', cursor: 'pointer' },
+      onClick: () => handleAttributeClick(probeName, partName, attrName, attrValue)
+    };
+
+    switch(attrName) {
+      case 'gcContent':
+        return (
+          <Chip
+            {...chipProps}
+            label={`GC: ${attrValue.min}%-${attrValue.max}%`}
+            color="primary"
+          />
+        );
+      case 'foldScore':
+        return (
+          <Chip
+            {...chipProps}
+            label={`Fold: max ${attrValue.max}`}
+            color="secondary"
+          />
+        );
+      case 'tm':
+        return (
+          <Chip
+            {...chipProps}
+            label={`Tm: ${attrValue.min}°C-${attrValue.max}°C`}
+            color="error"
+          />
+        );
+      case 'selfMatch':
+        return (
+          <Chip
+            {...chipProps}
+            label={`Self: max ${attrValue.max}`}
+            color="warning"
+          />
+        );
+      case 'mappedGenes':
+        return (
+          <Chip
+            {...chipProps}
+            label={`Map: max ${attrValue.max}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}`}
+            color="info"
+          />
+        );
+      case 'specific':
+        return (
+          <Chip
+            {...chipProps}
+            label={`Spec: ${attrValue.threshold}%${attrValue.aligner ? ` (${attrValue.aligner})` : ''}`}
+            color="success"
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <Container
       maxWidth="xl" 
@@ -313,10 +599,10 @@ const DesignWorkflow: React.FC = () => {
           <StepLabel>Probe Type</StepLabel>
         </Step>
         <Step>
-          <StepLabel>Target Parameters</StepLabel>
+          <StepLabel>Custom Probe Parameters</StepLabel>
         </Step>
         <Step>
-          <StepLabel>Gene Map</StepLabel>
+          <StepLabel>Sample List</StepLabel>
         </Step>
       </Stepper>
 
@@ -413,46 +699,238 @@ const DesignWorkflow: React.FC = () => {
                 View Custom Types
               </Button>
             </Box>
-          </CardContent>
-        </Collapse>
-      </Card>
 
-      {/* Target Parameters */}
-      <Card sx={{ mb: 3 }}>
-        <CardHeader 
-          title="⚙️ Target Parameters" 
-          subheader="Set the target sequence length and overlap parameters."
-          action={
-            <IconButton onClick={() => toggleSection('targetParams')}>
-              {expandedSections.targetParams ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            </IconButton>
-          }
-        />
-        <Collapse in={expandedSections.targetParams}>
-          <CardContent>
-            <Grid container spacing={4}>
-              <Grid item xs={6}>
-                <TextField
-                  label="Target length"
-                  placeholder="Enter target sequence length"
-                  fullWidth
-                  type="number"
-                  value={minLength}
-                  onChange={(e) => setMinLength(Number(e.target.value))}
-                />
-              </Grid>
+            {/* Custom Probe Parameters Section */}
+            {selectedCustomType && (
+              <Box sx={{ mt: 3 }}>
+                <Card variant="outlined" sx={{ 
+                  backgroundColor: 'background.paper',
+                  boxShadow: 'none'
+                }}>
+                  <CardHeader
+                    title="⚙️ Custom Probe Parameters"
+                    subheader="Adjust the parameters for your custom probe design"
+                  />
+                  <CardContent>
+                    {/* Target Sequence Configuration */}
+                    <Box sx={{ mb: 4 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6" sx={{ color: 'text.primary' }}>
+                          🎯 Target Sequence Configuration
+                        </Typography>
+                        <Tooltip title="Add target sequence attributes">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCurrentAttributeType('target');
+                              setShowAttributeDialog(true);
+                            }}
+                            sx={{ 
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              '&:hover': {
+                                backgroundColor: 'action.hover',
+                              }
+                            }}
+                          >
+                            <AddIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                      
+                      <Grid container spacing={3} sx={{ mb: 3 }}>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            label="Target Length"
+                            type="number"
+                            value={selectedCustomType.targetLength}
+                            onChange={(e) => {
+                              const updatedType = {
+                                ...selectedCustomType,
+                                targetLength: Number(e.target.value)
+                              };
+                              setSelectedCustomType(updatedType);
+                              setMinLength(Number(e.target.value));
+                            }}
+                            InputProps={{
+                              endAdornment: <InputAdornment position="end">bp</InputAdornment>,
+                            }}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            label="Overlap"
+                            type="number"
+                            value={selectedCustomType.overlap}
+                            onChange={(e) => {
+                              const updatedType = {
+                                ...selectedCustomType,
+                                overlap: Number(e.target.value)
+                              };
+                              setSelectedCustomType(updatedType);
+                              setOverlap(Number(e.target.value));
+                            }}
+                            InputProps={{
+                              endAdornment: <InputAdornment position="end">bp</InputAdornment>,
+                            }}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                      </Grid>
 
-              <Grid item xs={6}>
-                <TextField
-                  label="Overlap"
-                  placeholder="Enter overlap value"
-                  fullWidth
-                  type="number"
-                  value={overlap}
-                  onChange={(e) => setOverlap(Number(e.target.value))}
-                />
-              </Grid>
-            </Grid>
+                      {selectedCustomType.targetConfig?.attributes && (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {Object.entries(selectedCustomType.targetConfig.attributes).map(([attrName, attrValue]) => (
+                            <Chip
+                              key={attrName}
+                              size="small"
+                              variant="outlined"
+                              sx={{ height: 20, fontSize: '0.7rem', cursor: 'pointer' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCurrentAttributeType('target');
+                                handleEditAttribute({
+                                  name: attrName,
+                                  ...attrValue
+                                });
+                              }}
+                              label={
+                                attrName === 'gcContent' ? `GC: ${attrValue.min}%-${attrValue.max}%` :
+                                attrName === 'foldScore' ? `Fold: max ${attrValue.max}` :
+                                attrName === 'tm' ? `Tm: ${attrValue.min}°C-${attrValue.max}°C` :
+                                attrName === 'selfMatch' ? `Self: max ${attrValue.max}` :
+                                attrName === 'mappedGenes' ? `Map: max ${attrValue.max}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
+                                attrName === 'specific' ? `Spec: ${attrValue.threshold}%${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
+                                `${attrName}: ${formatAttributeValue(attrValue)}`
+                              }
+                              color={
+                                attrName === 'gcContent' ? 'primary' :
+                                attrName === 'foldScore' ? 'secondary' :
+                                attrName === 'tm' ? 'error' :
+                                attrName === 'selfMatch' ? 'warning' :
+                                attrName === 'mappedGenes' ? 'info' :
+                                attrName === 'specific' ? 'success' :
+                                'default'
+                              }
+                            />
+                          ))}
+                          {!Object.values(selectedCustomType.targetConfig.attributes).some(attr => attr?.enabled) && (
+                            <Typography variant="caption" color="text.secondary">
+                              No attributes configured
+                            </Typography>
+                          )}
+                        </Box>
+                      )}
+                    </Box>
+
+                    {/* Probe Configuration */}
+                    <Box sx={{ mb: 4 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6" sx={{ color: 'text.primary' }}>
+                          🔬 Probe Configuration
+                        </Typography>
+                      </Box>
+
+                      {selectedCustomType.probes && Object.entries(selectedCustomType.probes).map(([probeName, probeConfig]) => (
+                        <Accordion key={probeName} sx={{ mb: 2 }}>
+                          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                                Probe: {probeName}
+                              </Typography>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCurrentProbeName(probeName);
+                                  setCurrentAttributeType('probe');
+                                  setShowAttributeDialog(true);
+                                }}
+                                sx={{ 
+                                  border: '1px solid',
+                                  borderColor: 'divider',
+                                  '&:hover': {
+                                    backgroundColor: 'action.hover',
+                                  }
+                                }}
+                              >
+                                <AddIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails>
+                            {/* Probe-level attributes */}
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
+                              {probeConfig.attributes && Object.entries(probeConfig.attributes).map(([attrName, attrValue]) => (
+                                renderAttributeChip(probeName, null, attrName, attrValue)
+                              ))}
+                              {(!probeConfig.attributes || !Object.values(probeConfig.attributes).some(attr => attr?.enabled)) && (
+                                <Typography variant="caption" color="text.secondary">
+                                  No attributes configured
+                                </Typography>
+                              )}
+                            </Box>
+
+                            {/* Part-level attributes */}
+                            {probeConfig.parts && Object.entries(probeConfig.parts).map(([partName, partConfig]) => (
+                              <Box key={partName} sx={{ mb: 3 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                  <Box>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                                      Part: {partName}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      Part of probe {probeName}
+                                    </Typography>
+                                  </Box>
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCurrentProbeName(probeName);
+                                      setCurrentPartName(partName);
+                                      setCurrentAttributeType('part');
+                                      setShowAttributeDialog(true);
+                                    }}
+                                    sx={{ 
+                                      border: '1px solid',
+                                      borderColor: 'divider',
+                                      '&:hover': {
+                                        backgroundColor: 'action.hover',
+                                      }
+                                    }}
+                                  >
+                                    <AddIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                                {partConfig.attributes && (
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {Object.entries(partConfig.attributes).map(([attrName, attrValue]) => (
+                                      renderAttributeChip(probeName, partName, attrName, attrValue)
+                                    ))}
+                                    {!Object.values(partConfig.attributes).some(attr => attr?.enabled) && (
+                                      <Typography variant="caption" color="text.secondary">
+                                        No attributes configured
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                )}
+                              </Box>
+                            ))}
+                          </AccordionDetails>
+                        </Accordion>
+                      ))}
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Box>
+            )}
           </CardContent>
         </Collapse>
       </Card>
@@ -787,6 +1265,201 @@ const DesignWorkflow: React.FC = () => {
               ))}
             </List>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Attribute Selection Dialog */}
+      <Dialog
+        open={showAttributeDialog}
+        onClose={() => setShowAttributeDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">Add Attribute</Typography>
+            <IconButton onClick={() => setShowAttributeDialog(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2}>
+            {attributeOptions.map((option) => (
+              <Grid item xs={12} sm={6} key={option.id}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => handleAddAttribute(option.id)}
+                  sx={{
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    p: 2
+                  }}
+                >
+                  <Typography variant="h4" sx={{ mb: 1 }}>{option.icon}</Typography>
+                  <Typography variant="body1">{option.label}</Typography>
+                </Button>
+              </Grid>
+            ))}
+          </Grid>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Attribute Dialog */}
+      <Dialog
+        open={showEditAttributeDialog}
+        onClose={() => setShowEditAttributeDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">Edit Attribute</Typography>
+            <IconButton onClick={() => setShowEditAttributeDialog(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle1" sx={{ mb: 2 }}>
+              {editingAttribute?.name === 'gcContent' && '🧬 GC Content'}
+              {editingAttribute?.name === 'foldScore' && '📊 Fold Score'}
+              {editingAttribute?.name === 'tm' && '🌡️ Melting Temperature'}
+              {editingAttribute?.name === 'selfMatch' && '🔍 Self Match'}
+              {editingAttribute?.name === 'mappedGenes' && '🧬 Mapped Genes'}
+              {editingAttribute?.name === 'specific' && '🎯 Specificity'}
+            </Typography>
+            <Grid container spacing={2}>
+              {(editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'tm') && (
+                <>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Minimum Value"
+                      type="number"
+                      value={editingAttribute?.min}
+                      onChange={(e) => setEditingAttribute(prev => prev ? {
+                        ...prev,
+                        min: Number(e.target.value)
+                      } : null)}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Maximum Value"
+                      type="number"
+                      value={editingAttribute?.max}
+                      onChange={(e) => setEditingAttribute(prev => prev ? {
+                        ...prev,
+                        max: Number(e.target.value)
+                      } : null)}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                      }}
+                    />
+                  </Grid>
+                </>
+              )}
+              {(editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'selfMatch') && (
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Maximum Value"
+                    type="number"
+                    value={editingAttribute?.max}
+                    onChange={(e) => setEditingAttribute(prev => prev ? {
+                      ...prev,
+                      max: Number(e.target.value)
+                    } : null)}
+                  />
+                </Grid>
+              )}
+              {editingAttribute?.name === 'specific' && (
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Threshold"
+                    type="number"
+                    value={editingAttribute?.threshold}
+                    onChange={(e) => setEditingAttribute(prev => prev ? {
+                      ...prev,
+                      threshold: Number(e.target.value)
+                    } : null)}
+                    InputProps={{
+                      endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                    }}
+                  />
+                </Grid>
+              )}
+              {(editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'specific') && (
+                <Grid item xs={12}>
+                  <FormControl fullWidth>
+                    <InputLabel>Aligner</InputLabel>
+                    <Select
+                      value={editingAttribute?.aligner || 'BLAST'}
+                      onChange={(e) => setEditingAttribute(prev => prev ? {
+                        ...prev,
+                        aligner: e.target.value as 'BLAST' | 'Bowtie2' | 'MMseqs2'
+                      } : null)}
+                    >
+                      <MenuItem value="BLAST">BLAST</MenuItem>
+                      <MenuItem value="Bowtie2">Bowtie2</MenuItem>
+                      <MenuItem value="MMseqs2">MMseqs2</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              )}
+            </Grid>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowEditAttributeDialog(false)}>Cancel</Button>
+          <Button onClick={handleSaveAttribute} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Part Selection Dialog */}
+      <Dialog
+        open={showPartSelectionDialog}
+        onClose={() => setShowPartSelectionDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">Select Part</Typography>
+            <IconButton onClick={() => setShowPartSelectionDialog(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <List>
+            {selectedCustomType?.probes && 
+              Object.entries(selectedCustomType.probes).map(([probeName, probeConfig]) => (
+                probeConfig.parts && Object.entries(probeConfig.parts).map(([partName, partConfig]) => (
+                  <ListItem
+                    key={`${probeName}-${partName}`}
+                    sx={{ cursor: 'pointer' }}
+                    onClick={() => handlePartSelect(probeName, partName)}
+                  >
+                    <ListItemText
+                      primary={partName}
+                      secondary={`Part of probe ${probeName}`}
+                    />
+                  </ListItem>
+                ))
+              ))}
+          </List>
         </DialogContent>
       </Dialog>
     </Container>
