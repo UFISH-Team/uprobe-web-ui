@@ -793,6 +793,34 @@ const DesignWorkflow: React.FC = () => {
     setSortOptions([]);
   }, [selectedCustomType]);
 
+  const getActiveSteps = () => {
+    const steps = [
+      { label: 'Task Name', completed: !!taskName },
+      { label: 'Species', completed: !!species },
+      { label: 'Probe Type', completed: !!probeType }
+    ];
+
+    if (selectedCustomType) {
+      steps.push({ label: 'Custom Probe Parameters', completed: true });
+    }
+
+    if (probeType === 'RCA' || probeType === 'DNA-FISH' || selectedCustomType) {
+      const hasInput = probeType === 'RCA' 
+        ? geneList.length > 0 
+        : dnaFishParams.poolList.length > 0;
+      steps.push(
+        { label: 'Sample Input', completed: hasInput }
+      );
+    }
+
+    steps.push({ 
+      label: 'Post Processing', 
+      completed: sortOptions.length > 0 || overlapThreshold !== 20 
+    });
+
+    return steps;
+  };
+
   return (
     <Container
       maxWidth="xl" 
@@ -811,24 +839,11 @@ const DesignWorkflow: React.FC = () => {
       </Box>
 
       <Stepper activeStep={-1} alternativeLabel sx={{ mb: 4 }}>
-        <Step>
-          <StepLabel>Task Name</StepLabel>
-        </Step>
-        <Step>
-          <StepLabel>Species</StepLabel>
-        </Step>
-        <Step>
-          <StepLabel>Probe Type</StepLabel>
-        </Step>
-        <Step>
-          <StepLabel>Custom Probe Parameters</StepLabel>
-        </Step>
-        <Step>
-          <StepLabel>Sample Input</StepLabel>
-        </Step>
-        <Step>
-          <StepLabel>Post Processing</StepLabel>
-        </Step>
+        {getActiveSteps().map((step, index) => (
+          <Step key={index} completed={step.completed}>
+            <StepLabel>{step.label}</StepLabel>
+          </Step>
+        ))}
       </Stepper>
 
       {/* Task Name */}
