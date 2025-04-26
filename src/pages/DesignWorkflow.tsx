@@ -200,6 +200,9 @@ const DesignWorkflow: React.FC = () => {
     removePool,
     updatePool,
     setAlert,
+    setSubmitting,
+    setProgress,
+    navigateToJobs,
   } = useDesignStore();
 
   const attributeOptions = [
@@ -957,6 +960,80 @@ const DesignWorkflow: React.FC = () => {
     });
 
     return steps;
+  };
+
+  const generateTaskConfig = () => {
+    const config: any = {
+      name: taskName,
+      description: 'Protocol for designing probe type ' + probeType + ' from ' + species,
+      species,
+      probe_type: probeType,
+      parameters: {
+        min_length: minLength,
+        overlap,
+        post_processing: {
+          sort_options: sortOptions,
+          overlap_threshold: overlapThreshold
+        }
+      }
+    };
+
+    // Add custom probe type parameters if selected
+    if (selectedCustomType) {
+      config.parameters.custom_probe = {
+        target_config: selectedCustomType.targetConfig,
+        probes: selectedCustomType.probes,
+        target_length: selectedCustomType.targetLength,
+        barcode_count: selectedCustomType.barcodeCount
+      };
+    }
+
+    // Add input data based on probe type
+    if (probeType === 'RCA') {
+      config.parameters.input = {
+        type: 'gene_list',
+        data: geneList
+      };
+    } else if (probeType === 'DNA-FISH' || (selectedCustomType && isGenomeLikeSource())) {
+      config.parameters.input = {
+        type: 'pool_list',
+        data: dnaFishParams.poolList
+      };
+    } else if (selectedCustomType) {
+      config.parameters.input = {
+        type: 'gene_list',
+        data: geneList
+      };
+    }
+
+    return config;
+  };
+
+  const handleSubmitTask = async () => {
+    try {
+      setSubmitting(true);
+      setProgress(0);
+
+      // Generate the complete task configuration
+      const taskConfig = generateTaskConfig();
+
+      // Submit the task
+      const response = await ApiService.submitTask(taskConfig);
+      
+      setAlert(true, 'Task submitted successfully!', 'success');
+      setProgress(100);
+      
+      // Navigate to tasks page after a short delay
+      setTimeout(() => {
+        navigateToJobs();
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to submit task:', error);
+      setAlert(true, 'Failed to submit task. Please try again.', 'error');
+      setProgress(0);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -1755,10 +1832,7 @@ const DesignWorkflow: React.FC = () => {
         <Button
           variant="contained"
           color={isSubmitting ? 'secondary' : 'primary'}
-          onClick={() => {
-            // TODO: Implement submit task
-            setAlert(true, 'Submit task functionality is not implemented yet', 'error');
-          }}
+          onClick={handleSubmitTask}
           disabled={isSubmitting}
           size="large"
         >
