@@ -130,6 +130,18 @@ interface SortCategory {
   fields: SortField[];
 }
 
+interface Pool {
+  name: string;
+  location: string;
+  numbers: number;
+  density: number;
+  [key: string]: string | number;  // Allow dynamic barcode fields
+}
+
+interface DnaFishParams {
+  poolList: Pool[];
+}
+
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
   const [barcodeOptions, setBarcodeOptions] = useState<string[]>([]);
@@ -155,6 +167,8 @@ const DesignWorkflow: React.FC = () => {
   const [sortOptions, setSortOptions] = useState<SortOption[]>([]);
   const [showPostProcess, setShowPostProcess] = useState(true);
   const [overlapThreshold, setOverlapThreshold] = useState(20);
+  const [barcodeFromFile, setBarcodeFromFile] = useState<{[key: string]: boolean}>({});
+  const [poolBarcodeFromFile, setPoolBarcodeFromFile] = useState<{[key: string]: boolean}>({});
 
   const {
     // State
@@ -284,19 +298,81 @@ const DesignWorkflow: React.FC = () => {
     setMenuAnchor(null);
   };
 
+  const handleResetGeneList = () => {
+    setGeneList([{ gene: '' }]);
+    setBarcodeFromFile({});
+    setAlert(true, 'Gene list has been reset', 'success');
+  };
+
+  const handleResetPoolList = () => {
+    setDnaFishParams({ 
+      poolList: [{ name: '', location: '', numbers: 8000, density: 0.00005 }] 
+    });
+    setPoolBarcodeFromFile({});
+    setAlert(true, 'Pool list has been reset', 'success');
+  };
+
   const handleGeneCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Reset file input
+      event.target.value = '';
+      
       Papa.parse(file, {
         header: true,
         complete: (results: Papa.ParseResult<Record<string, string>>) => {
-          const parsedData = results.data.map((row) => ({
-            gene: row['gene'],
-            barcode1: row['barcode1'],
-            barcode2: row['barcode2'],
-          }));
-          setGeneList(parsedData);
+          try {
+            if (results.data.length === 0) {
+              throw new Error('File is empty');
+            }
+
+            // Get all column names from the first row
+            const headers = Object.keys(results.data[0]);
+            const barcodeColumns = headers.filter(h => h.startsWith('barcode'));
+            
+            // Update which barcodes are from file
+            const newBarcodeFromFile: {[key: string]: boolean} = {};
+            if (selectedCustomType?.barcodeCount) {
+              for (let i = 1; i <= selectedCustomType.barcodeCount; i++) {
+                const barcodeKey = `barcode${i}`;
+                newBarcodeFromFile[barcodeKey] = barcodeColumns.includes(barcodeKey);
+              }
+            }
+            setBarcodeFromFile(newBarcodeFromFile);
+
+            const parsedData = results.data.map((row, index) => {
+              // Validate required fields
+              if (!row['gene']) {
+                throw new Error(`Row ${index + 2}: Missing required field 'gene'`);
+              }
+
+              // Create the gene object with gene name
+              const geneObj: any = { gene: row['gene'] };
+              
+              // Add barcode fields
+              if (selectedCustomType?.barcodeCount) {
+                for (let i = 1; i <= selectedCustomType.barcodeCount; i++) {
+                  const barcodeKey = `barcode${i}`;
+                  // Check if the barcode exists in the file
+                  if (barcodeColumns.includes(barcodeKey)) {
+                    geneObj[barcodeKey] = row[barcodeKey] || '';
+                  } else {
+                    geneObj[barcodeKey] = '';
+                  }
+                }
+              }
+
+              return geneObj;
+            });
+            setGeneList(parsedData);
+            setAlert(true, 'Gene list uploaded successfully', 'success');
+          } catch (error) {
+            setAlert(true, error instanceof Error ? error.message : 'Error parsing gene list file', 'error');
+          }
         },
+        error: (error: Error) => {
+          setAlert(true, `Error parsing file: ${error.message}`, 'error');
+        }
       });
     }
   };
@@ -304,17 +380,79 @@ const DesignWorkflow: React.FC = () => {
   const handlePoolCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Reset file input
+      event.target.value = '';
+      
       Papa.parse(file, {
         header: true,
         complete: (results: Papa.ParseResult<Record<string, string>>) => {
-          const parsedData = results.data.map((row) => ({
-            name: row['name'],
-            location: row['location'],
-            numbers: Number(row['numbers']),
-            density: Number(row['density']),
-          }));
-          setDnaFishParams({ poolList: parsedData });
+          try {
+            if (results.data.length === 0) {
+              throw new Error('File is empty');
+            }
+
+            // Get all column names from the first row
+            const headers = Object.keys(results.data[0]);
+            const barcodeColumns = headers.filter(h => h.startsWith('barcode'));
+            
+            // Update which barcodes are from file
+            const newBarcodeFromFile: {[key: string]: boolean} = {};
+            if (selectedCustomType?.barcodeCount) {
+              for (let i = 1; i <= selectedCustomType.barcodeCount; i++) {
+                const barcodeKey = `barcode${i}`;
+                newBarcodeFromFile[barcodeKey] = barcodeColumns.includes(barcodeKey);
+              }
+            }
+            setPoolBarcodeFromFile(newBarcodeFromFile);
+
+            const parsedData = results.data.map((row, index) => {
+              // Validate required fields
+              if (!row['name'] || !row['location'] || !row['numbers'] || !row['density']) {
+                throw new Error(`Row ${index + 2}: Missing required fields. Each row must have name, location, numbers, and density.`);
+              }
+
+              // Validate location format
+              if (!row['location'].match(/^chr\d*:\d+-\d+$/)) {
+                throw new Error(`Row ${index + 2}: Invalid location format. Should be like 'chr1:100-200'`);
+              }
+
+              // Validate numbers and density are numeric
+              const numbers = Number(row['numbers']);
+              const density = Number(row['density']);
+              if (isNaN(numbers) || isNaN(density)) {
+                throw new Error(`Row ${index + 2}: Numbers and density must be numeric values`);
+              }
+
+              const poolObj: any = {
+                name: row['name'],
+                location: row['location'],
+                numbers: numbers,
+                density: density,
+              };
+
+              // Add barcode fields
+              if (selectedCustomType?.barcodeCount) {
+                for (let i = 1; i <= selectedCustomType.barcodeCount; i++) {
+                  const barcodeKey = `barcode${i}`;
+                  if (barcodeColumns.includes(barcodeKey)) {
+                    poolObj[barcodeKey] = row[barcodeKey] || '';
+                  } else {
+                    poolObj[barcodeKey] = '';
+                  }
+                }
+              }
+
+              return poolObj;
+            });
+            setDnaFishParams({ poolList: parsedData });
+            setAlert(true, 'Pool list uploaded successfully', 'success');
+          } catch (error) {
+            setAlert(true, error instanceof Error ? error.message : 'Error parsing pool list file', 'error');
+          }
         },
+        error: (error: Error) => {
+          setAlert(true, `Error parsing file: ${error.message}`, 'error');
+        }
       });
     }
   };
@@ -740,7 +878,7 @@ const DesignWorkflow: React.FC = () => {
         if (probe.attributes) {
           Object.entries(probe.attributes).forEach(([key, value]) => {
             if (value.enabled) {
-              const fieldLabel = `${probeName} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
+              const fieldLabel = `Probe: ${probeName} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
               probeFields.push({
                 value: `probe.${probeName}.${key}`,
                 label: fieldLabel
@@ -765,7 +903,7 @@ const DesignWorkflow: React.FC = () => {
             if (part.attributes) {
               Object.entries(part.attributes).forEach(([key, value]) => {
                 if (value.enabled) {
-                  const fieldLabel = `${probeName} - ${partName} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
+                  const fieldLabel = `Probe: ${probeName} - Part: ${partName} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
                   partFields.push({
                     value: `part.${probeName}.${partName}.${key}`,
                     label: fieldLabel
@@ -850,7 +988,7 @@ const DesignWorkflow: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardHeader 
           title="📝 Task Name" 
-          subheader="Give your task a unique name to easily identify it."
+          subheader="Give your task a unique name to easily identify it"
           action={
             <IconButton onClick={() => toggleSection('taskName')}>
               {expandedSections.taskName ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -874,7 +1012,7 @@ const DesignWorkflow: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardHeader 
           title="🌍 Species Option" 
-          subheader="Choose the species genome to design your probes."
+          subheader="Choose the species genome to design your probes"
           action={
             <IconButton onClick={() => toggleSection('species')}>
               {expandedSections.species ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -905,7 +1043,7 @@ const DesignWorkflow: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardHeader 
           title="🔬 Probe Type" 
-          subheader="Choose from existing probe types or use a custom design from history."
+          subheader="Choose from existing probe types or use a custom design from history"
           action={
             <IconButton onClick={() => toggleSection('probeType')}>
               {expandedSections.probeType ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -1180,14 +1318,14 @@ const DesignWorkflow: React.FC = () => {
         <CardHeader 
           title={probeType === 'RCA' ? '🔢 RCA Gene Barcode Map' : 
                  probeType === 'DNA-FISH' ? '🔢 DNA-FISH Pool List' : 
-                 isGenomeLikeSource() ? '🔢 DNA-FISH Pool List' :
-                 '🔢 RNA FISH Probe Gene Map'} 
+                 isGenomeLikeSource() ? '🔢 DNA FISH Pool List' :
+                 '🔢 RNA FISH Gene Map'} 
           subheader={probeType === 'RCA' ? 
             'Manually input gene names and select the corresponding barcodes.' :
             probeType === 'DNA-FISH' ? 
-            'Provide pool list for DNA-FISH including name, location(chr:start-end), numbers, and density.' :
+            'Provide pool list for DNA FISH including name, location(chr:start-end), numbers, and density.' :
             isGenomeLikeSource() ?
-            'Provide pool list for DNA-FISH including name, location(chr:start-end), numbers, and density.' :
+            'Provide pool list for DNA FISH including name, location(chr:start-end), numbers, and density.' :
             'Input gene names and select barcodes according to your custom probe type configuration.'}
           action={
             <IconButton onClick={() => toggleSection('geneMap')}>
@@ -1199,20 +1337,35 @@ const DesignWorkflow: React.FC = () => {
           <CardContent>
             {probeType === 'RCA' && (
               <>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<AddIcon />}
-                  sx={{ mb: 2 }}
-                >
-                  Upload genelist csv
-                  <input
-                    type="file"
-                    hidden
-                    accept=".csv"
-                    onChange={handleGeneCsvUpload}
-                  />
-                </Button>
+                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<AddIcon />}
+                  >
+                    Upload genelist csv/txt
+                    <input
+                      type="file"
+                      hidden
+                      accept=".csv,.txt"
+                      onChange={handleGeneCsvUpload}
+                    />
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    onClick={handleResetGeneList}
+                  >
+                    Reset Gene List
+                  </Button>
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                  {selectedCustomType?.barcodeCount ? 
+                    `CSV/TXT format: gene${Array.from({ length: selectedCustomType.barcodeCount }, (_, i) => `,barcode${i + 1}`).join('')} (one line per gene)` :
+                    'CSV/TXT format: gene (one line per gene)'}<br />
+                  Note: Barcodes can be loaded from file or selected from dropdown
+                </Typography>
 
                 {geneList.map((item, index) => (
                   <Grid container spacing={2} key={index} alignItems="center" sx={{ mb: 1 }}>
@@ -1225,37 +1378,40 @@ const DesignWorkflow: React.FC = () => {
                       />
                     </Grid>
 
-                    <Grid item xs={3}>
-                      <FormControl fullWidth>
-                        <InputLabel>Barcode 1</InputLabel>
-                        <Select
-                          value={item.barcode1 || ''}
-                          onChange={(e) => updateGene(index, 'barcode1', e.target.value)}
-                        >
-                          {barcodeOptions.map((barcode, idx) => (
-                            <MenuItem key={idx} value={barcode}>
-                              {barcode}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-
-                    <Grid item xs={3}>
-                      <FormControl fullWidth>
-                        <InputLabel>Barcode 2</InputLabel>
-                        <Select
-                          value={item.barcode2 || ''}
-                          onChange={(e) => updateGene(index, 'barcode2', e.target.value)}
-                        >
-                          {barcodeOptions.map((barcode, idx) => (
-                            <MenuItem key={idx} value={barcode}>
-                              {barcode}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
+                    {selectedCustomType?.barcodeCount ? (
+                      Array.from({ length: selectedCustomType.barcodeCount }).map((_, barcodeIndex) => {
+                        const barcodeKey = `barcode${barcodeIndex + 1}`;
+                        return (
+                          <Grid item xs={3} key={barcodeIndex}>
+                            {barcodeFromFile[barcodeKey] ? (
+                              <TextField
+                                fullWidth
+                                label={`Barcode ${barcodeIndex + 1}`}
+                                value={(item as any)[barcodeKey] || ''}
+                                onChange={(e) => updateGene(index, barcodeKey as keyof typeof item, e.target.value)}
+                              />
+                            ) : (
+                              <FormControl fullWidth>
+                                <InputLabel>Barcode {barcodeIndex + 1}</InputLabel>
+                                <Select
+                                  value={(item as any)[barcodeKey] || ''}
+                                  onChange={(e) => updateGene(index, barcodeKey as keyof typeof item, e.target.value)}
+                                >
+                                  <MenuItem value="">
+                                    <em>None</em>
+                                  </MenuItem>
+                                  {barcodeOptions.map((barcode, idx) => (
+                                    <MenuItem key={idx} value={barcode}>
+                                      {barcode}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                            )}
+                          </Grid>
+                        );
+                      })
+                    ) : null}
 
                     <Grid item xs={2}>
                       <IconButton onClick={() => removeGene(index)}>
@@ -1277,20 +1433,40 @@ const DesignWorkflow: React.FC = () => {
 
             {(probeType === 'DNA-FISH' || (probeType !== 'RCA' && selectedCustomType && isGenomeLikeSource())) && (
               <>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<AddIcon />}
-                  sx={{ mb: 2 }}
-                >
-                  Upload poollist csv
-                  <input
-                    type="file"
-                    hidden
-                    accept=".csv"
-                    onChange={handlePoolCsvUpload}
-                  />
-                </Button>
+                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<AddIcon />}
+                  >
+                    Upload poollist csv/txt
+                    <input
+                      type="file"
+                      hidden
+                      accept=".csv,.txt"
+                      onChange={handlePoolCsvUpload}
+                    />
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    onClick={handleResetPoolList}
+                  >
+                    Reset Pool List
+                  </Button>
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                  CSV/TXT format: name,location,numbers,density{selectedCustomType?.barcodeCount ? 
+                    Array.from({ length: selectedCustomType.barcodeCount }, (_, i) => `,barcode${i + 1}`).join('') : ''} (one line per pool)<br />
+                  location format: chr:start-end (e.g., chr1:100-200)<br />
+                  numbers and density should be numeric values (e.g., 8000,0.11)<br />
+                  Example:<br />
+                  name,location,numbers,density{selectedCustomType?.barcodeCount ? 
+                    Array.from({ length: selectedCustomType.barcodeCount }, (_, i) => `,barcode${i + 1}`).join('') : ''}<br />
+                  pool1,chr1:100-200,8000,0.11{selectedCustomType?.barcodeCount ? 
+                    Array.from({ length: selectedCustomType.barcodeCount }, (_, i) => `,barcode${i + 1}_value`).join('') : ''}
+                </Typography>
                 {dnaFishParams.poolList.map((pool, index) => (
                   <Grid container spacing={2} key={index} sx={{ mb: 1 }}>
                     <Grid item xs={3}>
@@ -1327,6 +1503,40 @@ const DesignWorkflow: React.FC = () => {
                         onChange={(e) => updatePool(index, 'density', Number(e.target.value))}
                       />
                     </Grid>
+                    {selectedCustomType?.barcodeCount ? (
+                      Array.from({ length: selectedCustomType.barcodeCount }).map((_, barcodeIndex) => {
+                        const barcodeKey = `barcode${barcodeIndex + 1}`;
+                        return (
+                          <Grid item xs={2} key={barcodeIndex}>
+                            {poolBarcodeFromFile[barcodeKey] ? (
+                              <TextField
+                                fullWidth
+                                label={`Barcode ${barcodeIndex + 1}`}
+                                value={(pool as any)[barcodeKey] || ''}
+                                onChange={(e) => updatePool(index, barcodeKey, e.target.value)}
+                              />
+                            ) : (
+                              <FormControl fullWidth>
+                                <InputLabel>Barcode {barcodeIndex + 1}</InputLabel>
+                                <Select
+                                  value={(pool as any)[barcodeKey] || ''}
+                                  onChange={(e) => updatePool(index, barcodeKey, e.target.value)}
+                                >
+                                  <MenuItem value="">
+                                    <em>None</em>
+                                  </MenuItem>
+                                  {barcodeOptions.map((barcode, idx) => (
+                                    <MenuItem key={idx} value={barcode}>
+                                      {barcode}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                            )}
+                          </Grid>
+                        );
+                      })
+                    ) : null}
                     <Grid item xs={2}>
                       <IconButton onClick={() => removePool(index)} color="error">
                         <DeleteIcon />
@@ -1347,20 +1557,35 @@ const DesignWorkflow: React.FC = () => {
 
             {probeType !== 'RCA' && probeType !== 'DNA-FISH' && selectedCustomType && !isGenomeLikeSource() && (
               <>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<AddIcon />}
-                  sx={{ mb: 2 }}
-                >
-                  Upload genelist csv
-                  <input
-                    type="file"
-                    hidden
-                    accept=".csv"
-                    onChange={handleGeneCsvUpload}
-                  />
-                </Button>
+                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<AddIcon />}
+                  >
+                    Upload genelist csv/txt
+                    <input
+                      type="file"
+                      hidden
+                      accept=".csv,.txt"
+                      onChange={handleGeneCsvUpload}
+                    />
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    onClick={handleResetGeneList}
+                  >
+                    Reset Gene List
+                  </Button>
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                  {selectedCustomType?.barcodeCount ? 
+                    `CSV/TXT format: gene${Array.from({ length: selectedCustomType.barcodeCount }, (_, i) => `,barcode${i + 1}`).join('')} (one line per gene)` :
+                    'CSV/TXT format: gene (one line per gene)'}<br />
+                  Note: Barcodes can be loaded from file or selected from dropdown
+                </Typography>
 
                 {geneList.map((item, index) => (
                   <Grid container spacing={2} key={index} alignItems="center" sx={{ mb: 1 }}>
@@ -1372,23 +1597,38 @@ const DesignWorkflow: React.FC = () => {
                         onChange={(e) => updateGene(index, 'gene', e.target.value)}
                       />
                     </Grid>
-                    {Array.from({ length: selectedCustomType?.barcodeCount || 0 }).map((_, barcodeIndex) => (
-                      <Grid item xs={3} key={barcodeIndex}>
-                        <FormControl fullWidth>
-                          <InputLabel>Barcode {barcodeIndex + 1}</InputLabel>
-                          <Select
-                            value={item[`barcode${barcodeIndex + 1}`] || ''}
-                            onChange={(e) => updateGene(index, `barcode${barcodeIndex + 1}`, e.target.value)}
-                          >
-                            {barcodeOptions.map((barcode, idx) => (
-                              <MenuItem key={idx} value={barcode}>
-                                {barcode}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                    ))}
+                    {Array.from({ length: selectedCustomType?.barcodeCount || 0 }).map((_, barcodeIndex) => {
+                      const barcodeKey = `barcode${barcodeIndex + 1}`;
+                      return (
+                        <Grid item xs={3} key={barcodeIndex}>
+                          {barcodeFromFile[barcodeKey] ? (
+                            <TextField
+                              fullWidth
+                              label={`Barcode ${barcodeIndex + 1}`}
+                              value={(item as any)[barcodeKey] || ''}
+                              onChange={(e) => updateGene(index, barcodeKey as keyof typeof item, e.target.value)}
+                            />
+                          ) : (
+                            <FormControl fullWidth>
+                              <InputLabel>Barcode {barcodeIndex + 1}</InputLabel>
+                              <Select
+                                value={(item as any)[barcodeKey] || ''}
+                                onChange={(e) => updateGene(index, barcodeKey as keyof typeof item, e.target.value)}
+                              >
+                                <MenuItem value="">
+                                  <em>None</em>
+                                </MenuItem>
+                                {barcodeOptions.map((barcode, idx) => (
+                                  <MenuItem key={idx} value={barcode}>
+                                    {barcode}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          )}
+                        </Grid>
+                      );
+                    })}
                     <Grid item xs={2}>
                       <IconButton onClick={() => removeGene(index)}>
                         <DeleteIcon />
@@ -1414,6 +1654,7 @@ const DesignWorkflow: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardHeader
           title="🛠️ Post Processing"
+          subheader="Sorting the probes by the selected attributes and remove overlap"
           action={
             <IconButton onClick={() => setShowPostProcess(!showPostProcess)}>
               {showPostProcess ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -1424,7 +1665,7 @@ const DesignWorkflow: React.FC = () => {
           <CardContent>
             <Box sx={{ mb: 3 }}>
               <Typography variant="h6" gutterBottom>
-                Sorting Options
+                • Sorting Options
               </Typography>
               {sortOptions.map((option, index) => (
                 <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
@@ -1469,8 +1710,8 @@ const DesignWorkflow: React.FC = () => {
                       onChange={(e) => handleSortOptionChange(index, option.field, e.target.value as 'asc' | 'desc')}
                       disabled={!option.field}
                     >
-                      <MenuItem value="asc">Ascending</MenuItem>
-                      <MenuItem value="desc">Descending</MenuItem>
+                      <MenuItem value="asc">⬆️ Ascending</MenuItem>
+                      <MenuItem value="desc">⬇️ Descending</MenuItem>
                     </Select>
                   </FormControl>
                   <IconButton onClick={() => handleRemoveSortOption(index)}>
@@ -1490,7 +1731,7 @@ const DesignWorkflow: React.FC = () => {
 
             <Box>
               <Typography variant="h6" gutterBottom>
-               Remove Overlap
+              • Remove Overlap
               </Typography>
               <TextField
                 label="Overlap Threshold (bp)"
