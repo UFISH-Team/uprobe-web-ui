@@ -130,7 +130,7 @@ const Home: React.FC = () => {
               variant="contained"
               size="large"
               component={Link}
-              to="/designworkflow"
+              to="/design/designworkflow"
               sx={{ 
                 flex: isTablet ? '1 1 auto' : '1 1 0',
                 width: isTablet ? '100%' : undefined,

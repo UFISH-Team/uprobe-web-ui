@@ -151,14 +151,6 @@ const AttributeChip = styled(Chip)(({ theme }) => ({
   }
 }));
 
-const AttributeSection = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(1.5),
-  marginTop: theme.spacing(1),
-  backgroundColor: alpha(theme.palette.primary.light, 0.05),
-  borderRadius: theme.shape.borderRadius,
-  border: `1px dashed ${alpha(theme.palette.primary.main, 0.3)}`,
-}));
-
 const StyledTabs = styled(Tabs)(({ theme }) => ({
   marginBottom: theme.spacing(2),
   borderBottom: `1px solid ${theme.palette.divider}`,
@@ -349,13 +341,6 @@ interface YAMLAttributes {
   aligners?: AlignerType[];
 }
 
-interface YAMLTargetConfig {
-  source: string;
-  sequence: string;
-  length: number;
-  attributes?: YAMLAttributes;
-}
-
 interface YAMLPartConfig {
   length?: number;
   expr: string;
@@ -455,7 +440,7 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
   probes.forEach((probe, index) => {
     if (!probe.isComplete) return;  // 这里会跳过未完成的probe
     
-    const probeName = probe.name || `probe_${index + 1}`;
+    const probeName = probe.name || `probe_${index}`;
     const parts: { [key: string]: YAMLPartConfig } = {};
     let templateParts: string[] = [];
     
@@ -497,7 +482,7 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
     }
     
     probe.parts.forEach((part, partIndex) => {
-      const partName = `part${partIndex + 1}`;
+      const partName = `part${partIndex}`;
       templateParts.push(`{${partName}}`);
       
       // Build part configuration
@@ -553,7 +538,6 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
           : `target_region[${start - 1}:${end}]`;
       } else if (part.source === 'barcode') {
         const barcodeName = part.label.split(': ')[1];
-        const barcodeSequence = barcodes[barcodeName] || part.sequence;
         partConfig.expr = `encoding[target_region.gene_id]['${barcodeName}']`;
       } else if (part.source === 'fixed') {
         partConfig.expr = `'${part.sequence}'`;
@@ -769,14 +753,6 @@ const CustomProbe: React.FC = () => {
     setExpandedCards(prev => ({
       ...prev,
       [probeId]: !prev[probeId]
-    }));
-  };
-  
-  // Toggle showing attributes section
-  const toggleAttributes = (id: string) => {
-    setShowAttributes(prev => ({
-      ...prev,
-      [id]: !prev[id]
     }));
   };
   
@@ -1102,17 +1078,17 @@ const CustomProbe: React.FC = () => {
     let sourceProbeId: string | undefined = undefined;
     
     if (newPart.source === 'target') {
-      partLabel = `Target: ${newPart.startPos}-${newPart.endPos}`;
+      partLabel = `target: ${newPart.startPos}-${newPart.endPos}`;
     } else if (newPart.source === 'external') {
       if (newPart.externalType === 'barcode') {
-        partLabel = `Barcode: ${newPart.externalName}`;
+        partLabel = `barcode: ${newPart.externalName}`;
         source = 'barcode';
       } else if (newPart.externalType === 'fixed') {
-        partLabel = `Fixed: Custom`;
+        partLabel = `fixed: custom`;
         source = 'fixed';
       }
     } else if (newPart.source === 'probe') {
-      partLabel = `Probe: ${newPart.sourceProbeId} (${newPart.sourceStartPos}-${newPart.sourceEndPos})`;
+      partLabel = `probe: ${newPart.sourceProbeId} (${newPart.sourceStartPos}-${newPart.sourceEndPos})`;
       sourceProbeId = newPart.sourceProbeId;
     }
     
@@ -2129,7 +2105,7 @@ const CustomProbe: React.FC = () => {
                     <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography variant="subtitle1" component="h3">
-                          Probe {probe.id}
+                          Probe_{index}
                           {probe.name && ` - ${probe.name}`}
                         </Typography>
                         {probe.isComplete && (
@@ -2345,7 +2321,7 @@ const CustomProbe: React.FC = () => {
                                 gap: 0.5
                               }}>
                                 <Typography variant="body2">
-                                  {idx + 1}. {part.label} 
+                                  Part_{idx}: {part.label} 
                                   {part.isReverseComplement ? ' (Reverse Complement)' : ''}
                                 </Typography>
                                 

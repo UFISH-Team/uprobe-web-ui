@@ -36,7 +36,9 @@ import {
   InputAdornment,
   Paper,
   DialogActions,
-  Tooltip
+  Tooltip,
+  FormHelperText,
+  CircularProgress
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -52,6 +54,7 @@ import ApiService from '../api';
 import { CustomProbeType, extractParametersFromYaml } from '../types';
 
 import { Container } from '../style';
+import YAML from 'yaml';
 
 type AlignerType = 'BLAST' | 'Bowtie2' | 'MMseqs2';
 
@@ -138,16 +141,13 @@ interface Pool {
   [key: string]: string | number;  // Allow dynamic barcode fields
 }
 
-interface DnaFishParams {
-  poolList: Pool[];
-}
-
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
   const [barcodeOptions, setBarcodeOptions] = useState<string[]>([]);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [customProbeTypes, setCustomProbeTypes] = useState<CustomProbeType[]>([]);
+  const [isLoadingCustomTypes, setIsLoadingCustomTypes] = useState(true);
   const [showCustomProbeTypes, setShowCustomProbeTypes] = useState(false);
   const [selectedCustomType, setSelectedCustomType] = useState<CustomProbeType | null>(null);
   const [expandedSections, setExpandedSections] = useState<{[key: string]: boolean}>({
@@ -262,22 +262,29 @@ const DesignWorkflow: React.FC = () => {
 
   // Extract loadCustomProbeTypes function
   const loadCustomProbeTypes = () => {
-    const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
-    const customTypes = savedGroups
-      .filter((group: any) => group.type === 'custom')
-      .map((group: any) => ({
-        id: group.id,
-        name: group.name,
-        type: 'custom',
-        yamlContent: group.yamlContent,
-        createdAt: new Date(group.createdAt),
-        updatedAt: new Date(group.updatedAt),
-        barcodeCount: group.barcodeCount,
-        targetLength: group.targetLength,
-        overlap: group.overlap,
-        probes: group.probes || {}
-      }));
-    setCustomProbeTypes(customTypes);
+    setIsLoadingCustomTypes(true);
+    try {
+      const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
+      const customTypes = savedGroups
+        .filter((group: any) => group.type === 'custom')
+        .map((group: any) => ({
+          id: group.id,
+          name: group.name,
+          type: 'custom',
+          yamlContent: group.yamlContent,
+          createdAt: new Date(group.createdAt),
+          updatedAt: new Date(group.updatedAt),
+          barcodeCount: group.barcodeCount,
+          targetLength: group.targetLength,
+          overlap: group.overlap,
+          probes: group.probes || {}
+        }));
+      setCustomProbeTypes(customTypes);
+    } catch (error) {
+      console.error('Error loading custom probe types:', error);
+    } finally {
+      setIsLoadingCustomTypes(false);
+    }
   };
 
   // Add this useEffect to load custom probe types
@@ -291,15 +298,6 @@ const DesignWorkflow: React.FC = () => {
       window.removeEventListener('storage', loadCustomProbeTypes);
     };
   }, []);
-
-  const handleMenuClick = (event: React.MouseEvent<HTMLButtonElement>, section: string) => {
-    setMenuAnchor(event.currentTarget);
-    setActiveSection(section);
-  };
-
-  const handleMenuClose = () => {
-    setMenuAnchor(null);
-  };
 
   const handleResetGeneList = () => {
     setGeneList([{ gene: '' }]);
@@ -471,60 +469,9 @@ const DesignWorkflow: React.FC = () => {
   const handleProbeTypeSelect = (type: string) => {
     setProbeType(type);
     setShowCustomProbeTypes(false);
-    if (type !== 'RCA' && type !== 'DNA-FISH') {
-      const customType = customProbeTypes.find(t => t.name === type);
-      if (customType) {
-        console.log('Debug - Found custom type:', customType);
-        const parameters = extractParametersFromYaml(customType.yamlContent);
-        console.log('Debug - YAML parameters:', parameters);
-        if (parameters && parameters.target_sequence) {
-          const targetConfig = {
-            source: parameters.target_sequence.source,
-            sequence: parameters.target_sequence.sequence,
-            length: parameters.target_sequence.length,
-            attributes: parameters.target_sequence.attributes || {}
-          };
-          console.log('Debug - Constructed targetConfig:', targetConfig);
-          const updatedCustomType = {
-            ...customType,
-            targetLength: parameters.targetLength,
-            barcodeCount: parameters.barcodeCount,
-            probes: parameters.probes,
-            targetConfig
-          };
-          console.log('Debug - Updated custom type:', updatedCustomType);
-          setSelectedCustomType(updatedCustomType);
-          // Set default target length from YAML or custom type
-          if (customType.targetLength) {
-            setMinLength(customType.targetLength);
-          } else if (parameters.targetLength) {
-            setMinLength(parameters.targetLength);
-          } else {
-            setMinLength(100);
-          }
-          // Set default overlap if specified in YAML
-          if (parameters.overlap) {
-            setOverlap(parameters.overlap);
-          } else {
-            setOverlap(20);
-          }
-        } else {
-          console.log('Debug - Failed to parse YAML parameters or missing target_sequence');
-          setSelectedCustomType(customType);
-          if (customType.targetLength) {
-            setMinLength(customType.targetLength);
-          } else {
-            setMinLength(100);
-          }
-          setOverlap(20);
-        }
-      } else {
-        console.log('Debug - Custom type not found');
-        setSelectedCustomType(null);
-        setMinLength(100);
-        setOverlap(20);
-      }
-    } else {
+    
+    // 如果是 RCA 或 DNA-FISH，直接返回
+    if (type === 'RCA' || type === 'DNA-FISH') {
       setSelectedCustomType(null);
       if (type === 'RCA') {
         setMinLength(100);
@@ -533,6 +480,59 @@ const DesignWorkflow: React.FC = () => {
         setMinLength(50);
         setOverlap(10);
       }
+      return;
+    }
+    
+    // 等待 customProbeTypes 加载完成
+    const customType = customProbeTypes.find(t => t.name === type);
+    if (customType) {
+      console.log('Debug - Found custom type:', customType);
+      const parameters = extractParametersFromYaml(customType.yamlContent);
+      console.log('Debug - YAML parameters:', parameters);
+      if (parameters && parameters.target_sequence) {
+        const targetConfig = {
+          source: parameters.target_sequence.source,
+          sequence: parameters.target_sequence.sequence,
+          length: parameters.target_sequence.length,
+          attributes: parameters.target_sequence.attributes || {}
+        };
+        const updatedCustomType = {
+          ...customType,
+          targetLength: parameters.targetLength,
+          barcodeCount: parameters.barcodeCount,
+          probes: parameters.probes,
+          targetConfig
+        };
+        setSelectedCustomType(updatedCustomType);
+        // Set default target length from YAML or custom type
+        if (customType.targetLength) {
+          setMinLength(customType.targetLength);
+        } else if (parameters.targetLength) {
+          setMinLength(parameters.targetLength);
+        } else {
+          setMinLength(100);
+        }
+        // Set default overlap if specified in YAML
+        if (parameters.overlap) {
+          setOverlap(parameters.overlap);
+        } else {
+          setOverlap(20);
+        }
+      } else {
+        console.log('Debug - Failed to parse YAML parameters or missing target_sequence');
+        setSelectedCustomType(customType);
+        if (customType.targetLength) {
+          setMinLength(customType.targetLength);
+        } else {
+          setMinLength(100);
+        }
+        setOverlap(20);
+      }
+    } else {
+      console.log('Debug - Custom type not found');
+      setSelectedCustomType(null);
+      setMinLength(100);
+      setOverlap(20);
     }
   };
 
@@ -673,11 +673,6 @@ const DesignWorkflow: React.FC = () => {
     }
   };
 
-  // Add new function to handle part selection button click
-  const handlePartSelectionClick = () => {
-    setShowPartSelectionDialog(true);
-  };
-
   // Add new function to handle attribute click
   const handleAttributeClick = (probeName: string, partName: string | null, attrName: string, attrValue: any) => {
     setCurrentProbeName(probeName);
@@ -783,50 +778,6 @@ const DesignWorkflow: React.FC = () => {
     return extractedSource === 'genome';
   };
 
-  const handleAddProbe = () => {
-    if (!selectedCustomType) return;
-    
-    const newProbeName = `probe${Object.keys(selectedCustomType.probes || {}).length + 1}`;
-    const updatedType = {
-      ...selectedCustomType,
-      probes: {
-        ...selectedCustomType.probes,
-        [newProbeName]: {
-          template: '',
-          parts: {},
-          attributes: {}
-        }
-      }
-    };
-    setSelectedCustomType(updatedType);
-  };
-
-  const handleAddPart = (probeName: string) => {
-    if (!selectedCustomType) return;
-    
-    const probe = selectedCustomType.probes?.[probeName];
-    if (!probe) return;
-    
-    const newPartName = `part${Object.keys(probe.parts).length + 1}`;
-    const updatedType = {
-      ...selectedCustomType,
-      probes: {
-        ...selectedCustomType.probes,
-        [probeName]: {
-          ...probe,
-          parts: {
-            ...probe.parts,
-            [newPartName]: {
-              expr: '',
-              attributes: {}
-            }
-          }
-        }
-      }
-    };
-    setSelectedCustomType(updatedType);
-  };
-
   const handleAddSortOption = () => {
     setSortOptions([...sortOptions, { category: '', field: '', order: 'asc' }]);
   };
@@ -847,13 +798,11 @@ const DesignWorkflow: React.FC = () => {
     setOverlapThreshold(Number(event.target.value));
   };
 
-  // 根据选中的探针类型动态生成排序选项
   const getAvailableSortFields = (): SortCategory[] => {
     if (!selectedCustomType) return [];
 
     const categories: SortCategory[] = [];
     
-    // 添加目标序列属性
     if (selectedCustomType.targetConfig?.attributes) {
       const targetFields: SortField[] = [];
       Object.entries(selectedCustomType.targetConfig.attributes).forEach(([key, value]) => {
@@ -962,47 +911,133 @@ const DesignWorkflow: React.FC = () => {
     return steps;
   };
 
+  // Helper function to filter out disabled attributes
+  const removeDisabledAttributes = (obj: any) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    const filtered: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value && typeof value === 'object' && 'enabled' in value) {
+        if (value.enabled) {
+          const { enabled, ...rest } = value;
+          filtered[key] = rest;
+        }
+      } else {
+        filtered[key] = removeDisabledAttributes(value);
+      }
+    }
+    return filtered;
+  };
+
+  // Helper function to remove attributes recursively
+  const removeAttributes = (obj: any): any => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    if (Array.isArray(obj)) {
+      return obj.map(item => removeAttributes(item));
+    }
+    
+    const filtered: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (key !== 'attributes' && key !== 'target_sequence') {
+        filtered[key] = removeAttributes(value);
+      }
+    }
+    return filtered;
+  };
+
+  const extractAttributes = (obj: any) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    const filtered: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      // Skip the fields we want to remove
+      if (key === 'id' || key === 'sequence' || key === 'source' ||
+          key === 'isReverseComplement' || key === 'sourceProbeId' ||
+          key === 'sourceStartPos' || key === 'sourceEndPos' ||
+          key === 'isComplete' || key ==='startPos' || key ==='endPos') {
+        continue;
+      }
+      
+      // Recursively process nested objects
+      if (typeof value === 'object' && value !== null) {
+        filtered[key] = extractAttributes(value);
+      } else {
+        filtered[key] = value;
+      }
+    }
+    return filtered;
+  };
+
   const generateTaskConfig = () => {
     const config: any = {
       name: taskName,
-      description: 'Protocol for designing probe type ' + probeType + ' from ' + species,
+      description: 'Protocol for designing probe type ' + probeType + ' from species ' + species,
       species,
-      probe_type: probeType,
-      parameters: {
-        min_length: minLength,
-        overlap,
-        post_processing: {
-          sort_options: sortOptions,
-          overlap_threshold: overlapThreshold
+      custom_target: {
+        probe_type: probeType,
+        target_source: selectedCustomType?.targetConfig?.source,
+      },
+      extracts: {
+        target_region: {
+          source: 'samples',
+          length: minLength,
+          overlap: overlap
         }
+      },
+      post_processing: {
+        sorts: sortOptions,
+        overlap_threshold: overlapThreshold
       }
     };
 
     // Add custom probe type parameters if selected
     if (selectedCustomType) {
-      config.parameters.custom_probe = {
+      // Extract probes section from yamlContent
+      const yamlContent = selectedCustomType.yamlContent;
+      const yamlObj = YAML.parse(yamlContent);
+      const cleanedYamlObj = removeAttributes(yamlObj);
+      
+      // Remove the top-level 'probes' key if it exists
+      if (cleanedYamlObj.probes === null) {
+        delete cleanedYamlObj.probes;
+      }
+      
+      // Convert to YAML string and clean up formatting
+      let probesYaml = YAML.stringify(cleanedYamlObj);
+      // Remove any trailing newlines
+      probesYaml = probesYaml.trim();
+      // Remove the '---\n' prefix if it exists
+      probesYaml = probesYaml.replace(/^---\n/, '');
+      
+      // Parse the probes YAML back into an object
+      const probesObj = YAML.parse(probesYaml);
+      config.probes = probesObj;
+      
+      config.attributes = extractAttributes(removeDisabledAttributes(selectedCustomType.probes));
+      
+      config.custom_parameters = removeDisabledAttributes({
         target_config: selectedCustomType.targetConfig,
-        probes: selectedCustomType.probes,
         target_length: selectedCustomType.targetLength,
         barcode_count: selectedCustomType.barcodeCount
-      };
+      });
     }
 
     // Add input data based on probe type
     if (probeType === 'RCA') {
-      config.parameters.input = {
+      config.samples = {
         type: 'gene_list',
-        data: geneList
+        list: geneList
       };
     } else if (probeType === 'DNA-FISH' || (selectedCustomType && isGenomeLikeSource())) {
-      config.parameters.input = {
+      config.samples = {
         type: 'pool_list',
-        data: dnaFishParams.poolList
+        list: dnaFishParams.poolList
       };
     } else if (selectedCustomType) {
-      config.parameters.input = {
+      config.samples = {
         type: 'gene_list',
-        data: geneList
+        list: geneList
       };
     }
 
@@ -1016,6 +1051,39 @@ const DesignWorkflow: React.FC = () => {
 
       // Generate the complete task configuration
       const taskConfig = generateTaskConfig();
+      
+      // Debug: Print detailed configuration
+      console.group('Task Configuration Debug');
+      console.log('Basic Information:');
+      console.log('- Task Name:', taskConfig.name);
+      console.log('- Description:', taskConfig.description);
+      console.log('- Species:', taskConfig.species);
+      console.log('- Probe Type:', taskConfig.custom_target.probe_type);
+      console.log('- Target Source:', taskConfig.custom_target.target_source);
+      
+      console.log('\nBasic Parameters:');
+      console.log('- Min Length:', taskConfig.extracts.target_region.length);
+      console.log('- Overlap:', taskConfig.extracts.target_region.overlap);
+      
+      console.log('\nPost Processing:');
+      console.log('- Sort Options:', taskConfig.post_processing.sorts);
+      console.log('- Overlap Threshold:', taskConfig.post_processing.overlap_threshold);
+      
+      if (taskConfig.custom_parameters) {
+        console.log('\nCustom Probe Parameters:');
+        console.log('- Probes:', taskConfig.probes);
+        console.log('- Target Length:', taskConfig.custom_parameters.target_length);
+        console.log('- Barcode Count:', taskConfig.custom_parameters.barcode_count);
+      }
+      
+      console.log('\nInput Data:');
+      console.log('- Type:', taskConfig.samples.type);
+      console.log('- Data:', taskConfig.samples.list);
+      
+      console.log('\nFull Configuration:');
+      console.log(JSON.stringify(taskConfig, null, 2));
+      
+      console.groupEnd();
 
       // Submit the task
       const response = await ApiService.submitTask(taskConfig);
@@ -1136,15 +1204,30 @@ const DesignWorkflow: React.FC = () => {
                   labelId="probe-type-label"
                   value={probeType}
                   onChange={(e) => handleProbeTypeSelect(e.target.value)}
+                  disabled={isLoadingCustomTypes}
                 >
                   <MenuItem value="RCA">RCA</MenuItem>
                   <MenuItem value="DNA-FISH">DNA-FISH</MenuItem>
-                  {customProbeTypes.map((type) => (
-                    <MenuItem key={type.id} value={type.name}>
-                      {type.name} 
+                  {isLoadingCustomTypes ? (
+                    <MenuItem disabled>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CircularProgress size={20} />
+                        <Typography>Loading custom types...</Typography>
+                      </Box>
                     </MenuItem>
-                  ))}
+                  ) : (
+                    customProbeTypes.map((type) => (
+                      <MenuItem key={type.id} value={type.name}>
+                        {type.name} 
+                      </MenuItem>
+                    ))
+                  )}
                 </Select>
+                {isLoadingCustomTypes && (
+                  <FormHelperText>
+                    Loading custom probe types...
+                  </FormHelperText>
+                )}
               </FormControl>
               
               <Button
@@ -1292,12 +1375,12 @@ const DesignWorkflow: React.FC = () => {
                         </Typography>
                       </Box>
 
-                      {selectedCustomType.probes && Object.entries(selectedCustomType.probes).map(([probeName, probeConfig]) => (
+                      {selectedCustomType.probes && Object.entries(selectedCustomType.probes).map(([probeName, probeConfig], index) => (
                         <Accordion key={probeName} sx={{ mb: 2 }}>
                           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                               <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-                                Probe: {probeName}
+                                Probe - {probeName}
                               </Typography>
                               <IconButton
                                 size="small"
@@ -1338,7 +1421,7 @@ const DesignWorkflow: React.FC = () => {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                                   <Box>
                                     <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-                                      Part: {partName}
+                                      Part - {partName}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
                                       Part of probe {probeName}
