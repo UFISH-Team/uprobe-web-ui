@@ -260,8 +260,7 @@ const DesignWorkflow: React.FC = () => {
     fetchOptions();
   }, []);
 
-  // Extract loadCustomProbeTypes function
-  const loadCustomProbeTypes = () => {
+  const loadCustomProbeTypes = async () => {
     setIsLoadingCustomTypes(true);
     try {
       const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
@@ -291,13 +290,55 @@ const DesignWorkflow: React.FC = () => {
   useEffect(() => {
     loadCustomProbeTypes();
     
-    // Add event listener for storage changes
-    window.addEventListener('storage', loadCustomProbeTypes);
+    const handleStorageChange = () => {
+      loadCustomProbeTypes();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
     
     return () => {
-      window.removeEventListener('storage', loadCustomProbeTypes);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
+
+  // Add a new useEffect to handle probe type selection when custom types are loaded
+  useEffect(() => {
+    if (!isLoadingCustomTypes && probeType && probeType !== 'RCA' && probeType !== 'DNA-FISH') {
+      const customType = customProbeTypes.find(t => t.name === probeType);
+      if (customType) {
+        const parameters = extractParametersFromYaml(customType.yamlContent);
+        if (parameters && parameters.target_sequence) {
+          const targetConfig = {
+            source: parameters.target_sequence.source,
+            sequence: parameters.target_sequence.sequence,
+            length: parameters.target_sequence.length,
+            attributes: parameters.target_sequence.attributes || {}
+          };
+          const updatedCustomType = {
+            ...customType,
+            targetLength: parameters.targetLength,
+            barcodeCount: parameters.barcodeCount,
+            probes: parameters.probes,
+            targetConfig
+          };
+          setSelectedCustomType(updatedCustomType);
+          if (customType.targetLength) {
+            setMinLength(customType.targetLength);
+          } else if (parameters.targetLength) {
+            setMinLength(parameters.targetLength);
+          }
+          if (parameters.overlap) {
+            setOverlap(parameters.overlap);
+          }
+        } else {
+          setSelectedCustomType(customType);
+          if (customType.targetLength) {
+            setMinLength(customType.targetLength);
+          }
+        }
+      }
+    }
+  }, [isLoadingCustomTypes, probeType, customProbeTypes, setMinLength, setOverlap, setSelectedCustomType]);
 
   const handleResetGeneList = () => {
     setGeneList([{ gene: '' }]);
@@ -561,7 +602,33 @@ const DesignWorkflow: React.FC = () => {
     const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
     const updatedGroups = savedGroups.filter((group: any) => group.id !== typeId);
     localStorage.setItem('savedProbeGroups', JSON.stringify(updatedGroups));
-    loadCustomProbeTypes(); // Reload the list
+    // Reload the list
+    const loadCustomProbeTypes = async () => {
+      setIsLoadingCustomTypes(true);
+      try {
+        const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
+        const customTypes = savedGroups
+          .filter((group: any) => group.type === 'custom')
+          .map((group: any) => ({
+            id: group.id,
+            name: group.name,
+            type: 'custom',
+            yamlContent: group.yamlContent,
+            createdAt: new Date(group.createdAt),
+            updatedAt: new Date(group.updatedAt),
+            barcodeCount: group.barcodeCount,
+            targetLength: group.targetLength,
+            overlap: group.overlap,
+            probes: group.probes || {}
+          }));
+        setCustomProbeTypes(customTypes);
+      } catch (error) {
+        console.error('Error loading custom probe types:', error);
+      } finally {
+        setIsLoadingCustomTypes(false);
+      }
+    };
+    loadCustomProbeTypes();
     setAlert(true, 'Custom probe type deleted successfully', 'success');
   };
 
@@ -1233,6 +1300,7 @@ const DesignWorkflow: React.FC = () => {
               <Button
                 variant="outlined"
                 onClick={() => setShowCustomProbeTypes(true)}
+                disabled={isLoadingCustomTypes}
               >
                 View Custom Types
               </Button>
@@ -2077,40 +2145,34 @@ const DesignWorkflow: React.FC = () => {
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
-                      label="Minimum Value"
+                      label="Min"
                       type="number"
                       value={editingAttribute?.min}
                       onChange={(e) => setEditingAttribute(prev => prev ? {
                         ...prev,
                         min: Number(e.target.value)
                       } : null)}
-                      InputProps={{
-                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                      }}
                     />
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
-                      label="Maximum Value"
+                      label="Max"
                       type="number"
                       value={editingAttribute?.max}
                       onChange={(e) => setEditingAttribute(prev => prev ? {
                         ...prev,
                         max: Number(e.target.value)
                       } : null)}
-                      InputProps={{
-                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                      }}
                     />
                   </Grid>
                 </>
               )}
-              {(editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'selfMatch') && (
+              {(editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'selfMatch' || editingAttribute?.name === 'mappedGenes') && (
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    label="Maximum Value"
+                    label="Max"
                     type="number"
                     value={editingAttribute?.max}
                     onChange={(e) => setEditingAttribute(prev => prev ? {
@@ -2124,16 +2186,13 @@ const DesignWorkflow: React.FC = () => {
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    label="Threshold"
+                    label="Threshold(%)"
                     type="number"
                     value={editingAttribute?.threshold}
                     onChange={(e) => setEditingAttribute(prev => prev ? {
                       ...prev,
                       threshold: Number(e.target.value)
                     } : null)}
-                    InputProps={{
-                      endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                    }}
                   />
                 </Grid>
               )}
