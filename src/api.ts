@@ -37,7 +37,8 @@ api.interceptors.response.use(
         case 401:
           // 处理未授权错误
           localStorage.removeItem('token');
-          window.location.href = '/login';
+          localStorage.removeItem('isAuthenticated');
+          window.location.href = '/auth';
           break;
         case 403:
           console.error('Access forbidden:', error.response.data);
@@ -63,8 +64,24 @@ api.interceptors.response.use(
 // API 服务类
 class ApiService {
   // 认证相关
-  static async login(email: string, password: string): Promise<ApiResponse<{ token: string }>> {
-    return api.post('/auth/login', { email, password });
+  static async login(username: string, password: string): Promise<{ access_token: string; token_type: string }> {
+    // Send JSON data to match backend LoginRequest model
+    const response = await api.post('/auth/login', { 
+      username, 
+      password 
+    }) as { token: string; token_type: string; user_info: any };
+
+    // Map backend response to expected frontend format
+    const mappedResponse = {
+      access_token: response.token,
+      token_type: response.token_type
+    };
+
+    if (response.token) {
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('isAuthenticated', 'true');
+    }
+    return mappedResponse;
   }
 
   static async register(username: string, email: string, password: string): Promise<ApiResponse<{ token: string }>> {
@@ -241,6 +258,22 @@ class ApiService {
 
   static async getJobStderr(jobId: string): Promise<ApiResponse<string>> {
     return api.get(`/job/stderr/${jobId}`);
+  }
+
+  static async logout(): Promise<void> {
+    // This call is mainly for completeness, the main logic is clearing local storage.
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.error("Logout failed on server, but proceeding with local cleanup.", error);
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('isAuthenticated');
+      // Redirect to login page to ensure clean state
+      if (window.location.pathname !== '/auth') {
+        window.location.href = '/auth';
+      }
+    }
   }
 }
 
