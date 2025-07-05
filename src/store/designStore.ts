@@ -13,6 +13,7 @@ interface Pool {
   location: string;
   numbers: number;
   density: number;
+  [key: string]: string | number;  // Allow dynamic barcode fields
 }
 
 interface DesignState {
@@ -69,7 +70,7 @@ interface DesignState {
   setDnaFishParams: (params: Partial<DesignState['dnaFishParams']>) => void;
   addPool: () => void;
   removePool: (index: number) => void;
-  updatePool: (index: number, field: keyof Pool, value: any) => void;
+  updatePool: (index: number, field: string, value: string | number) => void;
   
   // UI actions
   setSubmitting: (isSubmitting: boolean) => void;
@@ -94,7 +95,7 @@ const useDesignStore = create<DesignState>((set, get) => ({
   dnaFishParams: {
     length: 70,
     overlap: 20,
-    poolList: [{ name: '', location: '', numbers: 8000, density: 0.00005 }],
+    poolList: [{ name: '', location: '', numbers: 0, density: 0}],
   },
   selectedCustomType: null,
   isSubmitting: false,
@@ -139,7 +140,7 @@ const useDesignStore = create<DesignState>((set, get) => ({
       ...state.dnaFishParams,
       poolList: [
         ...state.dnaFishParams.poolList,
-        { name: '', location: '', numbers: 8000, density: 0.00005 },
+        { name: '', location: '', numbers: 0, density: 0},
       ],
     },
   })),

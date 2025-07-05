@@ -10,10 +10,10 @@ import Design from './pages/Design';
 import Genome from './pages/Genome';
 import Task from './pages/Task';
 import Tutorial from './pages/Tutorial';
-
+import Auth from './pages/Auth';
 
 import Layout from './components/common/Layout';
-import AccountMenu from './pages/AccountMenu';
+import AccountMenu from './components/users/AccountMenu';
 import Profile from './components/users/Profile';
 import MyAccount from './components/users/MyAccount';
 import AddAccount from './components/users/AddAccount';
@@ -41,6 +41,70 @@ const navItems = [
   { text: 'Task', icon: TaskIcon, path: '/task' },
   { text: 'Tutorial', icon: TutorialIcon, path: '/tutorial' },
 ];
+
+// Protected Route component
+const ProtectedRoute = () => {
+  const [isChecking, setIsChecking] = React.useState(true);
+  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkAuthentication = () => {
+      const token = localStorage.getItem('token');
+      const authFlag = localStorage.getItem('isAuthenticated') === 'true';
+      const tokenExpiration = localStorage.getItem('tokenExpiration');
+      
+      // If no token or auth flag, user is not authenticated
+      if (!token || !authFlag) {
+        setIsAuthenticated(false);
+        setIsChecking(false);
+        return;
+      }
+
+      // Check if token has expired
+      if (tokenExpiration) {
+        const expirationTime = parseInt(tokenExpiration);
+        const currentTime = Date.now();
+        
+        if (currentTime > expirationTime) {
+          // Token has expired, clear localStorage and redirect to login
+          localStorage.removeItem('token');
+          localStorage.removeItem('isAuthenticated');
+          localStorage.removeItem('tokenExpiration');
+          setIsAuthenticated(false);
+          setIsChecking(false);
+          return;
+        }
+      }
+
+      // Token is valid and not expired
+      setIsAuthenticated(true);
+      setIsChecking(false);
+    };
+
+    checkAuthentication();
+  }, []);
+
+  if (isChecking) {
+    return (
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh' 
+        }}
+      >
+        <Typography>Loading...</Typography>
+      </Box>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  return <Outlet />;
+};
 
 function App() {
   const navigate = useNavigate();
@@ -153,24 +217,27 @@ function App() {
         }}
       >
         <Routes>
-          <Route path="/" element={<Layout><Outlet /></Layout>}>
-            <Route index element={<Navigate to="/home" replace />} />
-            <Route path="home" element={<Home />} />
-            <Route path="design" element={<Design />}>
-              <Route path="customprobe" element={<CustomProbe />} />
-              <Route path="designworkflow" element={<DesignWorkflow />} />
+          <Route path="/auth" element={<Auth />} />
+          
+          <Route element={<ProtectedRoute />}>
+            <Route path="/" element={<Layout><Outlet /></Layout>}>
+              <Route index element={<Navigate to="/home" replace />} />
+              <Route path="home" element={<Home />} />
+              <Route path="design" element={<Design />}>
+                <Route path="customprobe" element={<CustomProbe />} />
+                <Route path="designworkflow" element={<DesignWorkflow />} />
+              </Route>
+              <Route path="genome" element={<Genome />} />
+              <Route path="task" element={<Task />} />
+              <Route path="tutorial" element={<Tutorial />} />
+              <Route path="account/*" element={<AccountMenu />} />
+              <Route path="account/profile" element={<Profile />} />
+              <Route path="account/my-account" element={<MyAccount />} />
+              <Route path="account/add-account" element={<AddAccount />} />
+              <Route path="account/settings" element={<Settings />} />
+              <Route path="account/logout" element={<Logout />} />
+              <Route path="*" element={<NotFound />} />
             </Route>
-            <Route path="genome" element={<Genome />} />
-            <Route path="task" element={<Task />} />
-            <Route path="tutorial" element={<Tutorial />} />
-            <Route path="account" element={<AccountMenu />}>
-              <Route path="profile" element={<Profile />} />
-              <Route path="my-account" element={<MyAccount />} />
-              <Route path="add-account" element={<AddAccount />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="logout" element={<Logout />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
       </Box>

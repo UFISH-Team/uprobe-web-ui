@@ -30,7 +30,8 @@ import {
   ListItemText,
   Switch,
   Tab,
-  Tabs
+  Tabs,
+  Snackbar
 } from "@mui/material";
 import { styled, alpha } from "@mui/material/styles";
 import {useTheme } from '@mui/material/styles';
@@ -148,14 +149,6 @@ const AttributeChip = styled(Chip)(({ theme }) => ({
   '& .MuiChip-label': {
     fontSize: '0.75rem',
   }
-}));
-
-const AttributeSection = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(1.5),
-  marginTop: theme.spacing(1),
-  backgroundColor: alpha(theme.palette.primary.light, 0.05),
-  borderRadius: theme.shape.borderRadius,
-  border: `1px dashed ${alpha(theme.palette.primary.main, 0.3)}`,
 }));
 
 const StyledTabs = styled(Tabs)(({ theme }) => ({
@@ -348,13 +341,6 @@ interface YAMLAttributes {
   aligners?: AlignerType[];
 }
 
-interface YAMLTargetConfig {
-  source: string;
-  sequence: string;
-  length: number;
-  attributes?: YAMLAttributes;
-}
-
 interface YAMLPartConfig {
   length?: number;
   expr: string;
@@ -452,7 +438,7 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
   };
   
   probes.forEach((probe, index) => {
-    if (!probe.isComplete) return;
+    if (!probe.isComplete) return;  // 这里会跳过未完成的probe
     
     const probeName = probe.name || `probe_${index + 1}`;
     const parts: { [key: string]: YAMLPartConfig } = {};
@@ -552,7 +538,6 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
           : `target_region[${start - 1}:${end}]`;
       } else if (part.source === 'barcode') {
         const barcodeName = part.label.split(': ')[1];
-        const barcodeSequence = barcodes[barcodeName] || part.sequence;
         partConfig.expr = `encoding[target_region.gene_id]['${barcodeName}']`;
       } else if (part.source === 'fixed') {
         partConfig.expr = `'${part.sequence}'`;
@@ -563,7 +548,7 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
           const start = Number(part.sourceStartPos);
           const end = Number(part.sourceEndPos);
           partConfig.expr = part.isReverseComplement
-            ? `rc(${sourceProbeName}.part${part.sourceStartPos})`
+            ? `rc(${sourceProbeName}[${start - 1}:${end}])`
             : `${sourceProbeName}[${start - 1}:${end}]`;
         }
       }
@@ -672,6 +657,8 @@ const CustomProbe: React.FC = () => {
   
   // State for editing part attributes
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
+  const [editingProbeId, setEditingProbeId] = useState<string | null>(null);
+  const [editingTargetAttributes, setEditingTargetAttributes] = useState<boolean>(false);
   
   // State for new part
   const [newPart, setNewPart] = useState<{
@@ -766,14 +753,6 @@ const CustomProbe: React.FC = () => {
     setExpandedCards(prev => ({
       ...prev,
       [probeId]: !prev[probeId]
-    }));
-  };
-  
-  // Toggle showing attributes section
-  const toggleAttributes = (id: string) => {
-    setShowAttributes(prev => ({
-      ...prev,
-      [id]: !prev[id]
     }));
   };
   
@@ -1099,17 +1078,17 @@ const CustomProbe: React.FC = () => {
     let sourceProbeId: string | undefined = undefined;
     
     if (newPart.source === 'target') {
-      partLabel = `Target: ${newPart.startPos}-${newPart.endPos}`;
+      partLabel = `target: ${newPart.startPos}-${newPart.endPos}`;
     } else if (newPart.source === 'external') {
       if (newPart.externalType === 'barcode') {
-        partLabel = `Barcode: ${newPart.externalName}`;
+        partLabel = `barcode: ${newPart.externalName}`;
         source = 'barcode';
       } else if (newPart.externalType === 'fixed') {
-        partLabel = `Fixed: Custom`;
+        partLabel = `fixed: custom`;
         source = 'fixed';
       }
     } else if (newPart.source === 'probe') {
-      partLabel = `Probe: ${newPart.sourceProbeId} (${newPart.sourceStartPos}-${newPart.sourceEndPos})`;
+      partLabel = `probe: ${newPart.sourceProbeId} (${newPart.sourceStartPos}-${newPart.sourceEndPos})`;
       sourceProbeId = newPart.sourceProbeId;
     }
     
@@ -1328,6 +1307,13 @@ const CustomProbe: React.FC = () => {
   const saveProbeGroup = () => {
     if (!probeGroup.name.trim()) {
       showAlert('Please enter a name for the probe group', 'error');
+      return;
+    }
+
+    // Check for incomplete probes
+    const incompleteProbes = probes.filter(probe => !probe.isComplete);
+    if (incompleteProbes.length > 0) {
+      showAlert(`Cannot save probe group. ${incompleteProbes.length} probe(s) are not marked as complete.`, 'error');
       return;
     }
 
@@ -1685,29 +1671,39 @@ const CustomProbe: React.FC = () => {
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <StyledContainer>
+        {/* Fixed Snackbar for alerts */}
+        <Snackbar
+          open={alertState.open}
+          autoHideDuration={5000}
+          onClose={() => setAlertState(prev => ({ ...prev, open: false }))}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 9999,
+            '& .MuiSnackbarContent-root': {
+              width: '100%',
+              maxWidth: '600px',
+              margin: '0 auto',
+            }
+          }}
+        >
+          <Alert 
+            severity={alertState.severity}
+            onClose={() => setAlertState(prev => ({ ...prev, open: false }))}
+            sx={{ width: '100%' }}
+          >
+            {alertState.message}
+          </Alert>
+        </Snackbar>
+
         <Typography variant="h3" gutterBottom align="center" sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
           <DnaIcon color="primary" fontSize="large" />
           Create Your Own Probe Type
         </Typography>
         
-        {/* Alert for notifications */}
-        <Collapse in={alertState.open}>
-          <Alert 
-            severity={alertState.severity}
-            sx={{ mb: 2 }}
-            action={
-              <IconButton
-                size="small"
-                onClick={() => setAlertState(prev => ({ ...prev, open: false }))}
-              >
-                <CloseIcon fontSize="small" />
-              </IconButton>
-            }
-          >
-            {alertState.message}
-          </Alert>
-        </Collapse>
-
         {/* History Dialog */}
         <Dialog
           open={showHistory}
@@ -1795,7 +1791,7 @@ const CustomProbe: React.FC = () => {
             </Typography>
           </SectionTitle>
           
-          <Grid container spacing={2}>
+          <Grid container spacing={2} justifyContent="center">
             {/* Source Selection */}
             <Grid item xs={12} sm={4}>
               <FormControl fullWidth size="small">
@@ -1808,7 +1804,7 @@ const CustomProbe: React.FC = () => {
                     source: e.target.value as TargetSource
                   }))}
                 >
-                  <MenuItem value="genome">Target Genome</MenuItem>
+                  <MenuItem value="genome">Genome</MenuItem>
                   <MenuItem value="exon">Exon</MenuItem>
                   <MenuItem value="CDS">CDS</MenuItem>
                   <MenuItem value="UTR">UTR</MenuItem>
@@ -1834,18 +1830,30 @@ const CustomProbe: React.FC = () => {
               />
             </Grid>
 
-            {/* Regenerate Button */}
+            {/* Regenerate Button and Attributes Button */}
             <Grid item xs={12} sm={4}>
-              <Tooltip title="Generate a new random sequence">
-                <Button 
-                  variant="outlined" 
-                  startIcon={<RefreshIcon />}
-                  onClick={() => generateRandomSequence(targetLength)}
-                  fullWidth
-                >
-                  Regenerate
-                </Button>
-              </Tooltip>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Tooltip title="Generate a new random sequence">
+                  <Button 
+                    variant="outlined" 
+                    startIcon={<RefreshIcon />}
+                    onClick={() => generateRandomSequence(targetLength)}
+                  >
+                    Regenerate
+                  </Button>
+                </Tooltip>
+                
+                <Tooltip title="Edit target attributes">
+                  <Button
+                    variant="outlined"
+                    startIcon={<TuneIcon />}
+                    onClick={() => setEditingTargetAttributes(true)}
+                    color="primary"
+                  >
+                    Attributes
+                  </Button>
+                </Tooltip>
+              </Box>
             </Grid>
 
             {/* Sequence Display */}
@@ -1858,84 +1866,162 @@ const CustomProbe: React.FC = () => {
               </SequenceDisplay>
             </Grid>
             
-            {/* Attributes Button */}
+            {/* Display active target attributes as chips */}
             <Grid item xs={12}>
-              <Button
-                variant="outlined"
-                startIcon={<TuneIcon />}
-                onClick={() => toggleAttributes('target')}
-                fullWidth
-                sx={{ mt: 1 }}
-              >
-                {showAttributes['target'] ? 'Hide Target Attributes' : 'Configure Target Attributes'}
-              </Button>
-            </Grid>
-            
-            {/* Target Attributes Collapse */}
-            <Grid item xs={12}>
-              <Collapse in={showAttributes['target']}>
-                <AttributeSection>
-                  <Typography variant="subtitle2" gutterBottom sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: 1 
-                  }}>
-                    <FilterListIcon fontSize="small" color="primary" />
-                    Target Sequence Attributes
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1, gap: 0.5 }}>
+                {Object.entries(targetConfig.attributes).map(([key, attr]) => {
+                  if (attr?.enabled) {
+                    switch(key) {
+                      case 'gcContent':
+                        return (
+                          <AttributeChip 
+                            key={key}
+                            size="small" 
+                            label={`GC: ${attr.min}%-${attr.max}%`} 
+                            color="primary" 
+                            variant="outlined"
+                          />
+                        );
+                      case 'foldScore':
+                        return (
+                          <AttributeChip 
+                            key={key}
+                            size="small" 
+                            label={`Fold: max ${attr.max}`} 
+                            color="secondary" 
+                            variant="outlined"
+                          />
+                        );
+                      case 'tm':
+                        return (
+                          <AttributeChip 
+                            key={key}
+                            size="small" 
+                            label={`Tm: ${attr.min}°C-${attr.max}°C`} 
+                            color="error" 
+                            variant="outlined"
+                          />
+                        );
+                      case 'selfMatch':
+                        return (
+                          <AttributeChip 
+                            key={key}
+                            size="small" 
+                            label={`Self: max ${attr.max}`} 
+                            color="warning" 
+                            variant="outlined"
+                          />
+                        );
+                      case 'mappedGenes':
+                        return (
+                          <AttributeChip 
+                            key={key}
+                            size="small" 
+                            label={`Map: max ${attr.max}${attr.aligner ? ` (${attr.aligner})` : ''}`} 
+                            color="info" 
+                            variant="outlined"
+                          />
+                        );
+                      case 'specific':
+                        return (
+                          <AttributeChip 
+                            key={key}
+                            size="small" 
+                            label={`Spec: ${attr.threshold}%${attr.aligner ? ` (${attr.aligner})` : ''}`} 
+                            color="success" 
+                            variant="outlined"
+                          />
+                        );
+                      default:
+                        return null;
+                    }
+                  }
+                  return null;
+                })}
+                {!Object.values(targetConfig.attributes).some(attr => attr?.enabled) && (
+                  <Typography variant="caption" color="text.secondary">
+                    No attributes configured
                   </Typography>
-                  
-                  {renderAttributesForm(targetConfig.attributes, (field, value) => {
-                    setTargetConfig(prev => {
-                      const newConfig = { ...prev };
-                      const [attributeType, property] = field.split('.');
-                      
-                      if (attributeType === 'gcContent') {
-                        newConfig.attributes.gcContent = {
-                          ...newConfig.attributes.gcContent,
-                          [property]: property === 'enabled' ? value : Number(value),
-                          enabled: property === 'enabled' ? value : (newConfig.attributes.gcContent?.enabled || false)
-                        };
-                      } else if (attributeType === 'foldScore') {
-                        newConfig.attributes.foldScore = {
-                          ...newConfig.attributes.foldScore,
-                          [property]: property === 'enabled' ? value : Number(value),
-                          enabled: property === 'enabled' ? value : (newConfig.attributes.foldScore?.enabled || false)
-                        };
-                      } else if (attributeType === 'tm') {
-                        newConfig.attributes.tm = {
-                          ...newConfig.attributes.tm,
-                          [property]: property === 'enabled' ? value : Number(value),
-                          enabled: property === 'enabled' ? value : (newConfig.attributes.tm?.enabled || false)
-                        };
-                      } else if (attributeType === 'selfMatch') {
-                        newConfig.attributes.selfMatch = {
-                          ...newConfig.attributes.selfMatch,
-                          [property]: property === 'enabled' ? value : Number(value),
-                          enabled: property === 'enabled' ? value : (newConfig.attributes.selfMatch?.enabled || false)
-                        };
-                      } else if (attributeType === 'mappedGenes') {
-                        newConfig.attributes.mappedGenes = {
-                          ...newConfig.attributes.mappedGenes,
-                          [property]: property === 'enabled' ? value : 
-                                      property === 'aligner' ? value : Number(value),
-                          enabled: property === 'enabled' ? value : (newConfig.attributes.mappedGenes?.enabled || false)
-                        };
-                      } else if (attributeType === 'specific') {
-                        newConfig.attributes.specific = {
-                          ...newConfig.attributes.specific,
-                          [property]: property === 'enabled' ? value : 
-                                      property === 'aligner' ? value : Number(value),
-                          enabled: property === 'enabled' ? value : (newConfig.attributes.specific?.enabled || false)
-                        };
-                      }
-                      
-                      return newConfig;
-                    });
-                  })}
-                </AttributeSection>
-              </Collapse>
+                )}
+              </Box>
             </Grid>
           </Grid>
+          
+          {/* Target Attributes Dialog */}
+          <Dialog
+            open={editingTargetAttributes}
+            onClose={() => setEditingTargetAttributes(false)}
+            maxWidth="sm"
+            fullWidth
+          >
+            <DialogTitle>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="h6">Target Sequence Attributes</Typography>
+                <IconButton onClick={() => setEditingTargetAttributes(false)}>
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+            </DialogTitle>
+            <DialogContent>
+              {renderAttributesForm(targetConfig.attributes, (field, value) => {
+                setTargetConfig(prev => {
+                  const newConfig = { ...prev };
+                  const [attributeType, property] = field.split('.');
+                  
+                  if (attributeType === 'gcContent') {
+                    newConfig.attributes.gcContent = {
+                      ...newConfig.attributes.gcContent,
+                      [property]: property === 'enabled' ? value : Number(value),
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.gcContent?.enabled || false)
+                    };
+                  } else if (attributeType === 'foldScore') {
+                    newConfig.attributes.foldScore = {
+                      ...newConfig.attributes.foldScore,
+                      [property]: property === 'enabled' ? value : Number(value),
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.foldScore?.enabled || false)
+                    };
+                  } else if (attributeType === 'tm') {
+                    newConfig.attributes.tm = {
+                      ...newConfig.attributes.tm,
+                      [property]: property === 'enabled' ? value : Number(value),
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.tm?.enabled || false)
+                    };
+                  } else if (attributeType === 'selfMatch') {
+                    newConfig.attributes.selfMatch = {
+                      ...newConfig.attributes.selfMatch,
+                      [property]: property === 'enabled' ? value : Number(value),
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.selfMatch?.enabled || false)
+                    };
+                  } else if (attributeType === 'mappedGenes') {
+                    newConfig.attributes.mappedGenes = {
+                      ...newConfig.attributes.mappedGenes,
+                      [property]: property === 'enabled' ? value : 
+                                  property === 'aligner' ? value : Number(value),
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.mappedGenes?.enabled || false)
+                    };
+                  } else if (attributeType === 'specific') {
+                    newConfig.attributes.specific = {
+                      ...newConfig.attributes.specific,
+                      [property]: property === 'enabled' ? value : 
+                                  property === 'aligner' ? value : Number(value),
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.specific?.enabled || false)
+                    };
+                  }
+                  
+                  return newConfig;
+                });
+              })}
+              
+              <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                <Button 
+                  onClick={() => setEditingTargetAttributes(false)}
+                  variant="contained"
+                >
+                  Done
+                </Button>
+              </Box>
+            </DialogContent>
+          </Dialog>
         </Paper>
         
         {/* Probe design section */}
@@ -2019,7 +2105,7 @@ const CustomProbe: React.FC = () => {
                     <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography variant="subtitle1" component="h3">
-                          Probe {probe.id}
+                          Probe_{index + 1}
                           {probe.name && ` - ${probe.name}`}
                         </Typography>
                         {probe.isComplete && (
@@ -2047,7 +2133,7 @@ const CustomProbe: React.FC = () => {
                   <Box>
                     <Tooltip title="Probe Attributes">
                       <IconButton 
-                        onClick={() => toggleAttributes(`probe${probe.id}`)}
+                        onClick={() => setEditingProbeId(probe.id)}
                         color="primary"
                         size="small"
                       >
@@ -2092,22 +2178,35 @@ const CustomProbe: React.FC = () => {
                   </Box>
                 </ProbeCardHeader>
                 
-                {/* Probe Attributes */}
-                <Collapse in={showAttributes[`probe${probe.id}`]}>
-                  <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
-                    <Typography variant="subtitle2" gutterBottom sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 1 
-                    }}>
-                      <FilterListIcon fontSize="small" color="primary" />
-                      Probe Attributes
-                    </Typography>
-                    
+                {/* Probe Attributes Dialog */}
+                <Dialog
+                  open={editingProbeId === probe.id}
+                  onClose={() => setEditingProbeId(null)}
+                  maxWidth="sm"
+                  fullWidth
+                >
+                  <DialogTitle>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="h6">Probe Attributes</Typography>
+                      <IconButton onClick={() => setEditingProbeId(null)}>
+                        <CloseIcon />
+                      </IconButton>
+                    </Box>
+                  </DialogTitle>
+                  <DialogContent>
                     {renderAttributesForm(probe.attributes || createDefaultAttributes(), 
                       (field, value) => handleProbeAttributeChange(index, field, value))}
-                  </Box>
-                </Collapse>
+                    
+                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button 
+                        onClick={() => setEditingProbeId(null)}
+                        variant="contained"
+                      >
+                        Done
+                      </Button>
+                    </Box>
+                  </DialogContent>
+                </Dialog>
                 
                 <Collapse in={expandedCards[probe.id]}>
                   <CardContent>
@@ -2222,39 +2321,86 @@ const CustomProbe: React.FC = () => {
                                 gap: 0.5
                               }}>
                                 <Typography variant="body2">
-                                  {idx + 1}. {part.label} 
+                                  Part_{idx + 1}: {part.label} 
                                   {part.isReverseComplement ? ' (Reverse Complement)' : ''}
                                 </Typography>
                                 
                                 {/* Part attributes */}
                                 {part.attributes && (
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                    {part.attributes.gcContent?.enabled && (
-                                      <Chip 
-                                        size="small" 
-                                        label={`GC: ${part.attributes.gcContent.min}%-${part.attributes.gcContent.max}%`} 
-                                        variant="outlined"
-                                        sx={{ height: 20, fontSize: '0.7rem' }}
-                                      />
-                                    )}
-                                    {part.attributes.specific?.enabled && (
-                                      <Chip 
-                                        size="small" 
-                                        label={`Spec: ${part.attributes.specific.threshold}%`} 
-                                        variant="outlined"
-                                        sx={{ height: 20, fontSize: '0.7rem' }}
-                                      />
-                                    )}
-                                    {(part.attributes.foldScore?.enabled || 
-                                      part.attributes.tm?.enabled || 
-                                      part.attributes.selfMatch?.enabled || 
-                                      part.attributes.mappedGenes?.enabled) && (
-                                      <Chip 
-                                        size="small" 
-                                        label="+ more" 
-                                        variant="outlined"
-                                        sx={{ height: 20, fontSize: '0.7rem' }}
-                                      />
+                                    {Object.entries(part.attributes).map(([key, attr]) => {
+                                      if (attr?.enabled) {
+                                        switch(key) {
+                                          case 'gcContent':
+                                            return (
+                                              <Chip 
+                                                key={key}
+                                                size="small" 
+                                                label={`GC: ${attr.min}%-${attr.max}%`} 
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.7rem' }}
+                                              />
+                                            );
+                                          case 'foldScore':
+                                            return (
+                                              <Chip 
+                                                key={key}
+                                                size="small" 
+                                                label={`Fold: max ${attr.max}`} 
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.7rem' }}
+                                              />
+                                            );
+                                          case 'tm':
+                                            return (
+                                              <Chip 
+                                                key={key}
+                                                size="small" 
+                                                label={`Tm: ${attr.min}°C-${attr.max}°C`} 
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.7rem' }}
+                                              />
+                                            );
+                                          case 'selfMatch':
+                                            return (
+                                              <Chip 
+                                                key={key}
+                                                size="small" 
+                                                label={`Self: max ${attr.max}`} 
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.7rem' }}
+                                              />
+                                            );
+                                          case 'mappedGenes':
+                                            return (
+                                              <Chip 
+                                                key={key}
+                                                size="small" 
+                                                label={`Map: ${attr.max}`} 
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.7rem' }}
+                                              />
+                                            );
+                                          case 'specific':
+                                            return (
+                                              <Chip 
+                                                key={key}
+                                                size="small" 
+                                                label={`Spec: ${attr.threshold}%`} 
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.7rem' }}
+                                              />
+                                            );
+                                          default:
+                                            return null;
+                                        }
+                                      }
+                                      return null;
+                                    })}
+                                    {!Object.values(part.attributes).some(attr => attr?.enabled) && (
+                                      <Typography variant="caption" color="text.secondary">
+                                        No attributes
+                                      </Typography>
                                     )}
                                   </Box>
                                 )}
@@ -2494,7 +2640,7 @@ const CustomProbe: React.FC = () => {
                                   >
                                     {getCompletedProbes().map(probe => (
                                       <MenuItem key={probe.id} value={probe.id}>
-                                        Probe {probe.id} ({getProbeFullSequence(probe).length} bp)
+                                        Probe_{probe.id} ({getProbeFullSequence(probe).length} bp)
                                       </MenuItem>
                                     ))}
                                   </Select>
@@ -2568,37 +2714,6 @@ const CustomProbe: React.FC = () => {
                             <SequenceDisplay sx={{ mb: 1 }}>
                               {newPart.sequence || '(No sequence selected yet)'}
                             </SequenceDisplay>
-                          </Grid>
-                          
-                          {/* Part Attributes */}
-                          <Grid item xs={12}>
-                            <Button
-                              variant="outlined"
-                              startIcon={<TuneIcon />}
-                              onClick={() => toggleAttributes('newPart')}
-                              fullWidth
-                              size="small"
-                              sx={{ mb: 2 }}
-                            >
-                              {showAttributes['newPart'] ? 'Hide Part Attributes' : 'Configure Part Attributes'}
-                            </Button>
-                            
-                            <Collapse in={showAttributes['newPart']}>
-                              <AttributeSection>
-                                <Typography variant="subtitle2" gutterBottom sx={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
-                                  gap: 1 
-                                }}>
-                                  <FilterListIcon fontSize="small" color="primary" />
-                                  Part-specific Attributes
-                                </Typography>
-                                
-                                {renderAttributesForm(newPart.attributes, (field, value) => 
-                                  handleNewPartChange(`attributes.${field}`, value)
-                                )}
-                              </AttributeSection>
-                            </Collapse>
                           </Grid>
                           
                           {/* Action Buttons */}

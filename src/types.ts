@@ -1,3 +1,5 @@
+import yaml from 'js-yaml';
+
 // Task
 export interface Task {
   id: string;
@@ -83,6 +85,15 @@ export interface GenomeFile {
   updatedAt: string;
 }
 
+export interface ProbeConfig {
+  template: string;
+  parts: Record<string, {
+    expr: string;
+    attributes?: Record<string, any>;
+  }>;
+  attributes?: Record<string, any>;
+}
+
 export interface CustomProbeType {
   id: string;
   name: string;
@@ -93,18 +104,18 @@ export interface CustomProbeType {
   barcodeCount: number;
   targetLength?: number;
   overlap?: number;
-  partLengths?: {
-    part1: number;
-    part2: number;
-    part3: number;
+  targetConfig?: {
+    source: string;
+    sequence: string;
+    length: number;
+    attributes?: Record<string, any>;
   };
-  probes?: { [key: string]: any };
+  probes?: Record<string, ProbeConfig>;
 }
 
 export const parseYamlContent = (yamlContent: string) => {
   try {
-    const yaml = require('js-yaml');
-    const parsed = yaml.load(yamlContent);
+    const parsed = yaml.load(yamlContent) as any;
     return parsed;
   } catch (e) {
     console.error('Error parsing YAML:', e);
@@ -119,8 +130,20 @@ export const extractParametersFromYaml = (yamlContent: string) => {
 
   const parameters: any = {};
   
-  // Extract target length from YAML
-  if (parsed.target_sequence_length) {
+  // Extract target sequence information
+  if (parsed.target_sequence) {
+    parameters.target_sequence = {
+      source: parsed.target_sequence.source,
+      sequence: parsed.target_sequence.sequence,
+      length: parsed.target_sequence.length,
+      attributes: parsed.target_sequence.attributes || {}
+    };
+    // Also set targetLength for backward compatibility
+    parameters.targetLength = parsed.target_sequence.length;
+  }
+  
+  // Extract target length from YAML (fallback)
+  if (!parameters.targetLength && parsed.target_sequence_length) {
     parameters.targetLength = parsed.target_sequence_length;
   }
 
