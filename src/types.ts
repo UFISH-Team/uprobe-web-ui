@@ -1,3 +1,5 @@
+import yaml from 'js-yaml';
+
 // Task
 export interface Task {
   id: string;
@@ -113,8 +115,7 @@ export interface CustomProbeType {
 
 export const parseYamlContent = (yamlContent: string) => {
   try {
-    const yaml = require('js-yaml');
-    const parsed = yaml.load(yamlContent);
+    const parsed = yaml.load(yamlContent) as any;
     return parsed;
   } catch (e) {
     console.error('Error parsing YAML:', e);
@@ -129,8 +130,20 @@ export const extractParametersFromYaml = (yamlContent: string) => {
 
   const parameters: any = {};
   
-  // Extract target length from YAML
-  if (parsed.target_sequence_length) {
+  // Extract target sequence information
+  if (parsed.target_sequence) {
+    parameters.target_sequence = {
+      source: parsed.target_sequence.source,
+      sequence: parsed.target_sequence.sequence,
+      length: parsed.target_sequence.length,
+      attributes: parsed.target_sequence.attributes || {}
+    };
+    // Also set targetLength for backward compatibility
+    parameters.targetLength = parsed.target_sequence.length;
+  }
+  
+  // Extract target length from YAML (fallback)
+  if (!parameters.targetLength && parsed.target_sequence_length) {
     parameters.targetLength = parsed.target_sequence_length;
   }
 

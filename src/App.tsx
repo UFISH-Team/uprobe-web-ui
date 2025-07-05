@@ -44,7 +44,60 @@ const navItems = [
 
 // Protected Route component
 const ProtectedRoute = () => {
-  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+  const [isChecking, setIsChecking] = React.useState(true);
+  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkAuthentication = () => {
+      const token = localStorage.getItem('token');
+      const authFlag = localStorage.getItem('isAuthenticated') === 'true';
+      const tokenExpiration = localStorage.getItem('tokenExpiration');
+      
+      // If no token or auth flag, user is not authenticated
+      if (!token || !authFlag) {
+        setIsAuthenticated(false);
+        setIsChecking(false);
+        return;
+      }
+
+      // Check if token has expired
+      if (tokenExpiration) {
+        const expirationTime = parseInt(tokenExpiration);
+        const currentTime = Date.now();
+        
+        if (currentTime > expirationTime) {
+          // Token has expired, clear localStorage and redirect to login
+          localStorage.removeItem('token');
+          localStorage.removeItem('isAuthenticated');
+          localStorage.removeItem('tokenExpiration');
+          setIsAuthenticated(false);
+          setIsChecking(false);
+          return;
+        }
+      }
+
+      // Token is valid and not expired
+      setIsAuthenticated(true);
+      setIsChecking(false);
+    };
+
+    checkAuthentication();
+  }, []);
+
+  if (isChecking) {
+    return (
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh' 
+        }}
+      >
+        <Typography>Loading...</Typography>
+      </Box>
+    );
+  }
   
   if (!isAuthenticated) {
     return <Navigate to="/auth" replace />;

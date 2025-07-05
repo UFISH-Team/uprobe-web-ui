@@ -440,7 +440,7 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
   probes.forEach((probe, index) => {
     if (!probe.isComplete) return;  // 这里会跳过未完成的probe
     
-    const probeName = probe.name || `probe_${index}`;
+    const probeName = probe.name || `probe_${index + 1}`;
     const parts: { [key: string]: YAMLPartConfig } = {};
     let templateParts: string[] = [];
     
@@ -482,7 +482,7 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
     }
     
     probe.parts.forEach((part, partIndex) => {
-      const partName = `part${partIndex}`;
+      const partName = `part${partIndex + 1}`;
       templateParts.push(`{${partName}}`);
       
       // Build part configuration
@@ -548,7 +548,7 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
           const start = Number(part.sourceStartPos);
           const end = Number(part.sourceEndPos);
           partConfig.expr = part.isReverseComplement
-            ? `rc(${sourceProbeName}.part${part.sourceStartPos})`
+            ? `rc(${sourceProbeName}[${start - 1}:${end}])`
             : `${sourceProbeName}[${start - 1}:${end}]`;
         }
       }
@@ -2105,7 +2105,7 @@ const CustomProbe: React.FC = () => {
                     <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography variant="subtitle1" component="h3">
-                          Probe_{index}
+                          Probe_{index + 1}
                           {probe.name && ` - ${probe.name}`}
                         </Typography>
                         {probe.isComplete && (
@@ -2321,7 +2321,7 @@ const CustomProbe: React.FC = () => {
                                 gap: 0.5
                               }}>
                                 <Typography variant="body2">
-                                  Part_{idx}: {part.label} 
+                                  Part_{idx + 1}: {part.label} 
                                   {part.isReverseComplement ? ' (Reverse Complement)' : ''}
                                 </Typography>
                                 
@@ -2640,7 +2640,7 @@ const CustomProbe: React.FC = () => {
                                   >
                                     {getCompletedProbes().map(probe => (
                                       <MenuItem key={probe.id} value={probe.id}>
-                                        Probe {probe.id} ({getProbeFullSequence(probe).length} bp)
+                                        Probe_{probe.id} ({getProbeFullSequence(probe).length} bp)
                                       </MenuItem>
                                     ))}
                                   </Select>

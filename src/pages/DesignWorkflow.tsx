@@ -12,7 +12,6 @@ import {
   FormControl, 
   Grid, 
   Divider, 
-  Menu, 
   IconButton, 
   LinearProgress, 
   Dialog, 
@@ -34,7 +33,6 @@ import {
   AccordionSummary,
   AccordionDetails,
   InputAdornment,
-  Paper,
   DialogActions,
   Tooltip,
   FormHelperText,
@@ -47,7 +45,6 @@ import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import DownloadIcon from '@mui/icons-material/Download';
-import EditIcon from '@mui/icons-material/Edit';
 import Papa from 'papaparse';
 import useDesignStore from '../store/designStore';
 import ApiService from '../api';
@@ -76,36 +73,7 @@ interface ProbeConfig {
   attributes?: Record<string, any>;
 }
 
-interface TargetAttributes {
-  gcContent?: {
-    min?: number;
-    max?: number;
-    enabled: boolean;
-  };
-  foldScore?: {
-    max?: number;
-    enabled: boolean;
-  };
-  tm?: {
-    min?: number;
-    max?: number;
-    enabled: boolean;
-  };
-  selfMatch?: {
-    max?: number;
-    enabled: boolean;
-  };
-  mappedGenes?: {
-    max?: number;
-    aligner?: AlignerType;
-    enabled: boolean;
-  };
-  specific?: {
-    threshold?: number;
-    aligner?: AlignerType;
-    enabled: boolean;
-  };
-}
+
 
 interface AttributeValue {
   name: string;
@@ -144,8 +112,33 @@ interface Pool {
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
   const [barcodeOptions, setBarcodeOptions] = useState<string[]>([]);
-  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+
+  // Helper functions to format probe and part names for display
+  const formatProbeName = (probeName: string): string => {
+    // Convert "probe_1" to "Probe_1", "probe_2" to "Probe_2", etc.
+    if (probeName.startsWith('probe_')) {
+      return probeName.replace('probe_', 'Probe_');
+    }
+    // Handle pure numbers like "0", "1", "2" -> "Probe_1", "Probe_2", "Probe_3"
+    if (/^\d+$/.test(probeName)) {
+      return `Probe_${parseInt(probeName) + 1}`;
+    }
+    return probeName;
+  };
+
+  const formatPartName = (partName: string): string => {
+    // Convert "part1" to "Part_1", "part2" to "Part_2", etc.
+    const match = partName.match(/^part(\d+)$/);
+    if (match) {
+      return `Part_${match[1]}`;
+    }
+    // Handle pure numbers like "0", "1", "2" -> "Part_1", "Part_2", "Part_3"
+    if (/^\d+$/.test(partName)) {
+      return `Part_${parseInt(partName) + 1}`;
+    }
+    return partName;
+  };
+
   const [customProbeTypes, setCustomProbeTypes] = useState<CustomProbeType[]>([]);
   const [isLoadingCustomTypes, setIsLoadingCustomTypes] = useState(true);
   const [showCustomProbeTypes, setShowCustomProbeTypes] = useState(false);
@@ -159,7 +152,7 @@ const DesignWorkflow: React.FC = () => {
   });
   const [showAttributeDialog, setShowAttributeDialog] = useState(false);
   const [showEditAttributeDialog, setShowEditAttributeDialog] = useState(false);
-  const [showPartSelectionDialog, setShowPartSelectionDialog] = useState(false);
+
   const [currentAttributeType, setCurrentAttributeType] = useState<'target' | 'probe' | 'part'>('target');
   const [currentProbeName, setCurrentProbeName] = useState<string>('');
   const [currentPartName, setCurrentPartName] = useState<string>('');
@@ -306,6 +299,18 @@ const DesignWorkflow: React.FC = () => {
     if (!isLoadingCustomTypes && probeType && probeType !== 'RCA' && probeType !== 'DNA-FISH') {
       const customType = customProbeTypes.find(t => t.name === probeType);
       if (customType) {
+        // Check if targetConfig already exists in the customType
+        if (customType.targetConfig) {
+          setSelectedCustomType(customType);
+          if (customType.targetLength) {
+            setMinLength(customType.targetLength);
+          }
+          if (customType.overlap) {
+            setOverlap(customType.overlap);
+          }
+          return;
+        }
+        
         const parameters = extractParametersFromYaml(customType.yamlContent);
         if (parameters && parameters.target_sequence) {
           const targetConfig = {
@@ -527,9 +532,7 @@ const DesignWorkflow: React.FC = () => {
     // 等待 customProbeTypes 加载完成
     const customType = customProbeTypes.find(t => t.name === type);
     if (customType) {
-      console.log('Debug - Found custom type:', customType);
       const parameters = extractParametersFromYaml(customType.yamlContent);
-      console.log('Debug - YAML parameters:', parameters);
       if (parameters && parameters.target_sequence) {
         const targetConfig = {
           source: parameters.target_sequence.source,
@@ -728,17 +731,7 @@ const DesignWorkflow: React.FC = () => {
     setShowEditAttributeDialog(true);
   };
 
-  // Modify the handlePartSelect function
-  const handlePartSelect = (probeName: string, partName: string) => {
-    setCurrentProbeName(probeName);
-    setCurrentPartName(partName);
-    setShowPartSelectionDialog(false);
-    if (editingAttribute) {
-      setShowEditAttributeDialog(true);
-    } else {
-      setShowAttributeDialog(true);
-    }
-  };
+
 
   // Add new function to handle attribute click
   const handleAttributeClick = (probeName: string, partName: string | null, attrName: string, attrValue: any) => {
@@ -897,7 +890,7 @@ const DesignWorkflow: React.FC = () => {
         if (probe.attributes) {
           Object.entries(probe.attributes).forEach(([key, value]) => {
             if (value.enabled) {
-              const fieldLabel = `Probe: ${probeName} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
+              const fieldLabel = `${formatProbeName(probeName)} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
               probeFields.push({
                 value: `probe.${probeName}.${key}`,
                 label: fieldLabel
@@ -922,7 +915,7 @@ const DesignWorkflow: React.FC = () => {
             if (part.attributes) {
               Object.entries(part.attributes).forEach(([key, value]) => {
                 if (value.enabled) {
-                  const fieldLabel = `Probe: ${probeName} - Part: ${partName} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
+                  const fieldLabel = `${formatProbeName(probeName)} - ${formatPartName(partName)} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
                   partFields.push({
                     value: `part.${probeName}.${partName}.${key}`,
                     label: fieldLabel
@@ -1036,6 +1029,51 @@ const DesignWorkflow: React.FC = () => {
     return filtered;
   };
 
+  // Function to convert probe/part keys to match the YAML format
+  const convertToYamlFormat = (obj: any): any => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    const converted: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      let newKey = key;
+      
+      // Convert probe names: "0", "1", "2" -> "probe_1", "probe_2", "probe_3"
+      if (/^\d+$/.test(key) && value && typeof value === 'object' && 'parts' in value) {
+        newKey = `probe_${parseInt(key) + 1}`;
+      }
+      
+      // Process nested objects
+      if (typeof value === 'object' && value !== null) {
+        const convertedValue: any = {};
+        
+        // Handle probe object with parts
+        if ('parts' in value && value.parts) {
+          convertedValue.parts = {};
+          for (const [partKey, partValue] of Object.entries(value.parts as any)) {
+            // Convert part names: "0", "1", "2" -> "part1", "part2", "part3"
+            const newPartKey = /^\d+$/.test(partKey) ? `part${parseInt(partKey) + 1}` : partKey;
+            convertedValue.parts[newPartKey] = convertToYamlFormat(partValue);
+          }
+          
+          // Handle other probe properties
+          for (const [propKey, propValue] of Object.entries(value)) {
+            if (propKey !== 'parts') {
+              convertedValue[propKey] = convertToYamlFormat(propValue);
+            }
+          }
+        } else {
+          // Regular nested object
+          Object.assign(convertedValue, convertToYamlFormat(value));
+        }
+        
+        converted[newKey] = convertedValue;
+      } else {
+        converted[newKey] = value;
+      }
+    }
+    return converted;
+  };
+
   const generateTaskConfig = () => {
     const config: any = {
       name: taskName,
@@ -1047,7 +1085,9 @@ const DesignWorkflow: React.FC = () => {
       },
       extracts: {
         target_region: {
-          source: 'samples',
+          source: selectedCustomType?.targetConfig?.source || 
+                  (probeType === 'RCA' ? 'exon' : 
+                   probeType === 'DNA-FISH' ? 'genome' : 'samples'),
           length: minLength,
           overlap: overlap
         }
@@ -1081,7 +1121,7 @@ const DesignWorkflow: React.FC = () => {
       const probesObj = YAML.parse(probesYaml);
       config.probes = probesObj;
       
-      config.attributes = extractAttributes(removeDisabledAttributes(selectedCustomType.probes));
+      config.attributes = convertToYamlFormat(extractAttributes(removeDisabledAttributes(selectedCustomType.probes)));
       
       config.custom_parameters = removeDisabledAttributes({
         target_config: selectedCustomType.targetConfig,
@@ -1093,18 +1133,13 @@ const DesignWorkflow: React.FC = () => {
     // Add input data based on probe type
     if (probeType === 'RCA') {
       config.samples = {
-        type: 'gene_list',
+        type: 'genelist',
         list: geneList
       };
     } else if (probeType === 'DNA-FISH' || (selectedCustomType && isGenomeLikeSource())) {
       config.samples = {
-        type: 'pool_list',
+        type: 'poollist',
         list: dnaFishParams.poolList
-      };
-    } else if (selectedCustomType) {
-      config.samples = {
-        type: 'gene_list',
-        list: geneList
       };
     }
 
@@ -1448,7 +1483,7 @@ const DesignWorkflow: React.FC = () => {
                           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                               <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-                                Probe - {probeName}
+                                {formatProbeName(probeName)}
                               </Typography>
                               <IconButton
                                 size="small"
@@ -1489,10 +1524,10 @@ const DesignWorkflow: React.FC = () => {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                                   <Box>
                                     <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-                                      Part - {partName}
+                                      {formatPartName(partName)}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
-                                      Part of probe {probeName}
+                                      Part of {formatProbeName(probeName)}
                                     </Typography>
                                   </Box>
                                   <IconButton
@@ -2223,41 +2258,7 @@ const DesignWorkflow: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Part Selection Dialog */}
-      <Dialog
-        open={showPartSelectionDialog}
-        onClose={() => setShowPartSelectionDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">Select Part</Typography>
-            <IconButton onClick={() => setShowPartSelectionDialog(false)}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <List>
-            {selectedCustomType?.probes && 
-              Object.entries(selectedCustomType.probes).map(([probeName, probeConfig]) => (
-                probeConfig.parts && Object.entries(probeConfig.parts).map(([partName, partConfig]) => (
-                  <ListItem
-                    key={`${probeName}-${partName}`}
-                    sx={{ cursor: 'pointer' }}
-                    onClick={() => handlePartSelect(probeName, partName)}
-                  >
-                    <ListItemText
-                      primary={partName}
-                      secondary={`Part of probe ${probeName}`}
-                    />
-                  </ListItem>
-                ))
-              ))}
-          </List>
-        </DialogContent>
-      </Dialog>
+
     </Container>
   );
 };

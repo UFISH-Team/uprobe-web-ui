@@ -79,3 +79,70 @@ export const getAxiosInstance = (serverAddr: string) => {
   })
   return instance
 }
+
+// Authentication and token management utilities
+export const AUTH_CONFIG = {
+  // Token expiration time in milliseconds (30 minutes)
+  TOKEN_EXPIRY_DURATION: 0.5 * 60 * 60 * 1000,
+  // Warning time before expiration (30 minutes)
+  EXPIRY_WARNING_DURATION: 20 * 60 * 1000,
+};
+
+/**
+ * Check if the current token is expired
+ */
+export const isTokenExpired = (): boolean => {
+  const tokenExpiration = localStorage.getItem('tokenExpiration');
+  if (!tokenExpiration) return true;
+  
+  const expirationTime = parseInt(tokenExpiration);
+  const currentTime = Date.now();
+  
+  return currentTime > expirationTime;
+};
+
+/**
+ * Get remaining time until token expires
+ */
+export const getTokenRemainingTime = (): number => {
+  const tokenExpiration = localStorage.getItem('tokenExpiration');
+  if (!tokenExpiration) return 0;
+  
+  const expirationTime = parseInt(tokenExpiration);
+  const currentTime = Date.now();
+  
+  return Math.max(0, expirationTime - currentTime);
+};
+
+/**
+ * Format remaining time into readable string
+ */
+export const formatRemainingTime = (milliseconds: number): string => {
+  if (milliseconds <= 0) return '已过期';
+  
+  const hours = Math.floor(milliseconds / (1000 * 60 * 60));
+  const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
+  
+  if (hours > 0) {
+    return `${hours}小时${minutes}分钟`;
+  } else {
+    return `${minutes}分钟`;
+  }
+};
+
+/**
+ * Check if token is about to expire (within warning duration)
+ */
+export const isTokenExpiringSoon = (): boolean => {
+  const remainingTime = getTokenRemainingTime();
+  return remainingTime > 0 && remainingTime <= AUTH_CONFIG.EXPIRY_WARNING_DURATION;
+};
+
+/**
+ * Clear all authentication data
+ */
+export const clearAuthData = (): void => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('isAuthenticated');
+  localStorage.removeItem('tokenExpiration');
+};

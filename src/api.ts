@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { ApiResponse, PaginatedResponse } from './types';
+import { AUTH_CONFIG } from './utils';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8123';
 
@@ -38,6 +39,7 @@ api.interceptors.response.use(
           // 处理未授权错误
           localStorage.removeItem('token');
           localStorage.removeItem('isAuthenticated');
+          localStorage.removeItem('tokenExpiration');
           window.location.href = '/auth';
           break;
         case 403:
@@ -80,6 +82,9 @@ class ApiService {
     if (response.token) {
       localStorage.setItem('token', response.token);
       localStorage.setItem('isAuthenticated', 'true');
+      // Set login timestamp with configurable expiry duration
+      const expirationTime = Date.now() + AUTH_CONFIG.TOKEN_EXPIRY_DURATION;
+      localStorage.setItem('tokenExpiration', expirationTime.toString());
     }
     return mappedResponse;
   }
@@ -269,6 +274,7 @@ class ApiService {
     } finally {
       localStorage.removeItem('token');
       localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('tokenExpiration');
       // Redirect to login page to ensure clean state
       if (window.location.pathname !== '/auth') {
         window.location.href = '/auth';
