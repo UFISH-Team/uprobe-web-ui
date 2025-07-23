@@ -110,6 +110,14 @@ export interface CustomProbeType {
     length: number;
     attributes?: Record<string, any>;
   };
+  barcodeConfig?: {
+    count: number;
+    default_length: number;
+    barcodes: Record<string, {
+      name: string;
+      length: number;
+    }>;
+  };
   probes?: Record<string, ProbeConfig>;
 }
 
@@ -145,6 +153,15 @@ export const extractParametersFromYaml = (yamlContent: string) => {
   // Extract target length from YAML (fallback)
   if (!parameters.targetLength && parsed.target_sequence_length) {
     parameters.targetLength = parsed.target_sequence_length;
+  }
+
+  // Extract barcode configuration
+  if (parsed.barcode_config) {
+    parameters.barcodeConfig = {
+      count: parsed.barcode_config.count,
+      default_length: parsed.barcode_config.default_length,
+      barcodes: parsed.barcode_config.barcodes || {}
+    };
   }
 
   // Extract overlap from extracts section

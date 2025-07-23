@@ -210,6 +210,25 @@ class ApiService {
     return api.put('/users/profile', data);
   }
 
+  // Barcode generation
+  static async generateBarcode(config: {
+    length: number;
+    type?: string;
+    count?: number;
+    constraints?: any;
+  }): Promise<{ barcode: string }> {
+    return api.post('/barcode/generate', config);
+  }
+
+  static async generateBarcodes(config: {
+    length: number;
+    type?: string;
+    count: number;
+    constraints?: any;
+  }): Promise<{ barcodes: string[] }> {
+    return api.post('/barcode/generate_batch', config);
+  }
+
   // 文件上传
   static async uploadFile(file: File, type: string): Promise<ApiResponse<{ url: string }>> {
     const formData = new FormData();

@@ -401,8 +401,23 @@ const createDefaultAttributes = (): ProbeAttributes => ({
   specific: { threshold: 80, aligner: 'BLAST' as AlignerType, enabled: false }
 });
 
-const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[key: string]: string}, targetConfig: TargetConfig): string => {
+const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[key: string]: string}, barcodeLengths: {[key: string]: number}, targetConfig: TargetConfig): string => {
   const yamlProbes: YAMLProbes = {};
+  
+  // Add barcode configuration  
+  const barcodeYaml = {
+    barcodes: {
+      count: Object.keys(barcodes).length,
+      barcodes: Object.fromEntries(
+        Object.entries(barcodes).map(([key, sequence]) => [
+          key, 
+          { 
+            length: barcodeLengths[key]
+          }
+        ])
+      )
+    }
+  };
   
   // Add target configuration
   const targetYaml: YAMLTarget = {
@@ -563,7 +578,7 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
     };
   });
   
-  return `${yaml.dump(targetYaml)}\nprobes:\n${yaml.dump(yamlProbes)}`;
+  return `${yaml.dump(barcodeYaml)}\n${yaml.dump(targetYaml)}\nprobes:\n${yaml.dump(yamlProbes)}`;
 };
 
 const CustomProbe: React.FC = () => {
@@ -645,15 +660,15 @@ const CustomProbe: React.FC = () => {
   const [attributeTab, setAttributeTab] = useState<number>(0);
   const [showAttributes, setShowAttributes] = useState<Record<string, boolean>>({});
   
-  // Predefined barcodes and fixed sequences
+  // Simple barcode state for backward compatibility and YAML export
   const [barcodes, setBarcodes] = useState<{[key: string]: string}>({
-    'BC1': 'ACGTACGTACGT',
-    'BC2': 'TGCATGCATGCA',
-    'BC3': 'GCTAGCTAGCTA'
   });
   
-  // Add state for barcode length
-  const [barcodeLength, setBarcodeLength] = useState<number>(12);
+  // Barcode length management
+  const [barcodeLengths, setBarcodeLengths] = useState<{[key: string]: number}>({
+  });
+  
+  const [defaultBarcodeLength, setDefaultBarcodeLength] = useState<number>(12);
   
   // State for editing part attributes
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
@@ -727,11 +742,15 @@ const CustomProbe: React.FC = () => {
   
   // Add function to add new barcode
   const addNewBarcode = () => {
-    const newSequence = generateRandomBarcode(barcodeLength);
+    const newSequence = generateRandomBarcode(defaultBarcodeLength);
     const newBarcodeName = `BC${Object.keys(barcodes).length + 1}`;
     setBarcodes(prev => ({
       ...prev,
       [newBarcodeName]: newSequence
+    }));
+    setBarcodeLengths(prev => ({
+      ...prev,
+      [newBarcodeName]: defaultBarcodeLength
     }));
     showAlert(`New barcode ${newBarcodeName} generated!`, 'success');
   };
@@ -1327,7 +1346,7 @@ const CustomProbe: React.FC = () => {
       });
     });
 
-    const yamlContent = convertProbesToYAML(probes, targetLength, barcodes, targetConfig);
+    const yamlContent = convertProbesToYAML(probes, targetLength, barcodes, barcodeLengths, targetConfig);
 
     const updatedGroup: ProbeGroup = {
       ...probeGroup,
@@ -2580,7 +2599,9 @@ const CustomProbe: React.FC = () => {
                                         onChange={(e) => handleNewPartChange('externalName', e.target.value)}
                                       >
                                         {Object.keys(barcodes).map(key => (
-                                          <MenuItem key={key} value={key}>{key}</MenuItem>
+                                          <MenuItem key={key} value={key}>
+                                            {key} ({barcodeLengths[key] || 12}bp)
+                                          </MenuItem>
                                         ))}
                                       </Select>
                                     </FormControl>
@@ -2588,8 +2609,11 @@ const CustomProbe: React.FC = () => {
                                       <TextField
                                         label="Length"
                                         type="number"
-                                        value={barcodeLength}
-                                        onChange={(e) => setBarcodeLength(Math.max(1, parseInt(e.target.value) || 1))}
+                                        value={defaultBarcodeLength}
+                                        onChange={(e) => {
+                                          const newLength = Math.max(1, parseInt(e.target.value) || 1);
+                                          setDefaultBarcodeLength(newLength);
+                                        }}
                                         size="small"
                                         fullWidth
                                         InputProps={{ 
