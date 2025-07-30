@@ -1,6 +1,6 @@
 import { createTheme, responsiveFontSizes } from '@mui/material/styles';
 
-// Create a base theme
+// Create a base theme with modern gradient colors
 let theme = createTheme({
   palette: {
     primary: {
@@ -16,32 +16,32 @@ let theme = createTheme({
       contrastText: '#ffffff',
     },
     background: {
-      default: '#f8f9fa', // 浅灰背景，减少视觉疲劳
+      default: '#f8f9fa',  // 更纯净的背景色
       paper: '#ffffff',
     },
     error: {
-      main: '#d32f2f',
-      light: '#ef5350',
-      dark: '#c62828',
+      main: '#ef4444',
+      light: '#f87171',
+      dark: '#dc2626',
     },
     warning: {
-      main: '#ed6c02',
-      light: '#ff9800',
-      dark: '#e65100',
+      main: '#f59e0b',
+      light: '#fbbf24',
+      dark: '#d97706',
     },
     info: {
-      main: '#0288d1',
-      light: '#03a9f4',
-      dark: '#01579b',
+      main: '#3b82f6',
+      light: '#60a5fa',
+      dark: '#2563eb',
     },
     success: {
-      main: '#2e7d32',
-      light: '#4caf50',
-      dark: '#1b5e20',
+      main: '#10b981',
+      light: '#34d399',
+      dark: '#059669',
     },
     text: {
-      primary: '#1a2027',
-      secondary: '#3e5060',
+      primary: '#0f172a',
+      secondary: '#475569',
     },
   },
   typography: {
@@ -95,24 +95,35 @@ let theme = createTheme({
     },
   },
   shape: {
-    borderRadius: 8,
+    borderRadius: 12, // 更现代的圆角
   },
   components: {
     MuiButton: {
       styleOverrides: {
         root: {
           textTransform: 'none',
-          borderRadius: 8,
-          padding: '8px 16px',
-          fontWeight: 500,
+          borderRadius: 12,
+          padding: '10px 20px',
+          fontWeight: 600,
           boxShadow: 'none',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
-            boxShadow: '0px 2px 4px -1px rgba(0,0,0,0.1), 0px 4px 5px 0px rgba(0,0,0,0.07)',
+            transform: 'translateY(-1px)',
+            boxShadow: '0px 4px 12px -2px rgba(0,0,0,0.1), 0px 8px 16px -4px rgba(0,0,0,0.07)',
           },
         },
         contained: {
+          background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
           '&:hover': {
-            boxShadow: '0px 3px 6px -1px rgba(0,0,0,0.12), 0px 6px 8px 0px rgba(0,0,0,0.08)',
+            background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+            boxShadow: '0px 6px 20px -4px rgba(37, 99, 235, 0.3), 0px 12px 24px -8px rgba(37, 99, 235, 0.2)',
+          },
+        },
+        outlined: {
+          borderWidth: '2px',
+          '&:hover': {
+            borderWidth: '2px',
+            background: 'rgba(37, 99, 235, 0.04)',
           },
         },
       },
@@ -120,8 +131,15 @@ let theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
-          boxShadow: '0px 2px 4px -1px rgba(0,0,0,0.05), 0px 4px 6px -1px rgba(0,0,0,0.03)',
+          borderRadius: 16,
+          boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.05), 0px 4px 6px -2px rgba(0, 0, 0, 0.05)',
+          border: '1px solid rgba(226, 232, 240, 0.8)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: '0px 4px 12px -2px rgba(0, 0, 0, 0.08), 0px 12px 24px -4px rgba(0, 0, 0, 0.08)',
+            borderColor: 'rgba(37, 99, 235, 0.2)',
+          },
         },
       },
     },
@@ -153,7 +171,10 @@ let theme = createTheme({
     MuiAppBar: {
       styleOverrides: {
         root: {
-          boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.12)',
+          background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #0891b2 100%)',
+          boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1), 0px 4px 12px -4px rgba(37, 99, 235, 0.3)',
+          backdropFilter: 'blur(8px)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
         },
       },
     },
@@ -184,6 +205,23 @@ let theme = createTheme({
         root: {
           paddingLeft: '24px',
           paddingRight: '24px',
+          '@media (min-width:960px)': {
+            paddingLeft: '32px',
+            paddingRight: '32px',
+          },
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+        },
+        elevation1: {
+          boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.05), 0px 1px 2px rgba(0, 0, 0, 0.1)',
+        },
+        elevation4: {
+          boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -1px rgba(0, 0, 0, 0.06)',
         },
       },
     },
