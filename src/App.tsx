@@ -118,7 +118,7 @@ function App() {
   };
 
   const drawer = (
-    <List>
+    <List sx={{ p: 2 }}>
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = location.pathname.startsWith(item.path);
@@ -130,11 +130,41 @@ function App() {
               if (isMobile) handleDrawerToggle();
             }}
             selected={isActive}
+            sx={{
+              borderRadius: 2,
+              mb: 1,
+              py: 1.5,
+              backgroundColor: isActive ? 'primary.main' : 'transparent',
+              color: isActive ? 'white' : 'text.primary',
+              transition: 'all 0.2s',
+              '&:hover': {
+                backgroundColor: isActive ? 'primary.dark' : 'rgba(37, 99, 235, 0.08)',
+                transform: 'translateX(4px)',
+              },
+              '&.Mui-selected': {
+                backgroundColor: 'primary.main',
+                color: 'white',
+                '&:hover': {
+                  backgroundColor: 'primary.dark',
+                },
+              }
+            }}
           >
-            <ListItemIcon>
-              <Icon color={isActive ? 'primary' : 'inherit'} />
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <Icon 
+                sx={{ 
+                  color: isActive ? 'white' : 'primary.main',
+                  fontSize: '1.3rem'
+                }} 
+              />
             </ListItemIcon>
-            <ListItemText primary={item.text} />
+            <ListItemText 
+              primary={item.text} 
+              primaryTypographyProps={{
+                fontWeight: isActive ? 600 : 500,
+                fontSize: '0.95rem'
+              }}
+            />
           </ListItemButton>
         );
       })}
@@ -144,25 +174,62 @@ function App() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="fixed" elevation={0}>
-        <Toolbar>
+        <Toolbar sx={{ minHeight: { xs: 64, sm: 72 } }}>
           {isMobile && (
             <IconButton
               color="inherit"
               aria-label="open drawer"
               edge="start"
               onClick={handleDrawerToggle}
-              sx={{ mr: 2 }}
+              sx={{ 
+                mr: 2,
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                }
+              }}
             >
               <MenuIcon />
             </IconButton>
           )}
           
-          <Typography variant="h6" component="div" sx={{ flexGrow: 0, mr: 4 }}>
-            U-Probe
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', mr: 4 }}>
+            <Box
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                mr: 2,
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+              }}
+            >
+              <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '1.2rem' }}>
+                U
+              </Typography>
+            </Box>
+            <Typography 
+              variant="h6" 
+              component="div" 
+              sx={{ 
+                flexGrow: 0,
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.8) 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: { xs: '1.2rem', sm: '1.5rem' }
+              }}
+            >
+              U-Probe
+            </Typography>
+          </Box>
 
           {!isMobile && (
-            <Box sx={{ flexGrow: 1, display: 'flex', gap: 2 }}>
+            <Box sx={{ flexGrow: 1, display: 'flex', gap: 1 }}>
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname.startsWith(item.path);
@@ -170,15 +237,28 @@ function App() {
                   <Button
                     key={item.text}
                     color="inherit"
-                    startIcon={<Icon />}
+                    startIcon={<Icon sx={{ fontSize: '1.1rem' }} />}
                     onClick={() => navigate(item.path)}
                     sx={{
-                      borderRadius: 1,
-                      px: 2,
-                      backgroundColor: isActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                      borderRadius: 2,
+                      px: 2.5,
+                      py: 1,
+                      fontWeight: 500,
+                      fontSize: '0.95rem',
+                      textTransform: 'none',
+                      backgroundColor: isActive ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
+                      backdropFilter: isActive ? 'blur(8px)' : 'none',
+                      border: isActive ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid transparent',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                       '&:hover': {
                         backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        transform: 'translateY(-1px)',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(255, 255, 255, 0.25)',
                       },
+                      '&:active': {
+                        transform: 'translateY(0)',
+                      }
                     }}
                   >
                     {item.text}
@@ -202,9 +282,42 @@ function App() {
             keepMounted: true,
           }}
           sx={{
-            '& .MuiDrawer-paper': { width: 240, boxSizing: 'border-box' },
+            '& .MuiDrawer-paper': { 
+              width: 280, 
+              boxSizing: 'border-box',
+              background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+              borderRadius: '0 20px 20px 0',
+              border: 'none',
+              boxShadow: '0px 8px 32px rgba(0, 0, 0, 0.1)',
+            },
           }}
         >
+          <Box sx={{ p: 3, borderBottom: '1px solid rgba(0, 0, 0, 0.08)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mr: 2,
+                }}
+              >
+                <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '1.3rem' }}>
+                  U
+                </Typography>
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                U-Probe
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              Probe Design Platform
+            </Typography>
+          </Box>
           {drawer}
         </Drawer>
       )}
