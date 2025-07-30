@@ -1003,7 +1003,7 @@ const DesignWorkflow: React.FC = () => {
         if (value.enabled) {
           const fieldLabel = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
           targetFields.push({
-            value: `target.${key}`,
+            value: `target_${key}`,
             label: fieldLabel
           });
         }
@@ -1021,12 +1021,14 @@ const DesignWorkflow: React.FC = () => {
     if (selectedCustomType.probes) {
       const probeFields: SortField[] = [];
       Object.entries(selectedCustomType.probes).forEach(([probeName, probe]) => {
+        const formattedProbeName = /^\d+$/.test(probeName) ? `probe_${parseInt(probeName) + 1}` : probeName;
+        
         if (probe.attributes) {
           Object.entries(probe.attributes).forEach(([key, value]) => {
             if (value.enabled) {
               const fieldLabel = `${formatProbeName(probeName)} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
               probeFields.push({
-                value: `probe.${probeName}.${key}`,
+                value: `${formattedProbeName}_${key}`,
                 label: fieldLabel
               });
             }
@@ -1044,14 +1046,18 @@ const DesignWorkflow: React.FC = () => {
       // 添加探针部分属性
       const partFields: SortField[] = [];
       Object.entries(selectedCustomType.probes).forEach(([probeName, probe]) => {
+        const formattedProbeName = /^\d+$/.test(probeName) ? `probe_${parseInt(probeName) + 1}` : probeName;
+        
         if (probe.parts) {
           Object.entries(probe.parts).forEach(([partName, part]) => {
+            const formattedPartName = /^\d+$/.test(partName) ? `part${parseInt(partName) + 1}` : partName;
+            
             if (part.attributes) {
               Object.entries(part.attributes).forEach(([key, value]) => {
                 if (value.enabled) {
                   const fieldLabel = `${formatProbeName(probeName)} - ${formatPartName(partName)} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
                   partFields.push({
-                    value: `part.${probeName}.${partName}.${key}`,
+                    value: `${formattedProbeName}_${formattedPartName}_${key}`,
                     label: fieldLabel
                   });
                 }
@@ -1208,6 +1214,19 @@ const DesignWorkflow: React.FC = () => {
     return converted;
   };
 
+  // Helper function to map attribute names to types
+  const getAttributeType = (attrName: string): string => {
+    const typeMapping: Record<string, string> = {
+      'gcContent': 'gc_content',
+      'foldScore': 'fold_score',
+      'tm': 'annealing_temperature',
+      'selfMatch': 'self_match',
+      'mappedGenes': 'n_mapped_genes',
+      'specific': 'specificity'
+    };
+    return typeMapping[attrName] || attrName;
+  };
+
   const generateTaskConfig = () => {
     // Start with basic configuration
     const config: any = {
@@ -1227,12 +1246,6 @@ const DesignWorkflow: React.FC = () => {
 
     // Add input data based on probe type (samples and encoding)
     if (selectedCustomType && isGenomeLikeSource()) {
-      // Generate poollist format: name;location;numbers;density
-      const poolSamples = dnaFishParams.poolList.map(pool => 
-        `${pool.name};${pool.location};${pool.numbers};${pool.density}`
-      );
-      config.samples = poolSamples;
-      
       // Generate encoding section for pools
       const poolEncoding: any = {};
       dnaFishParams.poolList.forEach(pool => {
@@ -1255,17 +1268,20 @@ const DesignWorkflow: React.FC = () => {
     } else {
       // Generate genelist format: just gene names
       const geneSamples = geneList.map(item => item.gene).filter(gene => gene.trim() !== '');
+      // 添加targets字段，保留samples字段以保持兼容性
+      config.targets = geneSamples;
       config.samples = geneSamples;
       
-      // Generate encoding section for genes
+      // Generate encoding section for genes (转换为BC1, BC2格式)
       const geneEncoding: any = {};
       geneList.forEach(item => {
         if (item.gene.trim() !== '' && selectedCustomType?.barcodeCount) {
           const geneBarcodes: any = {};
           for (let i = 1; i <= selectedCustomType.barcodeCount; i++) {
             const barcodeKey = `barcode${i}`;
+            const bcKey = `BC${i}`;
             if ((item as any)[barcodeKey]) {
-              geneBarcodes[barcodeKey] = (item as any)[barcodeKey];
+              geneBarcodes[bcKey] = (item as any)[barcodeKey];
             }
           }
           if (Object.keys(geneBarcodes).length > 0) {
@@ -1280,7 +1296,7 @@ const DesignWorkflow: React.FC = () => {
 
     // Add custom probe type parameters if selected (probes section - 倒数第三)
     if (selectedCustomType) {
-      // Extract probes section from yamlContent
+      // Extract probes section from yamlContent，只提取实际的探针配置
       const yamlContent = selectedCustomType.yamlContent;
       const yamlObj = YAML.parse(yamlContent);
       const cleanedYamlObj = removeAttributes(yamlObj);
@@ -1290,33 +1306,257 @@ const DesignWorkflow: React.FC = () => {
         delete cleanedYamlObj.probes;
       }
       
-      // Convert to YAML string and clean up formatting
-      let probesYaml = YAML.stringify(cleanedYamlObj);
-      // Remove any trailing newlines
-      probesYaml = probesYaml.trim();
-      // Remove the '---\n' prefix if it exists
-      probesYaml = probesYaml.replace(/^---\n/, '');
+      // 过滤掉不需要的字段（如barcodes），只保留实际的探针定义
+      const filteredProbes: any = {};
+      Object.entries(cleanedYamlObj).forEach(([key, value]) => {
+        // 只保留以probe开头或数字的键（实际探针），过滤掉barcodes等配置字段
+        if (key.startsWith('probe') || /^\d+$/.test(key)) {
+          filteredProbes[key] = value;
+        }
+      });
       
-      // Parse the probes YAML back into an object
-      const probesObj = YAML.parse(probesYaml);
-      config.probes = probesObj;
+      if (Object.keys(filteredProbes).length > 0) {
+        config.probes = filteredProbes;
+      }
     }
 
-    // Add attributes section (倒数第二)
+    // Add attributes section (倒数第二) - 生成扁平化的attributes格式
     if (selectedCustomType) {
-      config.attributes = convertToYamlFormat(extractAttributes(removeDisabledAttributes(selectedCustomType.probes)));
+      const attributes: any = {};
+      
+      // 处理target_region属性
+      if (selectedCustomType.targetConfig?.attributes) {
+        Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
+          if (attrValue.enabled) {
+            const attributeKey = `target_${attrName}`;
+            const attr: any = {
+              target: 'target_region',
+              type: getAttributeType(attrName)
+            };
+            
+            // 添加特定参数
+            if (attrValue.aligner) {
+              attr.aligner = attrValue.aligner.toLowerCase();
+            }
+            if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'specific')) {
+              attr.min_mapq = 30; // 默认值
+            }
+            
+            attributes[attributeKey] = attr;
+          }
+        });
+      }
+      
+      // 处理probe属性
+      if (selectedCustomType.probes) {
+        Object.entries(selectedCustomType.probes).forEach(([probeName, probeConfig]) => {
+          // 统一probe命名格式
+          const formattedProbeName = /^\d+$/.test(probeName) ? `probe_${parseInt(probeName) + 1}` : probeName;
+          
+          // 处理probe级别属性
+          if (probeConfig.attributes) {
+            Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
+              if (attrValue.enabled) {
+                const attributeKey = `${formattedProbeName}_${attrName}`;
+                const attr: any = {
+                  target: formattedProbeName,
+                  type: getAttributeType(attrName)
+                };
+                
+                // 添加特定参数
+                if (attrValue.aligner) {
+                  attr.aligner = attrValue.aligner.toLowerCase();
+                }
+                if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'specific')) {
+                  attr.min_mapq = 30; // 默认值
+                }
+                
+                attributes[attributeKey] = attr;
+              }
+            });
+          }
+          
+          // 处理part级别属性
+          if (probeConfig.parts) {
+            Object.entries(probeConfig.parts).forEach(([partName, partConfig]) => {
+              // 统一part命名格式
+              const formattedPartName = /^\d+$/.test(partName) ? `part${parseInt(partName) + 1}` : partName;
+              
+              if (partConfig.attributes) {
+                Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
+                  if (attrValue.enabled) {
+                    const attributeKey = `${formattedProbeName}_${formattedPartName}_${attrName}`;
+                    const attr: any = {
+                      target: `${formattedProbeName}:${formattedPartName}`,
+                      type: getAttributeType(attrName)
+                    };
+                    
+                    // 添加特定参数
+                    if (attrValue.aligner) {
+                      attr.aligner = attrValue.aligner.toLowerCase();
+                    }
+                    if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'specific')) {
+                      attr.min_mapq = 30; // 默认值
+                    }
+                    
+                    attributes[attributeKey] = attr;
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+      
+      if (Object.keys(attributes).length > 0) {
+        config.attributes = attributes;
+      }
     }
 
     // Add post processing section (最后)
-    config.post_process = {
-      sorts: {
-        is_descending: sortOptions.filter(opt => opt.order === 'desc').map(opt => opt.field),
-        is_ascending: sortOptions.filter(opt => opt.order === 'asc').map(opt => opt.field)
-      },
-      remove_overlap: {
-        location_interval: overlapThreshold
-      }
+    const post_process: any = {
     };
+    
+    // 添加filters部分
+    if (selectedCustomType) {
+      const filters: any = {};
+      
+      // 处理target_region属性
+      if (selectedCustomType.targetConfig?.attributes) {
+        Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
+          if (attrValue.enabled) {
+            const filterName = `target_${attrName}`;
+            let condition = '';
+            
+            if (attrName === 'gcContent' || attrName === 'tm') {
+              // GC含量和温度一般用百分比表示，需要除以100
+              if (attrValue.min !== undefined && attrValue.max !== undefined) {
+                condition = `${filterName} >= ${attrValue.min/100} & ${filterName} <= ${attrValue.max/100}`;
+              } else if (attrValue.max !== undefined) {
+                condition = `${filterName} <= ${attrValue.max/100}`;
+              } else if (attrValue.threshold !== undefined) {
+                condition = `${filterName} >= ${attrValue.threshold/100}`;
+              }
+            } else {
+              // 其他属性直接使用值
+              if (attrValue.min !== undefined && attrValue.max !== undefined) {
+                condition = `${filterName} >= ${attrValue.min} & ${filterName} <= ${attrValue.max}`;
+              } else if (attrValue.max !== undefined) {
+                condition = `${filterName} <= ${attrValue.max}`;
+              } else if (attrValue.threshold !== undefined) {
+                condition = `${filterName} >= ${attrValue.threshold}`;
+              }
+            }
+            
+            if (condition) {
+              filters[filterName] = { condition };
+            }
+          }
+        });
+      }
+      
+      // 处理probe属性
+      if (selectedCustomType.probes) {
+        Object.entries(selectedCustomType.probes).forEach(([probeName, probeConfig]) => {
+          // 统一probe命名格式
+          const formattedProbeName = /^\d+$/.test(probeName) ? `probe_${parseInt(probeName) + 1}` : probeName;
+          
+          // 处理probe级别属性
+          if (probeConfig.attributes) {
+            Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
+              if (attrValue.enabled) {
+                const filterName = `${formattedProbeName}_${attrName}`;
+                let condition = '';
+                
+                if (attrName === 'gcContent' || attrName === 'tm') {
+                  // GC含量和温度一般用百分比表示，需要除以100
+                  if (attrValue.min !== undefined && attrValue.max !== undefined) {
+                    condition = `${filterName} >= ${attrValue.min/100} & ${filterName} <= ${attrValue.max/100}`;
+                  } else if (attrValue.max !== undefined) {
+                    condition = `${filterName} <= ${attrValue.max/100}`;
+                  } else if (attrValue.threshold !== undefined) {
+                    condition = `${filterName} >= ${attrValue.threshold/100}`;
+                  }
+                } else {
+                  // 其他属性直接使用值
+                  if (attrValue.min !== undefined && attrValue.max !== undefined) {
+                    condition = `${filterName} >= ${attrValue.min} & ${filterName} <= ${attrValue.max}`;
+                  } else if (attrValue.max !== undefined) {
+                    condition = `${filterName} <= ${attrValue.max}`;
+                  } else if (attrValue.threshold !== undefined) {
+                    condition = `${filterName} >= ${attrValue.threshold}`;
+                  }
+                }
+                
+                if (condition) {
+                  filters[filterName] = { condition };
+                }
+              }
+            });
+          }
+          
+          // 处理part级别属性
+          if (probeConfig.parts) {
+            Object.entries(probeConfig.parts).forEach(([partName, partConfig]) => {
+              // 统一part命名格式
+              const formattedPartName = /^\d+$/.test(partName) ? `part${parseInt(partName) + 1}` : partName;
+              
+              if (partConfig.attributes) {
+                Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
+                  if (attrValue.enabled) {
+                    const filterName = `${formattedProbeName}_${formattedPartName}_${attrName}`;
+                    let condition = '';
+                    
+                    if (attrName === 'gcContent' || attrName === 'tm') {
+                      // GC含量和温度一般用百分比表示
+                      if (attrValue.min !== undefined && attrValue.max !== undefined) {
+                        condition = `${filterName} >= ${attrValue.min} & ${filterName} <= ${attrValue.max}`;
+                      } else if (attrValue.max !== undefined) {
+                        condition = `${filterName} <= ${attrValue.max}`;
+                      } else if (attrValue.threshold !== undefined) {
+                        condition = `${filterName} >= ${attrValue.threshold}`;
+                      }
+                    } else {
+                      // 其他属性直接使用值
+                      if (attrValue.min !== undefined && attrValue.max !== undefined) {
+                        condition = `${filterName} >= ${attrValue.min} & ${filterName} <= ${attrValue.max}`;
+                      } else if (attrValue.max !== undefined) {
+                        condition = `${filterName} <= ${attrValue.max}`;
+                      } else if (attrValue.threshold !== undefined) {
+                        condition = `${filterName} >= ${attrValue.threshold}`;
+                      }
+                    }
+                    
+                    if (condition) {
+                      filters[filterName] = { condition };
+                    }
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+    
+      // 添加sorts部分
+    const ascFields = sortOptions.filter(opt => opt.order === 'asc').map(opt => opt.field);
+    const descFields = sortOptions.filter(opt => opt.order === 'desc').map(opt => opt.field);
+    
+    if (ascFields.length > 0 || descFields.length > 0) {
+      post_process.sorts = {};
+      if (ascFields.length > 0) post_process.sorts.is_ascending = ascFields;
+      if (descFields.length > 0) post_process.sorts.is_descending = descFields;
+    }
+      if (Object.keys(filters).length > 0) {
+        post_process.filters = filters;
+      }
+    }
+
+    post_process.remove_overlap = {
+      location_interval: overlapThreshold
+    };
+    
+    config.post_process = post_process;
 
     return config;
   };
