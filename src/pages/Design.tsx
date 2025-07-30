@@ -1,6 +1,17 @@
 import React from 'react';
-import { Card, CardActions, CardContent, CardMedia, Button, Typography, Box, Container, useTheme, useMediaQuery } from '@mui/material';
+import { 
+  Card, CardActions, CardContent, CardMedia, Button, Typography, Box, Container, 
+  useTheme, useMediaQuery, Paper, Chip, Grid 
+} from '@mui/material';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
+import { 
+  AutoAwesome, 
+  Build, 
+  Speed, 
+  TrendingUp,
+  PlayArrow,
+  HelpOutline 
+} from '@mui/icons-material';
 
 // Define a React Functional Component using TypeScript
 const Design: React.FC = () => {
@@ -12,283 +23,308 @@ const Design: React.FC = () => {
   // Check if we're on a sub-route
   const isSubRoute = location.pathname !== '/design';
 
+  const designOptions = [
+    {
+      title: 'Design Workflow',
+      subtitle: 'Guided Design Process',
+      description: 'Use our intelligent workflow to complete the entire probe design process step by step, starting from genome data',
+      features: ['Smart Parameter Optimization', 'Batch Processing', 'Result Visualization', 'Quality Control'],
+      image: '/1.webp',
+      path: '/design/designworkflow',
+      color: theme.palette.primary.main,
+      bgColor: 'rgba(37, 99, 235, 0.05)',
+      icon: <AutoAwesome />,
+      difficulty: 'Recommended',
+      estimatedTime: '10-30 minutes'
+    },
+    {
+      title: 'Custom Probe',
+      subtitle: 'Advanced Configuration',
+      description: 'Flexible probe design options for experienced users with customizable parameters and algorithms',
+      features: ['Advanced Parameters', 'Algorithm Selection', 'Custom Output', 'Expert Mode'],
+      image: '/11.webp',
+      path: '/design/customprobe',
+      color: theme.palette.secondary.main,
+      bgColor: 'rgba(8, 145, 178, 0.05)',
+      icon: <Build />,
+      difficulty: 'Advanced',
+      estimatedTime: '30-60 minutes'
+    }
+  ];
+
   return (
-    <Container 
-      maxWidth={false} 
-      sx={{ 
-        width: '100%',
-        minHeight: '60vh',
-        display: 'flex',
-        alignItems: isSubRoute ? 'flex-start' : 'center',
-        py: 2,
-        backgroundColor: theme.palette.background.default,
-      }}
-    >
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        gap: 2,
-        mx: 'auto',
-        width: isSubRoute ? '100%' : '60%',
-        maxWidth: isSubRoute ? '100%' : 'lg',
-      }}>
+    <Box sx={{ 
+      minHeight: 'calc(100vh - 64px)',
+      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+      py: { xs: 3, sm: 4, md: 6 },
+    }}>
+      <Container maxWidth="lg">
         {isSubRoute ? (
           <Outlet />
         ) : (
           <>
-            {/* Description text above the cards */}
-            <Typography 
-              variant={isMobile ? "h4" : "h3"} 
-              component="h2" 
-              sx={{ 
-                mb: 3,
+            {/* Header Section */}
+            <Box sx={{ textAlign: 'center', mb: { xs: 4, sm: 6 } }}>
+              <Typography 
+                variant={isMobile ? "h3" : "h2"} 
+                component="h1" 
+                sx={{ 
+                  mb: 2,
+                  fontWeight: 800,
+                  background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Choose Design Method
+              </Typography>
+              
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  color: 'text.secondary',
+                  maxWidth: '600px',
+                  mx: 'auto',
+                  lineHeight: 1.6
+                }}
+              >
+                Select the most suitable probe design method based on your needs and experience level
+              </Typography>
+            </Box>
+
+            {/* Design Options */}
+            <Grid container spacing={4} sx={{ mb: 6 }}>
+              {designOptions.map((option, index) => (
+                <Grid item xs={12} md={6} key={index}>
+                  <Card
+                    sx={{
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      position: 'relative',
+                      background: `linear-gradient(135deg, ${option.bgColor} 0%, rgba(255, 255, 255, 0.8) 100%)`,
+                      border: `1px solid rgba(37, 99, 235, 0.1)`,
+                      '&:hover': {
+                        '& .card-image': {
+                          transform: 'scale(1.05)',
+                        },
+                        '& .icon-container': {
+                          transform: 'rotate(5deg) scale(1.1)',
+                        }
+                      }
+                    }}
+                  >
+                    {/* Header with Image */}
+                    <Box sx={{ 
+                      position: 'relative',
+                      height: 200,
+                      overflow: 'hidden',
+                      borderRadius: '16px 16px 0 0'
+                    }}>
+                      <CardMedia
+                        component="img"
+                        image={option.image}
+                        alt={option.title}
+                        className="card-image"
+                        sx={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          transition: 'transform 0.3s ease',
+                        }}
+                      />
+                      
+                      {/* Overlay with Icon */}
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          top: 16,
+                          right: 16,
+                          width: 48,
+                          height: 48,
+                          borderRadius: '50%',
+                          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'transform 0.3s ease',
+                        }}
+                        className="icon-container"
+                      >
+                        {React.cloneElement(option.icon, { 
+                          sx: { fontSize: 24, color: option.color } 
+                        })}
+                      </Box>
+
+                      {/* Difficulty Badge */}
+                      <Box sx={{ position: 'absolute', top: 16, left: 16 }}>
+                        <Chip
+                          label={option.difficulty}
+                          size="small"
+                          sx={{
+                            backgroundColor: option.color,
+                            color: 'white',
+                            fontWeight: 600,
+                          }}
+                        />
+                      </Box>
+                    </Box>
+
+                    <CardContent sx={{ flexGrow: 1, p: 3 }}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography 
+                          variant="h5" 
+                          component="h3"
+                          sx={{ 
+                            fontWeight: 700,
+                            color: option.color,
+                            mb: 0.5
+                          }}
+                        >
+                          {option.title}
+                        </Typography>
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            color: 'text.secondary',
+                            fontStyle: 'italic'
+                          }}
+                        >
+                          {option.subtitle}
+                        </Typography>
+                      </Box>
+
+                      <Typography 
+                        variant="body1" 
+                        sx={{ 
+                          color: 'text.secondary',
+                          mb: 3,
+                          lineHeight: 1.6
+                        }}
+                      >
+                        {option.description}
+                      </Typography>
+
+                      {/* Features List */}
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                          Key Features:
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                          {option.features.map((feature, idx) => (
+                            <Chip
+                              key={idx}
+                              label={feature}
+                              size="small"
+                              variant="outlined"
+                              sx={{
+                                borderColor: option.color,
+                                color: option.color,
+                                fontSize: '0.75rem'
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+
+                      {/* Meta Info */}
+                      <Box sx={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        mb: 2
+                      }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Speed sx={{ fontSize: 16, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary">
+                            {option.estimatedTime}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <TrendingUp sx={{ fontSize: 16, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary">
+                            {option.difficulty}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </CardContent>
+
+                    <CardActions sx={{ p: 3, pt: 0, gap: 2 }}>
+                      <Button 
+                        onClick={() => navigate(option.path)} 
+                        variant="contained"
+                        fullWidth
+                        size="large"
+                        startIcon={<PlayArrow />}
+                        sx={{
+                          py: 1.5,
+                          fontWeight: 600,
+                          backgroundColor: option.color,
+                          '&:hover': {
+                            backgroundColor: option.color,
+                            filter: 'brightness(0.9)',
+                          }
+                        }}
+                      >
+                        Get Started
+                      </Button>
+                      <Button 
+                        onClick={() => navigate('/tutorial')} 
+                        variant="outlined"
+                        size="large"
+                        startIcon={<HelpOutline />}
+                        sx={{
+                          borderColor: option.color,
+                          color: option.color,
+                          '&:hover': {
+                            borderColor: option.color,
+                            backgroundColor: `${option.color}08`,
+                          }
+                        }}
+                      >
+                        Learn More
+                      </Button>
+                    </CardActions>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+
+            {/* Help Section */}
+            <Paper
+              sx={{
+                p: 4,
                 textAlign: 'center',
-                fontWeight: 700,
-                color: theme.palette.primary.main,
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  transform: 'scale(1.02)',
-                  letterSpacing: '0.5px',
-                }
+                background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(8, 145, 178, 0.05) 100%)',
+                border: '1px solid rgba(37, 99, 235, 0.1)',
               }}
             >
-              ✨ Choose One of the Following
-            </Typography>
-
-            <Box sx={{ 
-              display: 'flex', 
-              flexDirection: { xs: 'column', md: 'row' },
-              gap: 4,
-              width: '100%',
-              justifyContent: 'center',
-            }}>
-              {/* First Card */}
-              <Card sx={{ 
-                width: { xs: '100%', md: '45%' },
-                display: 'flex',
-                flexDirection: 'column',
-                borderRadius: 3,
-                overflow: 'hidden',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: theme.shadows[4],
-                '&:hover': {
-                  transform: 'translateY(-8px)',
-                  boxShadow: theme.shadows[15],
-                  '& .MuiCardMedia-root': {
-                    transform: 'scale(1.05)',
-                  },
-                },
-              }}>
-                <Box sx={{ 
-                  position: 'relative',
-                  paddingTop: '100%',
-                  width: '100%',
-                  overflow: 'hidden',
-                }}>
-                  <CardMedia
-                    component="img"
-                    alt="blue iguana"
-                    image="/1.webp"
-                    sx={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'contain',
-                      transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
-                    }}
-                  />
-                </Box>
-                <CardContent sx={{ 
-                  flexGrow: 1,
-                  textAlign: 'center',
-                  p: 3,
-                }}>
-                  <Typography 
-                    gutterBottom 
-                    variant="h5" 
-                    component="div"
-                    sx={{
-                      fontWeight: 600,
-                      color: theme.palette.primary.main,
-                      mb: 2,
-                    }}
-                  >
-                    Design Workflow
-                  </Typography>
-                  <Typography 
-                    variant="body1" 
-                    sx={{ 
-                      color: 'text.secondary',
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    Please start your probe design work.
-                  </Typography>
-                </CardContent>
-                <CardActions sx={{ 
-                  p: 3,
-                  pt: 0,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  gap: 2,
-                }}>
-                  <Button 
-                    onClick={() => navigate('/design/designworkflow')} 
-                    variant="contained"
-                    size="large"
-                    sx={{
-                      px: 4,
-                      py: 1.2,
-                      borderRadius: 2,
-                      fontWeight: 500,
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                        boxShadow: 6,
-                      }
-                    }}
-                  >
-                    Start
-                  </Button>
-                  <Button 
-                    onClick={() => navigate('/tutorial')} 
-                    variant="outlined"
-                    size="large"
-                    sx={{
-                      px: 3,
-                      py: 1.2,
-                      borderRadius: 2,
-                      fontWeight: 500,
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                        boxShadow: 2,
-                      }
-                    }}
-                  >
-                    Learn More
-                  </Button>
-                </CardActions>
-              </Card>
-
-              {/* Second Card */}
-              <Card sx={{ 
-                width: { xs: '100%', md: '45%' },
-                display: 'flex',
-                flexDirection: 'column',
-                borderRadius: 3,
-                overflow: 'hidden',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: theme.shadows[4],
-                '&:hover': {
-                  transform: 'translateY(-8px)',
-                  boxShadow: theme.shadows[15],
-                  '& .MuiCardMedia-root': {
-                    transform: 'scale(1.05)',
-                  },
-                },
-              }}>
-                <Box sx={{ 
-                  position: 'relative',
-                  paddingTop: '100%',
-                  width: '100%',
-                  overflow: 'hidden',
-                }}>
-                  <CardMedia
-                    component="img"
-                    alt="Probe type"
-                    image="/design_1.webp"
-                    sx={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'contain',
-                      transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
-                    }}
-                  />
-                </Box>
-                <CardContent sx={{ 
-                  flexGrow: 1,
-                  textAlign: 'center',
-                  p: 3,
-                }}>
-                  <Typography 
-                    gutterBottom 
-                    variant="h5" 
-                    component="div"
-                    sx={{
-                      fontWeight: 600,
-                      color: theme.palette.primary.main,
-                      mb: 2,
-                    }}
-                  >
-                    Custom Probe
-                  </Typography>
-                  <Typography 
-                    variant="body1" 
-                    sx={{ 
-                      color: 'text.secondary',
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    Please create your own probe type.
-                  </Typography>
-                </CardContent>
-                <CardActions sx={{ 
-                  p: 3,
-                  pt: 0,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  gap: 2,
-                }}>
-                  <Button 
-                    onClick={() => navigate('/design/customprobe')} 
-                    variant="contained"
-                    size="large"
-                    sx={{
-                      px: 4,
-                      py: 1.2,
-                      borderRadius: 2,
-                      fontWeight: 500,
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                        boxShadow: 6,
-                      }
-                    }}
-                  >
-                    Start
-                  </Button>
-                  <Button 
-                    onClick={() => navigate('/tutorial')} 
-                    variant="outlined"
-                    size="large"
-                    sx={{
-                      px: 3,
-                      py: 1.2,
-                      borderRadius: 2,
-                      fontWeight: 500,
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                        boxShadow: 2,
-                      }
-                    }}
-                  >
-                    Learn More
-                  </Button>
-                </CardActions>
-              </Card>
-            </Box>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Need Help Choosing?
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                If you're new to the platform, we recommend starting with "Design Workflow". If you have extensive probe design experience, choose "Custom Probe" for more control.
+              </Typography>
+              <Button
+                variant="outlined"
+                onClick={() => navigate('/tutorial')}
+                sx={{ mr: 2 }}
+              >
+                View Tutorial
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => navigate('/design/designworkflow')}
+              >
+                Quick Start
+              </Button>
+            </Paper>
           </>
         )}
-      </Box>
-    </Container>
+      </Container>
+    </Box>
   );
-}
+};
 
 export default Design;
