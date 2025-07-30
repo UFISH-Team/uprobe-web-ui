@@ -29,7 +29,7 @@ const Design: React.FC = () => {
       subtitle: 'Guided Design Process',
       description: 'Use our intelligent workflow to complete the entire probe design process step by step, starting from genome data',
       features: ['Smart Parameter Optimization', 'Batch Processing', 'Result Visualization', 'Quality Control'],
-      image: '/1.webp',
+      image: '/4.jpeg',
       path: '/design/designworkflow',
       color: theme.palette.primary.main,
       bgColor: 'rgba(37, 99, 235, 0.05)',
@@ -42,7 +42,7 @@ const Design: React.FC = () => {
       subtitle: 'Advanced Configuration',
       description: 'Flexible probe design options for experienced users with customizable parameters and algorithms',
       features: ['Advanced Parameters', 'Algorithm Selection', 'Custom Output', 'Expert Mode'],
-      image: '/11.webp',
+      image: '/3.webp',
       path: '/design/customprobe',
       color: theme.palette.secondary.main,
       bgColor: 'rgba(8, 145, 178, 0.05)',
@@ -272,7 +272,7 @@ const Design: React.FC = () => {
                       <Button 
                         onClick={() => navigate('/tutorial')} 
                         variant="outlined"
-                        size="large"
+                        size="small"
                         startIcon={<HelpOutline />}
                         sx={{
                           borderColor: option.color,

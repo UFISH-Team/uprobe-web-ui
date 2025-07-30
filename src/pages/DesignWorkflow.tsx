@@ -190,14 +190,14 @@ const DesignWorkflow: React.FC = () => {
         }
       }
 
-      // Call API to generate barcode
+      // Call API to generate barcode - 使用从useDesignStore解构的species变量
       const response = await ApiService.generateBarcode({
         length,
         type: barcodeType,
         constraints: {
-          gcContent: { min: 40, max: 60 }, // Optional: add GC content constraints
+          gcContent: { min: 40, max: 60 },
           avoidRepeats: true,
-          species: species || undefined
+          species: species || undefined // 使用从useDesignStore解构的species
         }
       });
 
@@ -958,18 +958,23 @@ const DesignWorkflow: React.FC = () => {
     }
   };
 
-  const isGenomeLikeSource = () => {
-    console.log('Debug - selectedCustomType:', selectedCustomType);
-    
+  const isGenomeLikeSource = (): boolean => {
     if (!selectedCustomType?.yamlContent) {
       return false;
     }
 
-    const yamlContent = selectedCustomType.yamlContent;
-    const sourceMatch = yamlContent.match(/target_sequence:\s*\n\s*source:\s*['"]?([^'\n]+)['"]?/);
-    const extractedSource = sourceMatch ? sourceMatch[1] : null;
-    
-    return extractedSource === 'genome';
+    try {
+      const yamlContent = selectedCustomType.yamlContent;
+      const sourceMatch = yamlContent.match(/target_sequence:\s*\n\s*source:\s*['"]?([^'\n]+)['"]?/);
+      const extractedSource = sourceMatch ? sourceMatch[1] : '';
+      
+      return extractedSource.toLowerCase().includes('genome') || 
+             extractedSource.toLowerCase().includes('chromosome') || 
+             extractedSource.toLowerCase().includes('dna');
+    } catch (error) {
+      console.error('Error checking source type:', error);
+      return false;
+    }
   };
 
   const handleAddSortOption = () => {
