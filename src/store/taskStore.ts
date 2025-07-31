@@ -13,6 +13,7 @@ interface TaskState {
   deleteTask: (taskId: string) => Promise<void>;
   pauseTask: (taskId: string) => Promise<void>;
   resumeTask: (taskId: string) => Promise<void>;
+  runTask: (taskId: string) => Promise<void>;
   refreshTaskList: () => void;
   setCurrentTask: (task: Task | null) => void;
 }
@@ -27,26 +28,23 @@ const useTaskStore = create<TaskState>((set, get) => ({
   fetchTasks: async () => {
     set({ isLoading: true });
     try {
-      const response = await ApiService.getAllJobs();
+      const response = await ApiService.getAllTasks();
       
-      if (response && response.data) {
-        // Transform the job data into the Task format
-        const apiTasks: Task[] = response.data.map((job: any) => ({
-          id: job.job_id || job.id,
-          name: job.name || 'Unnamed Task',
-          description: job.description || `${job.probeType || ''} design task`,
-          status: mapJobStatusToTaskStatus(job.status),
-          progress: calculateProgress(job.status, job.progress),
-          created_at: job.created_at || job.createdAt || new Date().toISOString(),
-          updated_at: job.updated_at || job.updatedAt || new Date().toISOString(),
-          genome: job.genome || job.species || 'Unknown',
-          parameters: {
-            probeType: job.probeType,
-            minLength: job.minLength,
-            overlap: job.overlap,
-            ...job.parameters
-          },
-          result_url: job.result_url || ''
+      if (response) {
+        // 后端task路由器直接返回数组，而不是包装在data字段中
+        const taskData = response.data || response;
+        const apiTasks: Task[] = taskData.map((task: any) => ({
+          id: task.id,
+          name: task.name || 'Unnamed Task',
+          description: task.description || 'Uprobe design task',
+          status: task.status,
+          progress: task.progress || 0,
+          created_at: task.created_at || new Date().toISOString(),
+          updated_at: task.updated_at || new Date().toISOString(),
+          genome: task.genome || 'Unknown',
+          parameters: task.parameters || {},
+          result_url: task.result_url || '',
+          yaml_content: task.yaml_content || ''
         }));
         
         set({ tasks: apiTasks, isLoading: false });
@@ -61,7 +59,7 @@ const useTaskStore = create<TaskState>((set, get) => ({
   
   deleteTask: async (taskId: string) => {
     try {
-      await ApiService.removeJob(taskId);
+      await ApiService.deleteTask(taskId);
       
       // Update the tasks list after deletion
       set((state) => ({
@@ -77,7 +75,7 @@ const useTaskStore = create<TaskState>((set, get) => ({
   
   pauseTask: async (taskId: string) => {
     try {
-      await ApiService.cancelJob(taskId);
+      await ApiService.pauseTask(taskId);
       
       // Update the task status in the state
       set((state) => ({
@@ -95,7 +93,7 @@ const useTaskStore = create<TaskState>((set, get) => ({
   
   resumeTask: async (taskId: string) => {
     try {
-      await ApiService.reRunJob(taskId);
+      await ApiService.resumeTask(taskId);
       
       // Update the task status in the state
       set((state) => ({
@@ -107,6 +105,24 @@ const useTaskStore = create<TaskState>((set, get) => ({
       return Promise.resolve();
     } catch (error) {
       console.error("Failed to resume task", error);
+      return Promise.reject(error);
+    }
+  },
+
+  runTask: async (taskId: string) => {
+    try {
+      await ApiService.runTask(taskId);
+      
+      // Update the task status in the state
+      set((state) => ({
+        tasks: state.tasks.map((task) =>
+          task.id === taskId ? { ...task, status: "running", progress: 10 } : task
+        )
+      }));
+      
+      return Promise.resolve();
+    } catch (error) {
+      console.error("Failed to run task", error);
       return Promise.reject(error);
     }
   },
