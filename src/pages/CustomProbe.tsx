@@ -553,7 +553,7 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
           : `target_region[${start - 1}:${end}]`;
       } else if (part.source === 'barcode') {
         const barcodeName = part.label.split(': ')[1];
-        partConfig.expr = `encoding[target_region.gene_id]['${barcodeName}']`;
+        partConfig.expr = `encoding[gene_id]['${barcodeName}']`;
       } else if (part.source === 'fixed') {
         partConfig.expr = `'${part.sequence}'`;
       } else if (part.source === 'probe') {
