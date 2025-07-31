@@ -190,14 +190,14 @@ const DesignWorkflow: React.FC = () => {
         }
       }
 
-      // Call API to generate barcode - 使用从useDesignStore解构的species变量
+      // Call API to generate barcode
       const response = await ApiService.generateBarcode({
         length,
         type: barcodeType,
         constraints: {
-          gcContent: { min: 40, max: 60 },
+          gcContent: { min: 40, max: 60 }, // Optional: add GC content constraints
           avoidRepeats: true,
-          species: species || undefined // 使用从useDesignStore解构的species
+          species: species || undefined
         }
       });
 
@@ -357,21 +357,30 @@ const DesignWorkflow: React.FC = () => {
     }
   ];
 
-  // Fetch species and barcode options on mount
+  // Fetch species options on mount
   useEffect(() => {
-    const fetchOptions = async () => {
+    const fetchSpeciesOptions = async () => {
       try {
-        const [speciesResponse, barcodeResponse] = await Promise.all([
-          ApiService.getGenomes(),
-          ApiService.getBarcodeOptions(),
-        ]);
+        const speciesResponse = await ApiService.getSpeciesOptions();
         setSpeciesOptions(speciesResponse);
-        setBarcodeOptions(barcodeResponse);
       } catch (error) {
-        console.error('Error fetching options:', error);
+        console.error('Error fetching species options:', error);
       }
     };
-    fetchOptions();
+    fetchSpeciesOptions();
+  }, []);
+
+  // Fetch barcode options on mount
+  useEffect(() => {
+    const fetchBarcodeOptions = async () => {
+      try {
+        const barcodeResponse = await ApiService.getBarcodeOptions();
+        setBarcodeOptions(barcodeResponse);
+      } catch (error) {
+        console.error('Error fetching barcode options:', error);
+      }
+    };
+    fetchBarcodeOptions();
   }, []);
 
   const loadCustomProbeTypes = async () => {
@@ -958,23 +967,18 @@ const DesignWorkflow: React.FC = () => {
     }
   };
 
-  const isGenomeLikeSource = (): boolean => {
+  const isGenomeLikeSource = () => {
+    console.log('Debug - selectedCustomType:', selectedCustomType);
+    
     if (!selectedCustomType?.yamlContent) {
       return false;
     }
 
-    try {
-      const yamlContent = selectedCustomType.yamlContent;
-      const sourceMatch = yamlContent.match(/target_sequence:\s*\n\s*source:\s*['"]?([^'\n]+)['"]?/);
-      const extractedSource = sourceMatch ? sourceMatch[1] : '';
-      
-      return extractedSource.toLowerCase().includes('genome') || 
-             extractedSource.toLowerCase().includes('chromosome') || 
-             extractedSource.toLowerCase().includes('dna');
-    } catch (error) {
-      console.error('Error checking source type:', error);
-      return false;
-    }
+    const yamlContent = selectedCustomType.yamlContent;
+    const sourceMatch = yamlContent.match(/target_sequence:\s*\n\s*source:\s*['"]?([^'\n]+)['"]?/);
+    const extractedSource = sourceMatch ? sourceMatch[1] : null;
+    
+    return extractedSource === 'genome';
   };
 
   const handleAddSortOption = () => {
@@ -1233,16 +1237,19 @@ const DesignWorkflow: React.FC = () => {
   };
 
   const generateTaskConfig = () => {
+    // Generate probe name based on custom type or probe type
+    const probeName = selectedCustomType?.name || probeType;
+    
     // Start with basic configuration
     const config: any = {
-      name: taskName,
-      description: 'Protocol for designing probe type ' + probeType + ' from species ' + species,
+      name: probeName.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_'),
+      description: `Protocol for designing ${probeName} probes from species ${species}`,
       genome: species,
       extracts: {
         target_region: {
           source: selectedCustomType?.targetConfig?.source || 
                   (probeType === 'RCA' ? 'exon' : 
-                   probeType === 'DNA-FISH' ? 'genome' : 'samples'),
+                   probeType === 'DNA-FISH' ? 'genome' : 'exon'),
           length: minLength,
           overlap: overlap
         }
@@ -1311,18 +1318,16 @@ const DesignWorkflow: React.FC = () => {
         delete cleanedYamlObj.probes;
       }
       
-      // 过滤掉不需要的字段（如barcodes），只保留实际的探针定义
-      const filteredProbes: any = {};
-      Object.entries(cleanedYamlObj).forEach(([key, value]) => {
-        // 只保留以probe开头或数字的键（实际探针），过滤掉barcodes等配置字段
-        if (key.startsWith('probe') || /^\d+$/.test(key)) {
-          filteredProbes[key] = value;
-        }
-      });
-      
-      if (Object.keys(filteredProbes).length > 0) {
-        config.probes = filteredProbes;
-      }
+      // Convert to YAML string and clean up formatting
+      let probesYaml = YAML.stringify(cleanedYamlObj);
+      // Remove any trailing newlines
+      probesYaml = probesYaml.trim();
+      // Remove the '---\n' prefix if it exists
+      probesYaml = probesYaml.replace(/^---\n/, '');
+
+      // Parse the probes YAML back into an object
+      const probesObj = YAML.parse(probesYaml);
+      config.probes = probesObj;
     }
 
     // Add attributes section (倒数第二) - 生成扁平化的attributes格式
@@ -1579,28 +1584,27 @@ const DesignWorkflow: React.FC = () => {
       console.log('Basic Information:');
       console.log('- Task Name:', taskConfig.name);
       console.log('- Description:', taskConfig.description);
-      console.log('- Species:', taskConfig.species);
-      console.log('- Probe Type:', taskConfig.probe_group?.probe_name);
-      console.log('- Target Source:', taskConfig.probe_group?.target_source);
+      console.log('- Genome:', taskConfig.genome);
       
-      console.log('\nBasic Parameters:');
-      console.log('- Min Length:', taskConfig.extracts?.target_region?.length);
+      console.log('\nTarget Configuration:');
+      console.log('- Targets:', taskConfig.targets);
+      console.log('- Encoding:', taskConfig.encoding);
+      
+      console.log('\nExtracts Configuration:');
+      console.log('- Source:', taskConfig.extracts?.target_region?.source);
+      console.log('- Length:', taskConfig.extracts?.target_region?.length);
       console.log('- Overlap:', taskConfig.extracts?.target_region?.overlap);
       
-      console.log('\nPost Processing:');
-      console.log('- Sort Options:', taskConfig.post_process?.sorts);
-      console.log('- Overlap Threshold:', taskConfig.post_process?.remove_overlap);
+      console.log('\nProbes Configuration:');
+      console.log('- Probes:', taskConfig.probes);
       
-      if (taskConfig.probes) {
-        console.log('\nCustom Probe Parameters:');
-        console.log('- Probes:', taskConfig.probes);
-        console.log('- Target Length:', taskConfig.probe_group?.target_length);
-        console.log('- Barcode Count:', taskConfig.probe_group?.barcode_count);
-      }
+      console.log('\nAttributes Configuration:');
+      console.log('- Attributes:', taskConfig.attributes);
       
-      console.log('\nInput Data:');
-      console.log('- Type:', taskConfig.samples?.type);
-      console.log('- Data:', taskConfig.samples?.list);
+      console.log('\nPost Processing Configuration:');
+      console.log('- Filters:', taskConfig.post_process?.filters);
+      console.log('- Sorts:', taskConfig.post_process?.sorts);
+      console.log('- Remove Overlap:', taskConfig.post_process?.remove_overlap);
       
       console.log('\nFull Configuration:');
       console.log(JSON.stringify(taskConfig, null, 2));
