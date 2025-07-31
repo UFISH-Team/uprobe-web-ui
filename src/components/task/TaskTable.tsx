@@ -21,6 +21,7 @@ import {
   Visibility as VisibilityIcon,
   PauseCircle as PauseIcon,
   PlayCircle as PlayIcon,
+  PlayArrow as PlayArrowIcon,
   Download as DownloadIcon,
   Delete as DeleteIcon,
   CheckCircle as CheckCircleIcon,
@@ -45,6 +46,7 @@ interface TaskTableProps {
   onViewTask: (task: Task) => void;
   onPauseTask: (taskId: string) => void;
   onResumeTask: (taskId: string) => void;
+  onRunTask: (taskId: string) => void;
   onDownloadResult: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
 }
@@ -82,6 +84,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
   onViewTask,
   onPauseTask,
   onResumeTask,
+  onRunTask,
   onDownloadResult,
   onDeleteTask,
 }) => {
@@ -159,6 +162,17 @@ const TaskTable: React.FC<TaskTableProps> = ({
                     >
                       <VisibilityIcon />
                     </IconButton>
+                    {task.status === "pending" && (
+                      <Tooltip title="运行任务">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => onRunTask(task.id)}
+                        >
+                          <PlayArrowIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                     {task.status === "running" && (
                       <IconButton
                         size="small"
