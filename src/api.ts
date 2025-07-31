@@ -120,7 +120,7 @@ class ApiService {
   }
 
   static async getSpeciesOptions(): Promise<string[]> {
-    return api.get('/genome');
+    return api.get('/genome/');
   }
 
   static async designRCA(data: any): Promise<Blob> {
@@ -158,7 +158,7 @@ class ApiService {
   
   // 基因组相关
   static async getGenomes(): Promise<string[]> {
-    return api.get('/genome');
+    return api.get('/genome/');
   }
 
   static async getGenomeFiles(genomeName: string): Promise<{ genome: string; files: string[] }> {
@@ -243,8 +243,19 @@ class ApiService {
 
   // 任务提交
   static async submitTask(data: any): Promise<ApiResponse<{ job_id: string }>> {
+    const yaml = await import('js-yaml');
     const formData = new FormData();
-    formData.append('file', new Blob([JSON.stringify(data)], { type: 'application/json' }));
+    
+    // 将配置数据转换为YAML格式
+    const yamlContent = yaml.dump(data, {
+      indent: 2,
+      lineWidth: -1,
+      noRefs: true,
+      sortKeys: false
+    });
+    
+    formData.append('file', new Blob([yamlContent], { type: 'application/x-yaml' }), 'protocol.yaml');
+    
     return api.post('workflow/submit_task', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -252,36 +263,58 @@ class ApiService {
     });
   }
 
+  // 任务管理 - 使用task路由器
+  static async getAllTasks(): Promise<ApiResponse<any[]>> {
+    return api.get(`/task/`);
+  }
+
+  static async getTaskById(taskId: string): Promise<ApiResponse<any>> {
+    return api.get(`/task/${taskId}`);
+  }
+
+  static async runTask(taskId: string): Promise<ApiResponse<any>> {
+    return api.post(`/task/${taskId}/run`);
+  }
+
+  static async pauseTask(taskId: string): Promise<ApiResponse<any>> {
+    return api.post(`/task/${taskId}/pause`);
+  }
+
+  static async resumeTask(taskId: string): Promise<ApiResponse<any>> {
+    return api.post(`/task/${taskId}/resume`);
+  }
+
+  static async deleteTask(taskId: string): Promise<ApiResponse<any>> {
+    return api.delete(`/task/${taskId}`);
+  }
+
+  static async downloadTaskResult(taskId: string): Promise<ApiResponse<any>> {
+    return api.get(`/task/${taskId}/download`);
+  }
+
+  // 保留job相关方法以向后兼容
   static async getAllJobs(): Promise<ApiResponse<any[]>> {
-    return api.get(`/job/list_all`);
+    return this.getAllTasks();
   }
 
   static async getJobStatus(jobId: string): Promise<ApiResponse<any>> {
-    return api.get(`/job/status/${jobId}`);
+    return this.getTaskById(jobId);
   }
 
   static async cancelJob(jobId: string): Promise<ApiResponse<any>> {
-    return api.get(`/job/cancel/${jobId}`);
+    return this.pauseTask(jobId);
   }
 
   static async reRunJob(jobId: string): Promise<ApiResponse<any>> {
-    return api.get(`/job/re_run/${jobId}`);
+    return this.resumeTask(jobId);
   }
 
   static async removeJob(jobId: string): Promise<ApiResponse<any>> {
-    return api.get(`/job/remove/${jobId}`);
+    return this.deleteTask(jobId);
   }
 
   static async getJobResult(jobId: string): Promise<ApiResponse<any>> {
-    return api.get(`/job/result/${jobId}`);
-  }
-
-  static async getJobStdout(jobId: string): Promise<ApiResponse<string>> {
-    return api.get(`/job/stdout/${jobId}`);
-  }
-
-  static async getJobStderr(jobId: string): Promise<ApiResponse<string>> {
-    return api.get(`/job/stderr/${jobId}`);
+    return this.downloadTaskResult(jobId);
   }
 
   static async logout(): Promise<void> {
