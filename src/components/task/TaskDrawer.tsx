@@ -9,12 +9,16 @@ import {
   Button,
   Stack,
   styled,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
 import {
   PauseCircle as PauseIcon,
   PlayCircle as PlayIcon,
   Download as DownloadIcon,
   Delete as DeleteIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
 import type { Task } from '../../types';
 
@@ -131,8 +135,14 @@ const TaskDrawer: React.FC<TaskDrawerProps> = ({
           </Grid>
           <Grid item xs={6}>
             <Typography variant="subtitle2">Probe Type</Typography>
-            <Typography variant="body2">{task.parameters.probeType}</Typography>
+            <Typography variant="body2">{task.parameters.probe_type || task.parameters.probeType || 'Unknown'}</Typography>
           </Grid>
+          {task.parameters.probe_name && (
+            <Grid item xs={6}>
+              <Typography variant="subtitle2">Probe Name</Typography>
+              <Typography variant="body2">{task.parameters.probe_name}</Typography>
+            </Grid>
+          )}
           {task.parameters.probe_length && (
             <Grid item xs={6}>
               <Typography variant="subtitle2">Probe Length</Typography>
@@ -152,6 +162,35 @@ const TaskDrawer: React.FC<TaskDrawerProps> = ({
             </Grid>
           )}
         </Grid>
+
+        {/* YAML Configuration Section */}
+        <Box sx={{ mt: 3 }}>
+          <Accordion>
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              aria-controls="yaml-config-content"
+              id="yaml-config-header"
+            >
+              <Typography variant="h6">YAML Configuration</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Box
+                component="pre"
+                sx={{
+                  backgroundColor: '#f5f5f5',
+                  padding: 2,
+                  borderRadius: 1,
+                  overflow: 'auto',
+                  maxHeight: '400px',
+                  fontSize: '0.875rem',
+                  fontFamily: 'monospace',
+                }}
+              >
+                {task.yaml_content || 'No YAML configuration available'}
+              </Box>
+            </AccordionDetails>
+          </Accordion>
+        </Box>
 
         <Box sx={{ mt: 4 }}>
           <Stack direction="row" spacing={2}>
