@@ -33,6 +33,7 @@ const Task: React.FC = () => {
     deleteTask, 
     pauseTask, 
     resumeTask, 
+    runTask,
     setCurrentTask,
     currentTask
   } = useTaskStore();
@@ -128,20 +129,39 @@ const Task: React.FC = () => {
       });
   };
 
+  const handleRunTask = (taskId: string) => {
+    runTask(taskId)
+      .then(() => {
+        setSnackbar({
+          open: true,
+          message: "任务已开始运行",
+          severity: "success"
+        });
+      })
+      .catch(error => {
+        console.error("Failed to run task", error);
+        setSnackbar({
+          open: true,
+          message: "启动任务失败，请稍后重试",
+          severity: "error"
+        });
+      });
+  };
+
   const handleDownloadResult = (taskId: string) => {
-    ApiService.getJobResult(taskId)
+    ApiService.downloadTaskResult(taskId)
       .then(response => {
-        if (response && response.data && response.data.result_url) {
-          window.open(response.data.result_url, '_blank');
+        if (response && response.data && response.data.url) {
+          window.open(response.data.url, '_blank');
           setSnackbar({
             open: true,
-            message: "Starting to download result file",
+            message: "开始下载结果文件",
             severity: "success"
           });
         } else {
           setSnackbar({
             open: true,
-            message: "No result file available for this task",
+            message: "该任务暂无结果文件",
             severity: "warning"
           });
         }
@@ -150,7 +170,7 @@ const Task: React.FC = () => {
         console.error("Failed to get result URL", error);
         setSnackbar({
           open: true,
-          message: "Failed to download result file, please try again later",
+          message: "下载结果文件失败，请稍后重试",
           severity: "error"
         });
       });
@@ -255,6 +275,7 @@ const Task: React.FC = () => {
         onViewTask={handleViewTask}
         onPauseTask={handlePauseTask}
         onResumeTask={handleResumeTask}
+        onRunTask={handleRunTask}
         onDownloadResult={handleDownloadResult}
         onDeleteTask={handleDeleteTask}
       />
