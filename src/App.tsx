@@ -32,6 +32,8 @@ import TaskIcon from '@mui/icons-material/List';
 import TutorialIcon from '@mui/icons-material/HelpOutline';
 
 import theme from './theme';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import TokenExpirationWarning from './components/common/TokenExpirationWarning';
 
 // Navigation items configuration
 const navItems = [
@@ -44,47 +46,9 @@ const navItems = [
 
 // Protected Route component
 const ProtectedRoute = () => {
-  const [isChecking, setIsChecking] = React.useState(true);
-  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const { isAuthenticated, isLoading } = useAuth();
 
-  React.useEffect(() => {
-    const checkAuthentication = () => {
-      const token = localStorage.getItem('token');
-      const authFlag = localStorage.getItem('isAuthenticated') === 'true';
-      const tokenExpiration = localStorage.getItem('tokenExpiration');
-      
-      // If no token or auth flag, user is not authenticated
-      if (!token || !authFlag) {
-        setIsAuthenticated(false);
-        setIsChecking(false);
-        return;
-      }
-
-      // Check if token has expired
-      if (tokenExpiration) {
-        const expirationTime = parseInt(tokenExpiration);
-        const currentTime = Date.now();
-        
-        if (currentTime > expirationTime) {
-          // Token has expired, clear localStorage and redirect to login
-          localStorage.removeItem('token');
-          localStorage.removeItem('isAuthenticated');
-          localStorage.removeItem('tokenExpiration');
-          setIsAuthenticated(false);
-          setIsChecking(false);
-          return;
-        }
-      }
-
-      // Token is valid and not expired
-      setIsAuthenticated(true);
-      setIsChecking(false);
-    };
-
-    checkAuthentication();
-  }, []);
-
-  if (isChecking) {
+  if (isLoading) {
     return (
       <Box 
         sx={{ 
@@ -198,16 +162,42 @@ function App() {
                 width: 36,
                 height: 36,
                 borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.2)',
+                mr: 2,
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.2)',
+                overflow: 'hidden',
+                position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                mr: 2,
-                backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
               }}
             >
-              <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '1.2rem' }}>
+              <Box
+                component="img"
+                src="/uprobe_logo.webp" 
+                alt="U-Probe Logo"
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  zIndex: 1,
+                }}
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+              <Typography 
+                sx={{ 
+                  color: 'white', 
+                  fontWeight: 'bold', 
+                  fontSize: '1.2rem',
+                  position: 'relative',
+                  zIndex: 0
+                }}
+              >
                 U
               </Typography>
             </Box>
@@ -217,10 +207,7 @@ function App() {
               sx={{ 
                 flexGrow: 0,
                 fontWeight: 700,
-                background: 'linear-gradient(135deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.8) 100%)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
+                color: '#0f172a',
                 fontSize: { xs: '1.2rem', sm: '1.5rem' }
               }}
             >
@@ -236,25 +223,24 @@ function App() {
                 return (
                   <Button
                     key={item.text}
-                    color="inherit"
-                    startIcon={<Icon sx={{ fontSize: '1.1rem' }} />}
+                    startIcon={<Icon sx={{ fontSize: '1.1rem', color: isActive ? '#2563eb' : '#64748b' }} />}
                     onClick={() => navigate(item.path)}
                     sx={{
                       borderRadius: 2,
                       px: 2.5,
                       py: 1,
-                      fontWeight: 500,
-                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
                       textTransform: 'none',
-                      backgroundColor: isActive ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
-                      backdropFilter: isActive ? 'blur(8px)' : 'none',
-                      border: isActive ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid transparent',
+                      color: isActive ? '#2563eb' : '#64748b',
+                      backgroundColor: isActive ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                      border: isActive ? '1px solid rgba(37, 99, 235, 0.2)' : '1px solid transparent',
                       transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                       '&:hover': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                        color: '#2563eb',
                         transform: 'translateY(-1px)',
-                        backdropFilter: 'blur(8px)',
-                        border: '1px solid rgba(255, 255, 255, 0.25)',
+                        border: '1px solid rgba(37, 99, 235, 0.15)',
                       },
                       '&:active': {
                         transform: 'translateY(0)',
@@ -285,10 +271,10 @@ function App() {
             '& .MuiDrawer-paper': { 
               width: 280, 
               boxSizing: 'border-box',
-              background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-              borderRadius: '0 20px 20px 0',
+              backgroundColor: '#ffffff',
+              borderRadius: '0 16px 16px 0',
               border: 'none',
-              boxShadow: '0px 8px 32px rgba(0, 0, 0, 0.1)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
             },
           }}
         >
@@ -299,14 +285,41 @@ function App() {
                   width: 40,
                   height: 40,
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
+                  mr: 2,
+                  overflow: 'hidden',
+                  position: 'relative',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  mr: 2,
+                  background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
                 }}
               >
-                <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '1.3rem' }}>
+                <Box
+                  component="img"
+                  src="/uprobe_logo.webp"
+                  alt="U-Probe Logo"
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    zIndex: 1,
+                  }}
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+                <Typography 
+                  sx={{ 
+                    color: 'white', 
+                    fontWeight: 'bold', 
+                    fontSize: '1.3rem',
+                    position: 'relative',
+                    zIndex: 0
+                  }}
+                >
                   U
                 </Typography>
               </Box>
@@ -354,6 +367,7 @@ function App() {
           </Route>
         </Routes>
       </Box>
+      <TokenExpirationWarning />
     </Box>
   );
 }
@@ -362,7 +376,9 @@ const MainApp = () => (
   <Router>
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </ThemeProvider>
   </Router>
 );
