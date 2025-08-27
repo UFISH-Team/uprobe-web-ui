@@ -36,7 +36,11 @@ import {
   DialogActions,
   Tooltip,
   FormHelperText,
-  CircularProgress
+  CircularProgress,
+  Switch,
+  FormControlLabel,
+  Paper,
+  Stack
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -62,6 +66,7 @@ interface AttributeValue {
   min?: number;
   max?: number;
   threshold?: number;
+  kmer_len?: number;
   aligner?: 'BLAST' | 'Bowtie2' | 'MMseqs2';
   enabled: boolean;
 }
@@ -345,7 +350,8 @@ const DesignWorkflow: React.FC = () => {
     { id: 'tm', label: 'Melting Temperature', icon: '🌡️' },
     { id: 'selfMatch', label: 'Self Match', icon: '🔍' },
     { id: 'mappedGenes', label: 'Mapped Genes', icon: '🧬' },
-    { id: 'specific', label: 'Specificity', icon: '🎯' }
+    { id: 'kmerCount', label: 'K-mer Count', icon: '🔢' },
+    { id: 'mappedSites', label: 'Mapped Sites', icon: '📍' }
   ];
 
 
@@ -744,8 +750,9 @@ const DesignWorkflow: React.FC = () => {
       foldScore: { max: 40, enabled: true },
       tm: { min: 60, max: 75, enabled: true },
       selfMatch: { max: 4, enabled: true },
-      mappedGenes: { max: 5, aligner: 'BLAST', enabled: true },
-      specific: { threshold: 80, aligner: 'BLAST', enabled: true }
+      mappedGenes: { max: 5, aligner: 'Bowtie2', enabled: true },
+      kmerCount: { kmer_len: 35, aligner: 'Bowtie2', enabled: true },
+      mappedSites: { aligner: 'Bowtie2', enabled: true }
     };
 
     const attributeValue = defaultValues[attributeId];
@@ -840,12 +847,20 @@ const DesignWorkflow: React.FC = () => {
             color="info"
           />
         );
-      case 'specific':
+      case 'kmerCount':
         return (
           <Chip
             {...chipProps}
-            label={`Spec: ${attrValue.threshold}%${attrValue.aligner ? ` (${attrValue.aligner})` : ''}`}
+            label={`Kmer: ${attrValue.kmer_len}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}`}
             color="success"
+          />
+        );
+      case 'mappedSites':
+        return (
+          <Chip
+            {...chipProps}
+            label={`Sites${attrValue.aligner ? ` (${attrValue.aligner})` : ''}`}
+            color="info"
           />
         );
       default:
@@ -1103,7 +1118,8 @@ const DesignWorkflow: React.FC = () => {
       'tm': 'annealing_temperature',
       'selfMatch': 'self_match',
       'mappedGenes': 'n_mapped_genes',
-      'specific': 'specificity'
+      'kmerCount': 'kmer_count',
+      'mappedSites': 'mapped_sites'
     };
     return typeMapping[attrName] || attrName;
   };
@@ -1196,7 +1212,7 @@ const DesignWorkflow: React.FC = () => {
             if (attrValue.aligner) {
               attr.aligner = attrValue.aligner.toLowerCase();
             }
-            if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'specific')) {
+            if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'kmerCount' || attrName === 'mappedSites')) {
               attr.min_mapq = 30; // 默认值
             }
             
@@ -1225,7 +1241,7 @@ const DesignWorkflow: React.FC = () => {
                 if (attrValue.aligner) {
                   attr.aligner = attrValue.aligner.toLowerCase();
                 }
-                if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'specific')) {
+                if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'kmerCount' || attrName === 'mappedSites')) {
                   attr.min_mapq = 30; // 默认值
                 }
                 
@@ -1253,7 +1269,7 @@ const DesignWorkflow: React.FC = () => {
                     if (attrValue.aligner) {
                       attr.aligner = attrValue.aligner.toLowerCase();
                     }
-                    if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'specific')) {
+                    if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'kmerCount' || attrName === 'mappedSites')) {
                       attr.min_mapq = 30; // 默认值
                     }
                     
@@ -1732,7 +1748,8 @@ const DesignWorkflow: React.FC = () => {
                                 attrName === 'tm' ? `Tm: ${attrValue.min}°C-${attrValue.max}°C` :
                                 attrName === 'selfMatch' ? `Self: max ${attrValue.max}` :
                                 attrName === 'mappedGenes' ? `Map: max ${attrValue.max}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
-                                attrName === 'specific' ? `Spec: ${attrValue.threshold}%${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
+                                attrName === 'kmerCount' ? `Kmer: ${attrValue.kmer_len}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
+                                attrName === 'mappedSites' ? `Sites${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
                                 `${attrName}: ${formatAttributeValue(attrValue)}`
                               }
                               color={
@@ -1741,7 +1758,8 @@ const DesignWorkflow: React.FC = () => {
                                 attrName === 'tm' ? 'error' :
                                 attrName === 'selfMatch' ? 'warning' :
                                 attrName === 'mappedGenes' ? 'info' :
-                                attrName === 'specific' ? 'success' :
+                                attrName === 'kmerCount' ? 'success' :
+                                attrName === 'mappedSites' ? 'info' :
                                 'default'
                               }
                             />
@@ -2096,219 +2114,341 @@ const DesignWorkflow: React.FC = () => {
         />
         <Collapse in={showPostProcess}>
           <CardContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {/* 1. Basic Filtering */}
-              <Box sx={{ 
-                p: 2, 
-                border: 1, 
-                borderColor: enableBasicFilter ? 'primary.main' : 'divider',
-                borderRadius: 1,
-                backgroundColor: enableBasicFilter ? 'primary.50' : 'transparent'
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                    Basic Filtering
-                  </Typography>
-                  <Button
-                    variant={enableBasicFilter ? "contained" : "outlined"}
-                    size="small"
-                    onClick={() => setEnableBasicFilter(!enableBasicFilter)}
-                  >
-                    {enableBasicFilter ? "Enabled" : "Disabled"}
-                  </Button>
-                </Box>
-                <Typography variant="body2" color="text.secondary">
-                  Apply attribute-based filters to remove unsuitable probes
-                </Typography>
-              </Box>
-
-              {/* 2. Avoid OTP */}
-              <Box sx={{ 
-                p: 2, 
-                border: 1, 
-                borderColor: enableAvoidOtp ? 'warning.main' : 'divider',
-                borderRadius: 1,
-                backgroundColor: enableAvoidOtp ? 'warning.50' : 'transparent'
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                    Avoid Off-Target Priming
-                  </Typography>
-                  <Button
-                    variant={enableAvoidOtp ? "contained" : "outlined"}
-                    color="warning"
-                    size="small"
-                    onClick={() => {
-                      setEnableAvoidOtp(!enableAvoidOtp);
-                      if (!enableAvoidOtp) {
-                        initializeAvoidOtpConfig();
-                      }
+            <Stack spacing={3}>
+              {/* Processing Options Grid */}
+              <Grid container spacing={2}>
+                {/* Basic Filtering */}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper 
+                    elevation={enableBasicFilter ? 2 : 0}
+                    sx={{ 
+                      p: 2, 
+                      height: '100%',
+                      border: enableBasicFilter ? '2px solid' : '1px solid',
+                      borderColor: enableBasicFilter ? 'primary.main' : 'divider',
+                      backgroundColor: enableBasicFilter ? 'primary.50' : 'background.paper',
+                      transition: 'all 0.2s ease-in-out'
                     }}
                   >
-                    {enableAvoidOtp ? "Enabled" : "Disabled"}
-                  </Button>
-                </Box>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Prevent off-target binding by setting density thresholds
-                </Typography>
-                
-                <Collapse in={enableAvoidOtp}>
-                  <Box sx={{ mt: 2 }}>
-                    {getCurrentTargets().length > 0 ? (
-                      <Grid container spacing={2}>
-                        {getCurrentTargets().map((target) => (
-                          <Grid item xs={12} md={6} key={target}>
-                            <Box sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500 }}>
-                                {target}
-                              </Typography>
-                              <Grid container spacing={1}>
-                                <Grid item xs={12}>
-                                  <TextField
-                                    fullWidth
-                                    label="Target Regions"
-                                    value={avoidOtpConfig[target]?.target_regions || target}
-                                    onChange={(e) => {
-                                      setAvoidOtpConfig(prev => ({
-                                        ...prev,
-                                        [target]: {
-                                          ...prev[target],
-                                          target_regions: e.target.value
-                                        }
-                                      }));
-                                    }}
-                                    size="small"
-                                  />
-                                </Grid>
-                                <Grid item xs={12}>
-                                  <TextField
-                                    fullWidth
-                                    label="Density Threshold"
-                                    type="number"
-                                    value={avoidOtpConfig[target]?.density_thresh || 1e-5}
-                                    onChange={(e) => {
-                                      setAvoidOtpConfig(prev => ({
-                                        ...prev,
-                                        [target]: {
-                                          ...prev[target],
-                                          density_thresh: parseFloat(e.target.value)
-                                        }
-                                      }));
-                                    }}
-                                    inputProps={{ step: "0.00001" }}
-                                    size="small"
-                                  />
-                                </Grid>
-                              </Grid>
-                            </Box>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                        No targets available. Please add targets first.
-                      </Typography>
-                    )}
-                  </Box>
-                </Collapse>
-              </Box>
-
-              {/* 3. Equal Space */}
-              <Box sx={{ 
-                p: 2, 
-                border: 1, 
-                borderColor: enableEqualSpace ? 'secondary.main' : 'divider',
-                borderRadius: 1,
-                backgroundColor: enableEqualSpace ? 'secondary.50' : 'transparent'
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                    Equal Spacing
-                  </Typography>
-                  <Button
-                    variant={enableEqualSpace ? "contained" : "outlined"}
-                    color="secondary"
-                    size="small"
-                    onClick={() => {
-                      setEnableEqualSpace(!enableEqualSpace);
-                      if (!enableEqualSpace) {
-                        initializeEqualSpaceConfig();
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={enableBasicFilter}
+                          onChange={(e) => setEnableBasicFilter(e.target.checked)}
+                          color="primary"
+                        />
                       }
+                      label={
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight="medium">
+                            🔍 Basic Filtering
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Apply attribute-based filters
+                          </Typography>
+                        </Box>
+                      }
+                      labelPlacement="start"
+                      sx={{ 
+                        width: '100%', 
+                        justifyContent: 'space-between',
+                        ml: 0,
+                        mr: 0
+                      }}
+                    />
+                  </Paper>
+                </Grid>
+
+                {/* Avoid Off-Target Priming */}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper 
+                    elevation={enableAvoidOtp ? 2 : 0}
+                    sx={{ 
+                      p: 2, 
+                      height: '100%',
+                      border: enableAvoidOtp ? '2px solid' : '1px solid',
+                      borderColor: enableAvoidOtp ? 'warning.main' : 'divider',
+                      backgroundColor: enableAvoidOtp ? 'warning.50' : 'background.paper',
+                      transition: 'all 0.2s ease-in-out'
                     }}
                   >
-                    {enableEqualSpace ? "Enabled" : "Disabled"}
-                  </Button>
-                </Box>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Distribute probes evenly with desired quantity per target
-                </Typography>
-                
-                <Collapse in={enableEqualSpace}>
-                  <Box sx={{ mt: 2 }}>
-                    {getCurrentTargets().length > 0 ? (
-                      <Grid container spacing={2}>
-                        {getCurrentTargets().map((target) => (
-                          <Grid item xs={12} sm={6} md={4} key={target}>
-                            <Box sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500 }}>
-                                {target}
-                              </Typography>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={enableAvoidOtp}
+                          onChange={(e) => {
+                            setEnableAvoidOtp(e.target.checked);
+                            if (e.target.checked) {
+                              initializeAvoidOtpConfig();
+                            }
+                          }}
+                          color="warning"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight="medium">
+                            ⚠️ Avoid Off-Target
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Prevent off-target binding
+                          </Typography>
+                        </Box>
+                      }
+                      labelPlacement="start"
+                      sx={{ 
+                        width: '100%', 
+                        justifyContent: 'space-between',
+                        ml: 0,
+                        mr: 0
+                      }}
+                    />
+                  </Paper>
+                </Grid>
+
+                {/* Equal Spacing */}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper 
+                    elevation={enableEqualSpace ? 2 : 0}
+                    sx={{ 
+                      p: 2, 
+                      height: '100%',
+                      border: enableEqualSpace ? '2px solid' : '1px solid',
+                      borderColor: enableEqualSpace ? 'secondary.main' : 'divider',
+                      backgroundColor: enableEqualSpace ? 'secondary.50' : 'background.paper',
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={enableEqualSpace}
+                          onChange={(e) => {
+                            setEnableEqualSpace(e.target.checked);
+                            if (e.target.checked) {
+                              initializeEqualSpaceConfig();
+                            }
+                          }}
+                          color="secondary"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight="medium">
+                            📏 Equal Spacing
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Distribute probes evenly
+                          </Typography>
+                        </Box>
+                      }
+                      labelPlacement="start"
+                      sx={{ 
+                        width: '100%', 
+                        justifyContent: 'space-between',
+                        ml: 0,
+                        mr: 0
+                      }}
+                    />
+                  </Paper>
+                </Grid>
+
+                {/* Remove Overlap */}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper 
+                    elevation={enableRemoveOverlap ? 2 : 0}
+                    sx={{ 
+                      p: 2, 
+                      height: '100%',
+                      border: enableRemoveOverlap ? '2px solid' : '1px solid',
+                      borderColor: enableRemoveOverlap ? 'error.main' : 'divider',
+                      backgroundColor: enableRemoveOverlap ? 'error.50' : 'background.paper',
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={enableRemoveOverlap}
+                          onChange={(e) => setEnableRemoveOverlap(e.target.checked)}
+                          color="error"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight="medium">
+                            🚫 Remove Overlap
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Eliminate overlapping probes
+                          </Typography>
+                        </Box>
+                      }
+                      labelPlacement="start"
+                      sx={{ 
+                        width: '100%', 
+                        justifyContent: 'space-between',
+                        ml: 0,
+                        mr: 0
+                      }}
+                    />
+                  </Paper>
+                </Grid>
+
+                {/* Sorting Options */}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper 
+                    elevation={enableSorting ? 2 : 0}
+                    sx={{ 
+                      p: 2, 
+                      height: '100%',
+                      border: enableSorting ? '2px solid' : '1px solid',
+                      borderColor: enableSorting ? 'info.main' : 'divider',
+                      backgroundColor: enableSorting ? 'info.50' : 'background.paper',
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={enableSorting}
+                          onChange={(e) => setEnableSorting(e.target.checked)}
+                          color="info"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight="medium">
+                            🔄 Sorting Options
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Sort by attributes
+                          </Typography>
+                        </Box>
+                      }
+                      labelPlacement="start"
+                      sx={{ 
+                        width: '100%', 
+                        justifyContent: 'space-between',
+                        ml: 0,
+                        mr: 0
+                      }}
+                    />
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              {/* Configuration Sections */}
+              {/* Avoid OTP Configuration */}
+              <Collapse in={enableAvoidOtp}>
+                <Paper variant="outlined" sx={{ p: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    ⚠️ Off-Target Prevention Configuration
+                  </Typography>
+                  {getCurrentTargets().length > 0 ? (
+                    <Grid container spacing={2}>
+                      {getCurrentTargets().map((target) => (
+                        <Grid item xs={12} md={6} key={target}>
+                          <Paper variant="outlined" sx={{ p: 2 }}>
+                            <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 500 }}>
+                              {target}
+                            </Typography>
+                            <Stack spacing={2}>
                               <TextField
                                 fullWidth
-                                label="Number Desired"
-                                type="number"
-                                value={equalSpaceConfig[target]?.number_desired || 1000}
+                                label="Target Regions"
+                                value={avoidOtpConfig[target]?.target_regions || target}
                                 onChange={(e) => {
-                                  setEqualSpaceConfig(prev => ({
+                                  setAvoidOtpConfig(prev => ({
                                     ...prev,
                                     [target]: {
-                                      number_desired: parseInt(e.target.value)
+                                      ...prev[target],
+                                      target_regions: e.target.value
                                     }
                                   }));
                                 }}
                                 size="small"
                               />
-                            </Box>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                        No targets available. Please add targets first.
-                      </Typography>
-                    )}
-                  </Box>
-                </Collapse>
-              </Box>
+                              <TextField
+                                fullWidth
+                                label="Density Threshold"
+                                type="number"
+                                value={avoidOtpConfig[target]?.density_thresh || 1e-5}
+                                onChange={(e) => {
+                                  setAvoidOtpConfig(prev => ({
+                                    ...prev,
+                                    [target]: {
+                                      ...prev[target],
+                                      density_thresh: parseFloat(e.target.value)
+                                    }
+                                  }));
+                                }}
+                                inputProps={{ step: "0.00001" }}
+                                size="small"
+                              />
+                            </Stack>
+                          </Paper>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                      No targets available. Please add targets first.
+                    </Typography>
+                  )}
+                </Paper>
+              </Collapse>
 
-              {/* 4. Remove Overlap */}
-              <Box sx={{ 
-                p: 2, 
-                border: 1, 
-                borderColor: enableRemoveOverlap ? 'error.main' : 'divider',
-                borderRadius: 1,
-                backgroundColor: enableRemoveOverlap ? 'error.50' : 'transparent'
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                    Remove Overlap
+              {/* Equal Space Configuration */}
+              <Collapse in={enableEqualSpace}>
+                <Paper variant="outlined" sx={{ p: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    📏 Equal Spacing Configuration
                   </Typography>
-                  <Button
-                    variant={enableRemoveOverlap ? "contained" : "outlined"}
-                    color="error"
-                    size="small"
-                    onClick={() => setEnableRemoveOverlap(!enableRemoveOverlap)}
-                  >
-                    {enableRemoveOverlap ? "Enabled" : "Disabled"}
-                  </Button>
-                </Box>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Eliminate overlapping probes based on position threshold
-                </Typography>
-                
-                <Collapse in={enableRemoveOverlap}>
-                  <Box sx={{ mt: 2 }}>
+                  {getCurrentTargets().length > 0 ? (
+                    <Grid container spacing={2}>
+                      {getCurrentTargets().map((target) => (
+                        <Grid item xs={12} sm={6} md={4} key={target}>
+                          <Paper variant="outlined" sx={{ p: 2 }}>
+                            <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 500 }}>
+                              {target}
+                            </Typography>
+                            <TextField
+                              fullWidth
+                              label="Number Desired"
+                              type="number"
+                              value={equalSpaceConfig[target]?.number_desired || 1000}
+                              onChange={(e) => {
+                                setEqualSpaceConfig(prev => ({
+                                  ...prev,
+                                  [target]: {
+                                    number_desired: parseInt(e.target.value)
+                                  }
+                                }));
+                              }}
+                              size="small"
+                            />
+                          </Paper>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                      No targets available. Please add targets first.
+                    </Typography>
+                  )}
+                </Paper>
+              </Collapse>
+
+              {/* Remove Overlap Configuration */}
+              <Collapse in={enableRemoveOverlap}>
+                <Paper variant="outlined" sx={{ p: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    🚫 Overlap Removal Configuration
+                  </Typography>
+                  <Box sx={{ maxWidth: 300 }}>
                     <TextField
+                      fullWidth
                       label="Overlap Threshold"
                       type="number"
                       value={overlapThreshold}
@@ -2317,47 +2457,20 @@ const DesignWorkflow: React.FC = () => {
                         endAdornment: <InputAdornment position="end">bp</InputAdornment>,
                       }}
                       size="small"
-                      sx={{ maxWidth: 250 }}
                     />
                   </Box>
-                </Collapse>
-              </Box>
+                </Paper>
+              </Collapse>
 
-              {/* 5. Sorting Options */}
-              <Box sx={{ 
-                p: 2, 
-                border: 1, 
-                borderColor: enableSorting ? 'info.main' : 'divider',
-                borderRadius: 1,
-                backgroundColor: enableSorting ? 'info.50' : 'transparent'
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                    Sorting Options
+              {/* Sorting Configuration */}
+              <Collapse in={enableSorting}>
+                <Paper variant="outlined" sx={{ p: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    🔄 Sorting Configuration
                   </Typography>
-                  <Button
-                    variant={enableSorting ? "contained" : "outlined"}
-                    color="info"
-                    size="small"
-                    onClick={() => setEnableSorting(!enableSorting)}
-                  >
-                    {enableSorting ? "Enabled" : "Disabled"}
-                  </Button>
-                </Box>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Sort probes by selected attributes for optimal selection
-                </Typography>
-                
-                <Collapse in={enableSorting}>
-                  <Box sx={{ mt: 2 }}>
+                  <Stack spacing={2}>
                     {sortOptions.map((option, index) => (
-                      <Box key={index} sx={{ 
-                        mb: 2, 
-                        p: 2, 
-                        border: 1,
-                        borderColor: 'divider',
-                        borderRadius: 1
-                      }}>
+                      <Paper key={index} variant="outlined" sx={{ p: 2 }}>
                         <Grid container spacing={2} alignItems="center">
                           <Grid item xs={12} sm={3}>
                             <FormControl fullWidth size="small">
@@ -2420,20 +2533,21 @@ const DesignWorkflow: React.FC = () => {
                             </IconButton>
                           </Grid>
                         </Grid>
-                      </Box>
+                      </Paper>
                     ))}
                     <Button
                       variant="outlined"
                       startIcon={<AddIcon />}
                       onClick={handleAddSortOption}
                       size="small"
+                      sx={{ alignSelf: 'flex-start' }}
                     >
                       Add Sort Option
                     </Button>
-                  </Box>
-                </Collapse>
-              </Box>
-            </Box>
+                  </Stack>
+                </Paper>
+              </Collapse>
+            </Stack>
           </CardContent>
         </Collapse>
       </Card>
@@ -2599,7 +2713,8 @@ const DesignWorkflow: React.FC = () => {
               {editingAttribute?.name === 'tm' && '🌡️ Melting Temperature'}
               {editingAttribute?.name === 'selfMatch' && '🔍 Self Match'}
               {editingAttribute?.name === 'mappedGenes' && '🧬 Mapped Genes'}
-              {editingAttribute?.name === 'specific' && '🎯 Specificity'}
+              {editingAttribute?.name === 'kmerCount' && '🔢 K-mer Count'}
+              {editingAttribute?.name === 'mappedSites' && '📍 Mapped Sites'}
             </Typography>
             <Grid container spacing={2}>
               {(editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'tm') && (
@@ -2644,21 +2759,21 @@ const DesignWorkflow: React.FC = () => {
                   />
                 </Grid>
               )}
-              {editingAttribute?.name === 'specific' && (
+              {editingAttribute?.name === 'kmerCount' && (
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    label="Threshold(%)"
+                    label="K-mer Length"
                     type="number"
-                    value={editingAttribute?.threshold}
+                    value={editingAttribute?.kmer_len}
                     onChange={(e) => setEditingAttribute(prev => prev ? {
                       ...prev,
-                      threshold: Number(e.target.value)
+                      kmer_len: Number(e.target.value)
                     } : null)}
                   />
                 </Grid>
               )}
-              {(editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'specific') && (
+              {(editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'kmerCount' || editingAttribute?.name === 'mappedSites') && (
                 <Grid item xs={12}>
                   <FormControl fullWidth>
                     <InputLabel>Aligner</InputLabel>
