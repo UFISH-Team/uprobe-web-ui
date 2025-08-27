@@ -17,8 +17,8 @@ const Layout: React.FC<LayoutProps> = ({
     <Box
       sx={{
         minHeight: 'calc(100vh - 64px)', // 减去AppBar的高度
-        background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-        py: { xs: 2, sm: 3, md: 4 },
+        backgroundColor: '#fafbfc',
+        py: { xs: 2, sm: 3, md: 3 },
         width: '100%',
       }}
     >
@@ -38,12 +38,12 @@ const Layout: React.FC<LayoutProps> = ({
           <Paper
             elevation={0}
             sx={{
-              p: { xs: 2, sm: 3, md: padding },
-              backgroundColor: 'background.paper',
-              borderRadius: 3,
+              p: { xs: 3, sm: 4, md: padding },
+              backgroundColor: '#ffffff',
+              borderRadius: 2,
               width: '100%',
-              boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.05), 0px 4px 6px -2px rgba(0, 0, 0, 0.05)',
-              border: '1px solid rgba(226, 232, 240, 0.8)',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+              border: '1px solid rgba(226, 232, 240, 0.6)',
             }}
           >
             {children}
