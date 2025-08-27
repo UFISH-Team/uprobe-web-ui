@@ -13,11 +13,12 @@ import {
   useTheme
 } from '@mui/material';
 import { ExitToApp, Warning } from '@mui/icons-material';
-import ApiService from '../../api';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Logout: React.FC = () => {
   const navigate = useNavigate();
   const theme = useTheme();
+  const { logout } = useAuth();
   const [open, setOpen] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,12 +28,7 @@ const Logout: React.FC = () => {
     setError(null);
     
     try {
-      // Call API logout method to clear tokens and perform proper cleanup
-      await ApiService.logout();
-      
-      // Clear local storage
-      localStorage.removeItem('token');
-      localStorage.removeItem('isAuthenticated');
+      await logout();
       
       // Small delay for better UX
       setTimeout(() => {
@@ -41,12 +37,10 @@ const Logout: React.FC = () => {
       
     } catch (error) {
       console.error('Logout error:', error);
-      setError('Failed to logout properly. You will be redirected anyway.');
+      setError('Logout failed, but will still redirect to login page.');
       
-      // Even if API call fails, still clear local storage and redirect
+      // Even if API call fails, still redirect
       setTimeout(() => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('isAuthenticated');
         navigate('/auth', { replace: true });
       }, 2000);
     }
@@ -76,8 +70,7 @@ const Logout: React.FC = () => {
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.background.default} 100%)`
+          borderRadius: 2
         }
       }}
     >
@@ -122,46 +115,17 @@ const Logout: React.FC = () => {
               </Typography>
             </Box>
             
-            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 2 }}>
+            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
               You will be redirected to the login page and will need to sign in again to access your account.
             </Typography>
-            
-            <Box sx={{ 
-              p: 2, 
-              borderRadius: 2, 
-              backgroundColor: theme.palette.action.hover,
-              border: `1px solid ${theme.palette.divider}`
-            }}>
-              <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>
-                Before you go:
-              </Typography>
-              <ul style={{ margin: 0, paddingLeft: 20 }}>
-                <li>
-                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                    Make sure you've saved any unsaved work
-                  </Typography>
-                </li>
-                <li>
-                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                    Active sessions will be terminated
-                  </Typography>
-                </li>
-                <li>
-                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                    Local preferences will be preserved
-                  </Typography>
-                </li>
-              </ul>
-            </Box>
             
             <Typography variant="caption" sx={{ 
               color: theme.palette.text.secondary, 
               display: 'block', 
               textAlign: 'center',
-              mt: 2,
               fontStyle: 'italic'
             }}>
-              This dialog will auto-logout in 30 seconds if no action is taken.
+              This dialog will automatically sign you out in 30 seconds if no action is taken.
             </Typography>
           </Box>
         )}
