@@ -59,8 +59,8 @@ const Home: React.FC = () => {
   return (
     <Box sx={{ 
       minHeight: 'calc(100vh - 64px)',
-      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-      py: { xs: 3, sm: 4, md: 6 },
+      backgroundColor: '#fafbfc',
+      py: { xs: 3, sm: 4, md: 5 },
     }}>
       <Container maxWidth="lg">
         {/* Hero Section */}
@@ -111,7 +111,7 @@ const Home: React.FC = () => {
               fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' }
             }}
           >
-            U-Probe Design Platform
+            Universal Probe Design Platform
           </Typography>
           
           <Typography 
