@@ -202,12 +202,12 @@ class ApiService {
   }
 
   // 用户相关
-  static async getCurrentUser(): Promise<ApiResponse<any>> {
-    return api.get('/users/me');
+  static async getCurrentUser(): Promise<any> {
+    return api.get('/auth/check');
   }
 
-  static async updateUserProfile(data: any): Promise<ApiResponse<any>> {
-    return api.put('/users/profile', data);
+  static async updateUserProfile(data: { full_name?: string; email?: string }): Promise<any> {
+    return api.put('/auth/profile', data);
   }
 
   // Barcode generation
