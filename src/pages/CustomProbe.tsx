@@ -187,7 +187,7 @@ const reverseComplement = (sequence: string): string => {
 // Type definitions
 type TargetSource = 'genome' | 'exon' | 'CDS' | 'UTR';
 type PartSource = 'target' | 'barcode' | 'fixed' | 'external' | 'probe';
-type AlignerType = 'BLAST' | 'Bowtie2' | 'MMseqs2';
+type AlignerType = 'Bowtie2' | 'BLAST' | 'MMseqs2';
 
 interface TargetAttributes {
   gcContent?: {
@@ -213,8 +213,12 @@ interface TargetAttributes {
     aligner?: AlignerType;
     enabled: boolean;
   };
-  specific?: {
-    threshold?: number;
+  kmerCount?: {
+    kmer_len?: number;
+    aligner?: AlignerType;
+    enabled: boolean;
+  };
+  mappedSites?: {
     aligner?: AlignerType;
     enabled: boolean;
   };
@@ -251,8 +255,12 @@ interface PartAttributes {
     aligner?: AlignerType;
     enabled: boolean;
   };
-  specific?: {
-    threshold?: number;
+  kmerCount?: {
+    kmer_len?: number;
+    aligner?: AlignerType;
+    enabled: boolean;
+  };
+  mappedSites?: {
     aligner?: AlignerType;
     enabled: boolean;
   };
@@ -296,8 +304,12 @@ interface ProbeAttributes {
     aligner?: AlignerType;
     enabled: boolean;
   };
-  specific?: {
-    threshold?: number;
+  kmerCount?: {
+    kmer_len?: number;
+    aligner?: AlignerType;
+    enabled: boolean;
+  };
+  mappedSites?: {
     aligner?: AlignerType;
     enabled: boolean;
   };
@@ -337,7 +349,8 @@ interface YAMLAttributes {
   tm?: AttributeValue;
   self_match?: { max?: number };
   mapped_genes?: { max?: number; aligner?: AlignerType };
-  specific?: { threshold?: number; aligner?: AlignerType };
+  kmer_count?: { kmer_len?: number; aligner?: AlignerType };
+  mapped_sites?: { aligner?: AlignerType };
   aligners?: AlignerType[];
 }
 
@@ -380,8 +393,11 @@ interface YAMLTargetSequence {
       max?: number;
       aligner?: AlignerType;
     };
-    specific?: {
-      threshold?: number;
+    kmer_count?: {
+      kmer_len?: number;
+      aligner?: AlignerType;
+    };
+    mapped_sites?: {
       aligner?: AlignerType;
     };
   };
@@ -397,8 +413,9 @@ const createDefaultAttributes = (): ProbeAttributes => ({
   foldScore: { max: 40, enabled: false },
   tm: { min: 60, max: 75, enabled: false },
   selfMatch: { max: 4, enabled: false },
-  mappedGenes: { max: 5, aligner: 'BLAST' as AlignerType, enabled: false },
-  specific: { threshold: 80, aligner: 'BLAST' as AlignerType, enabled: false }
+  mappedGenes: { max: 5, aligner: 'Bowtie2' as AlignerType, enabled: false },
+  kmerCount: { kmer_len: 35, aligner: 'Bowtie2' as AlignerType, enabled: false },
+  mappedSites: { aligner: 'Bowtie2' as AlignerType, enabled: false }
 });
 
 const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[key: string]: string}, barcodeLengths: {[key: string]: number}, targetConfig: TargetConfig): string => {
@@ -444,9 +461,12 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
           max: targetConfig.attributes.mappedGenes.max,
           aligner: targetConfig.attributes.mappedGenes.aligner
         } : undefined,
-        specific: targetConfig.attributes.specific?.enabled ? {
-          threshold: targetConfig.attributes.specific.threshold,
-          aligner: targetConfig.attributes.specific.aligner
+        kmer_count: targetConfig.attributes.kmerCount?.enabled ? {
+          kmer_len: targetConfig.attributes.kmerCount.kmer_len,
+          aligner: targetConfig.attributes.kmerCount.aligner
+        } : undefined,
+        mapped_sites: targetConfig.attributes.mappedSites?.enabled ? {
+          aligner: targetConfig.attributes.mappedSites.aligner
         } : undefined
       }
     }
@@ -489,10 +509,15 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
         aligner: probe.attributes.mappedGenes.aligner
       };
     }
-    if (probe.attributes?.specific?.enabled) {
-      probeAttributes.specific = {
-        threshold: probe.attributes.specific.threshold,
-        aligner: probe.attributes.specific.aligner
+    if (probe.attributes?.kmerCount?.enabled) {
+      probeAttributes.kmer_count = {
+        kmer_len: probe.attributes.kmerCount.kmer_len,
+        aligner: probe.attributes.kmerCount.aligner
+      };
+    }
+    if (probe.attributes?.mappedSites?.enabled) {
+      probeAttributes.mapped_sites = {
+        aligner: probe.attributes.mappedSites.aligner
       };
     }
     
@@ -537,10 +562,15 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
             aligner: part.attributes.mappedGenes.aligner
           };
         }
-        if (part.attributes.specific?.enabled) {
-          partConfig.attributes.specific = {
-            threshold: part.attributes.specific.threshold,
-            aligner: part.attributes.specific.aligner
+        if (part.attributes.kmerCount?.enabled) {
+          partConfig.attributes.kmer_count = {
+            kmer_len: part.attributes.kmerCount.kmer_len,
+            aligner: part.attributes.kmerCount.aligner
+          };
+        }
+        if (part.attributes.mappedSites?.enabled) {
+          partConfig.attributes.mapped_sites = {
+            aligner: part.attributes.mappedSites.aligner
           };
         }
       }
@@ -597,8 +627,9 @@ const CustomProbe: React.FC = () => {
       foldScore: { max: 40, enabled: false },
       tm: { min: 60, max: 75, enabled: false },
       selfMatch: { max: 4, enabled: false },
-      mappedGenes: { max: 5, aligner: 'BLAST' as AlignerType, enabled: false },
-      specific: { threshold: 80, aligner: 'BLAST' as AlignerType, enabled: false }
+      mappedGenes: { max: 5, aligner: 'Bowtie2' as AlignerType, enabled: false },
+      kmerCount: { kmer_len: 35, aligner: 'Bowtie2' as AlignerType, enabled: false },
+      mappedSites: { aligner: 'Bowtie2' as AlignerType, enabled: false }
     }
   });
 
@@ -617,7 +648,8 @@ const CustomProbe: React.FC = () => {
         tm: { min: 60, max: 75, enabled: false },
         selfMatch: { max: 4, enabled: false },
         mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
-        specific: { threshold: 80, aligner: 'BLAST', enabled: false }
+        kmerCount: { kmer_len: 15, aligner: 'BLAST', enabled: false },
+        mappedSites: { aligner: 'BLAST', enabled: false }
       }
     }
   ]);
@@ -707,7 +739,8 @@ const CustomProbe: React.FC = () => {
       tm: { min: 60, max: 75, enabled: false },
       selfMatch: { max: 4, enabled: false },
       mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
-      specific: { threshold: 80, aligner: 'BLAST', enabled: false }
+      kmerCount: { kmer_len: 15, aligner: 'BLAST', enabled: false },
+      mappedSites: { aligner: 'BLAST', enabled: false }
     }
   });
   
@@ -920,12 +953,18 @@ const CustomProbe: React.FC = () => {
                         property === 'aligner' ? value : Number(value),
             enabled: property === 'enabled' ? value : (updatedAttributes.mappedGenes?.enabled || false)
           };
-        } else if (attributeType === 'specific') {
-          updatedAttributes.specific = {
-            ...updatedAttributes.specific,
+        } else if (attributeType === 'kmerCount') {
+          updatedAttributes.kmerCount = {
+            ...updatedAttributes.kmerCount,
             [property]: property === 'enabled' ? value : 
                         property === 'aligner' ? value : Number(value),
-            enabled: property === 'enabled' ? value : (updatedAttributes.specific?.enabled || false)
+            enabled: property === 'enabled' ? value : (updatedAttributes.kmerCount?.enabled || false)
+          };
+        } else if (attributeType === 'mappedSites') {
+          updatedAttributes.mappedSites = {
+            ...updatedAttributes.mappedSites,
+            [property]: property === 'enabled' ? value : value,
+            enabled: property === 'enabled' ? value : (updatedAttributes.mappedSites?.enabled || false)
           };
         }
         return {
@@ -955,7 +994,8 @@ const CustomProbe: React.FC = () => {
           tm: { min: 60, max: 75, enabled: false },
           selfMatch: { max: 4, enabled: false },
           mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
-          specific: { threshold: 80, aligner: 'BLAST', enabled: false }
+          kmerCount: { kmer_len: 15, aligner: 'BLAST', enabled: false },
+        mappedSites: { aligner: 'BLAST', enabled: false }
         };
       }
       
@@ -990,12 +1030,18 @@ const CustomProbe: React.FC = () => {
                      property === 'aligner' ? value : Number(value),
           enabled: property === 'enabled' ? value : (probe.attributes.mappedGenes?.enabled || false)
         };
-      } else if (attributeType === 'specific') {
-        probe.attributes.specific = {
-          ...probe.attributes.specific,
+      } else if (attributeType === 'kmerCount') {
+        probe.attributes.kmerCount = {
+          ...probe.attributes.kmerCount,
           [property]: property === 'enabled' ? value : 
                      property === 'aligner' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (probe.attributes.specific?.enabled || false)
+          enabled: property === 'enabled' ? value : (probe.attributes.kmerCount?.enabled || false)
+        };
+      } else if (attributeType === 'mappedSites') {
+        probe.attributes.mappedSites = {
+          ...probe.attributes.mappedSites,
+          [property]: property === 'enabled' ? value : value,
+          enabled: property === 'enabled' ? value : (probe.attributes.mappedSites?.enabled || false)
         };
       }
       
@@ -1019,7 +1065,8 @@ const CustomProbe: React.FC = () => {
           tm: { min: 60, max: 75, enabled: false },
           selfMatch: { max: 4, enabled: false },
           mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
-          specific: { threshold: 80, aligner: 'BLAST', enabled: false }
+          kmerCount: { kmer_len: 15, aligner: 'BLAST', enabled: false },
+        mappedSites: { aligner: 'BLAST', enabled: false }
         };
       }
       
@@ -1054,12 +1101,18 @@ const CustomProbe: React.FC = () => {
                      property === 'aligner' ? value : Number(value),
           enabled: property === 'enabled' ? value : (part.attributes.mappedGenes?.enabled || false)
         };
-      } else if (attributeType === 'specific') {
-        part.attributes.specific = {
-          ...part.attributes.specific,
+      } else if (attributeType === 'kmerCount') {
+        part.attributes.kmerCount = {
+          ...part.attributes.kmerCount,
           [property]: property === 'enabled' ? value : 
                      property === 'aligner' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (part.attributes.specific?.enabled || false)
+          enabled: property === 'enabled' ? value : (part.attributes.kmerCount?.enabled || false)
+        };
+      } else if (attributeType === 'mappedSites') {
+        part.attributes.mappedSites = {
+          ...part.attributes.mappedSites,
+          [property]: property === 'enabled' ? value : value,
+          enabled: property === 'enabled' ? value : (part.attributes.mappedSites?.enabled || false)
         };
       }
       
@@ -1148,7 +1201,8 @@ const CustomProbe: React.FC = () => {
         tm: { min: 60, max: 75, enabled: false },
         selfMatch: { max: 4, enabled: false },
         mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
-        specific: { threshold: 80, aligner: 'BLAST', enabled: false }
+        kmerCount: { kmer_len: 15, aligner: 'BLAST', enabled: false },
+        mappedSites: { aligner: 'BLAST', enabled: false }
       }
     });
     
@@ -1454,7 +1508,8 @@ const CustomProbe: React.FC = () => {
           <StyledTab label="Temperature" icon={<TuneIcon fontSize="small" />} />
           <StyledTab label="Self Match" icon={<TuneIcon fontSize="small" />} />
           <StyledTab label="Mapping" icon={<CategoryIcon fontSize="small" />} />
-          <StyledTab label="Specificity" icon={<FilterListIcon fontSize="small" />} />
+          <StyledTab label="K-mer Count" icon={<FilterListIcon fontSize="small" />} />
+          <StyledTab label="Mapped Sites" icon={<CategoryIcon fontSize="small" />} />
         </StyledTabs>
         
         {/* GC Content Tab */}
@@ -1637,39 +1692,70 @@ const CustomProbe: React.FC = () => {
           </Box>
         )}
         
-        {/* Specificity Tab */}
+        {/* K-mer Count Tab */}
         {attributeTab === 5 && (
           <Box sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="subtitle2">Specificity Check</Typography>
+              <Typography variant="subtitle2">K-mer Count Check</Typography>
               <Switch
-                checked={attributes.specific?.enabled}
-                onChange={(e) => onChange('specific.enabled', e.target.checked)}
+                checked={attributes.kmerCount?.enabled}
+                onChange={(e) => onChange('kmerCount.enabled', e.target.checked)}
                 size="small"
               />
             </Box>
-            {attributes.specific?.enabled && (
+            {attributes.kmerCount?.enabled && (
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <TextField
-                    label="Specificity Threshold"
+                    label="K-mer Length"
                     type="number"
-                    value={attributes.specific?.threshold}
-                    onChange={(e) => onChange('specific.threshold', e.target.value)}
+                    value={attributes.kmerCount?.kmer_len}
+                    onChange={(e) => onChange('kmerCount.kmer_len', e.target.value)}
                     size="small"
                     fullWidth
-                    InputProps={{
-                      endAdornment: <Typography variant="caption">%</Typography>
-                    }}
                   />
                 </Grid>
                 <Grid item xs={12}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Aligner</InputLabel>
                     <Select
-                      value={attributes.specific?.aligner}
+                      value={attributes.kmerCount?.aligner}
                       label="Aligner"
-                      onChange={(e) => onChange('specific.aligner', e.target.value)}
+                      onChange={(e) => onChange('kmerCount.aligner', e.target.value)}
+                    >
+                      {availableAligners.map((aligner) => (
+                        <MenuItem key={aligner} value={aligner}>
+                          {aligner}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            )}
+          </Box>
+        )}
+        
+        {/* Mapped Sites Tab */}
+        {attributeTab === 6 && (
+          <Box sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="subtitle2">Mapped Sites Check</Typography>
+              <Switch
+                checked={attributes.mappedSites?.enabled}
+                onChange={(e) => onChange('mappedSites.enabled', e.target.checked)}
+                size="small"
+              />
+            </Box>
+            {attributes.mappedSites?.enabled && (
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Aligner</InputLabel>
+                    <Select
+                      value={attributes.mappedSites?.aligner}
+                      label="Aligner"
+                      onChange={(e) => onChange('mappedSites.aligner', e.target.value)}
                     >
                       {availableAligners.map((aligner) => (
                         <MenuItem key={aligner} value={aligner}>
@@ -1941,13 +2027,23 @@ const CustomProbe: React.FC = () => {
                             variant="outlined"
                           />
                         );
-                      case 'specific':
+                      case 'kmerCount':
                         return (
                           <AttributeChip 
                             key={key}
                             size="small" 
-                            label={`Spec: ${attr.threshold}%${attr.aligner ? ` (${attr.aligner})` : ''}`} 
+                            label={`Kmer: ${attr.kmer_len}${attr.aligner ? ` (${attr.aligner})` : ''}`} 
                             color="success" 
+                            variant="outlined"
+                          />
+                        );
+                      case 'mappedSites':
+                        return (
+                          <AttributeChip 
+                            key={key}
+                            size="small" 
+                            label={`Sites${attr.aligner ? ` (${attr.aligner})` : ''}`} 
+                            color="info" 
                             variant="outlined"
                           />
                         );
@@ -2018,12 +2114,18 @@ const CustomProbe: React.FC = () => {
                                   property === 'aligner' ? value : Number(value),
                       enabled: property === 'enabled' ? value : (newConfig.attributes.mappedGenes?.enabled || false)
                     };
-                  } else if (attributeType === 'specific') {
-                    newConfig.attributes.specific = {
-                      ...newConfig.attributes.specific,
+                  } else if (attributeType === 'kmerCount') {
+                    newConfig.attributes.kmerCount = {
+                      ...newConfig.attributes.kmerCount,
                       [property]: property === 'enabled' ? value : 
                                   property === 'aligner' ? value : Number(value),
-                      enabled: property === 'enabled' ? value : (newConfig.attributes.specific?.enabled || false)
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.kmerCount?.enabled || false)
+                    };
+                  } else if (attributeType === 'mappedSites') {
+                    newConfig.attributes.mappedSites = {
+                      ...newConfig.attributes.mappedSites,
+                      [property]: property === 'enabled' ? value : value,
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.mappedSites?.enabled || false)
                     };
                   }
                   
@@ -2294,11 +2396,19 @@ const CustomProbe: React.FC = () => {
                                 variant="outlined"
                               />
                             )}
-                            {probe.attributes?.specific?.enabled && (
+                            {probe.attributes?.kmerCount?.enabled && (
                               <AttributeChip 
                                 size="small" 
-                                label={`Spec: ${probe.attributes.specific.threshold}%`} 
+                                label={`Kmer: ${probe.attributes.kmerCount.kmer_len}`} 
                                 color="success" 
+                                variant="outlined"
+                              />
+                            )}
+                            {probe.attributes?.mappedSites?.enabled && (
+                              <AttributeChip 
+                                size="small" 
+                                label={`Sites`} 
+                                color="info" 
                                 variant="outlined"
                               />
                             )}
@@ -2400,12 +2510,22 @@ const CustomProbe: React.FC = () => {
                                                 sx={{ height: 20, fontSize: '0.7rem' }}
                                               />
                                             );
-                                          case 'specific':
+                                          case 'kmerCount':
                                             return (
                                               <Chip 
                                                 key={key}
                                                 size="small" 
-                                                label={`Spec: ${attr.threshold}%`} 
+                                                label={`Kmer: ${attr.kmer_len}`} 
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.7rem' }}
+                                              />
+                                            );
+                                          case 'mappedSites':
+                                            return (
+                                              <Chip 
+                                                key={key}
+                                                size="small" 
+                                                label={`Sites`} 
                                                 variant="outlined"
                                                 sx={{ height: 20, fontSize: '0.7rem' }}
                                               />
@@ -2482,7 +2602,8 @@ const CustomProbe: React.FC = () => {
                                   tm: { min: 60, max: 75, enabled: false },
                                   selfMatch: { max: 4, enabled: false },
                                   mappedGenes: { max: 5, aligner: 'BLAST' as AlignerType, enabled: false },
-                                  specific: { threshold: 80, aligner: 'BLAST' as AlignerType, enabled: false }
+                                  kmerCount: { kmer_len: 15, aligner: 'BLAST' as AlignerType, enabled: false },
+                                  mappedSites: { aligner: 'BLAST' as AlignerType, enabled: false }
                                 }, (field, value) => handlePartAttributeChange(index, idx, field, value))}
                                 
                                 <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
