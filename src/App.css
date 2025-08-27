@@ -1,25 +1,44 @@
+/* Modern clean global styles */
 .pageContent {
-  margin: 0px;
+  margin: 0;
+  display: grid;
   justify-items: center;
+  width: 100%;
 }
 
 .probe-container {
   text-align: center;
-  padding: 30px;
+  padding: 24px;
+  width: 100%;
 }
 
 .mapping-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 16px;
+  gap: 16px;
 }
 
 .mapping-header h4 {
   margin: 0;
-  font-size: 1em;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
 }
 
+/* Remove ant design styles */
 .mapping-header .ant-btn {
-  margin-left: 0px;
+  margin-left: 0;
+}
+
+/* Ensure smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Focus styles for accessibility */
+*:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
