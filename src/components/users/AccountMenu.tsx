@@ -10,32 +10,30 @@ import {
   ListItemIcon,
   ListItemText,
   Badge,
-  useTheme,
-  Chip
+  useTheme
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import {
-  AccountCircle,
   Person,
   Settings,
   ExitToApp,
-  AdminPanelSettings,
-  Notifications,
   Security
 } from '@mui/icons-material';
+import { useAuth } from '../../contexts/AuthContext';
 
 const AccountMenu = () => {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const navigate = useNavigate();
   const theme = useTheme();
+  const { user, logout } = useAuth();
 
-  // Mock user data - in real app, this would come from context/state
+  // User data with fallback values
   const currentUser = {
-    name: 'Dr. Sarah Chen',
-    email: 'sarah.chen@uprobe.com',
-    role: 'Administrator',
-    avatar: null, // could be a URL
-    notifications: 3,
+    name: user?.full_name || user?.username || 'Unknown User',
+    email: user?.email || 'No email set',
+    role: 'User',
+    avatar: null, // Could be a URL
+    notifications: 0,
     isOnline: true
   };
 
@@ -47,8 +45,16 @@ const AccountMenu = () => {
     setAnchorEl(null);
   };
 
-  const handleMenuItemClick = (path: string) => {
-    navigate(`/account/${path}`);
+  const handleMenuItemClick = async (path: string) => {
+    if (path === 'logout') {
+      try {
+        await logout();
+      } catch (error) {
+        console.error('Logout failed:', error);
+      }
+    } else {
+      navigate(`/account/${path}`);
+    }
     handleClose();
   };
 
@@ -131,36 +137,34 @@ const AccountMenu = () => {
         open={Boolean(anchorEl)}
         onClose={handleClose}
         PaperProps={{
-          elevation: 8,
+          elevation: 4,
           sx: {
             mt: 1.5,
-            minWidth: 320,
+            minWidth: 280,
             borderRadius: 2,
-            backgroundColor: theme.palette.background.paper,
             '& .MuiMenuItem-root': {
               borderRadius: 1,
               mx: 1,
               my: 0.5,
-              transition: 'all 0.2s',
+              transition: 'all 0.15s',
               '&:hover': {
                 backgroundColor: theme.palette.action.hover,
-                transform: 'translateX(4px)',
               },
             },
           },
         }}
       >
         {/* User Info Header */}
-        <Box sx={{ px: 2, py: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
+        <Box sx={{ px: 3, py: 2.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Avatar
               sx={{
-                width: 48,
-                height: 48,
+                width: 40,
+                height: 40,
                 background: currentUser.avatar 
                   ? 'transparent' 
                   : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                fontSize: '1.2rem',
+                fontSize: '1.1rem',
                 fontWeight: 600
               }}
               src={currentUser.avatar || undefined}
@@ -168,43 +172,12 @@ const AccountMenu = () => {
               {!currentUser.avatar && currentUser.name.split(' ').map(n => n[0]).join('')}
             </Avatar>
             <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
                 {currentUser.name}
               </Typography>
-              <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 0.5 }}>
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
                 {currentUser.email}
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Chip
-                  label={currentUser.role}
-                  size="small"
-                  icon={<AdminPanelSettings />}
-                  sx={{
-                    height: 20,
-                    fontSize: '0.7rem',
-                    backgroundColor: theme.palette.secondary.light,
-                    color: 'white',
-                  }}
-                />
-                {currentUser.isOnline && (
-                  <Box sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    color: theme.palette.success.main,
-                    fontSize: '0.75rem'
-                  }}>
-                    <Box sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      backgroundColor: theme.palette.success.main,
-                      animation: 'pulse 2s infinite'
-                    }} />
-                    Online
-                  </Box>
-                )}
-              </Box>
             </Box>
           </Box>
         </Box>
@@ -216,15 +189,12 @@ const AccountMenu = () => {
             onClick={() => handleMenuItemClick(item.path)}
             sx={{ py: 1.5 }}
           >
-            <ListItemIcon sx={{ minWidth: 40 }}>
+            <ListItemIcon sx={{ minWidth: 36 }}>
               {item.icon}
             </ListItemIcon>
             <ListItemText>
-              <Typography variant="subtitle2" sx={{ fontWeight: 500 }}>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
                 {item.label}
-              </Typography>
-              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                {item.description}
               </Typography>
             </ListItemText>
           </MenuItem>
@@ -239,19 +209,16 @@ const AccountMenu = () => {
             py: 1.5,
             color: theme.palette.error.main,
             '&:hover': {
-              backgroundColor: `${theme.palette.error.main}10`,
+              backgroundColor: `${theme.palette.error.main}08`,
             }
           }}
         >
-          <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
+          <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}>
             <ExitToApp />
           </ListItemIcon>
           <ListItemText>
-            <Typography variant="subtitle2" sx={{ fontWeight: 500 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>
               Sign Out
-            </Typography>
-            <Typography variant="caption" sx={{ opacity: 0.8 }}>
-              Securely logout from your account
             </Typography>
           </ListItemText>
         </MenuItem>
