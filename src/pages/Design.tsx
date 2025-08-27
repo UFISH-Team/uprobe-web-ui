@@ -26,37 +26,35 @@ const Design: React.FC = () => {
   const designOptions = [
     {
       title: 'Design Workflow',
-      subtitle: 'Guided Design Process',
-      description: 'Use our intelligent workflow to complete the entire probe design process step by step, starting from genome data',
-      features: ['Smart Parameter Optimization', 'Batch Processing', 'Result Visualization', 'Quality Control'],
+      description: 'Use our intelligent workflow to complete the entire probe design process step by step',
+      features: ['DNA/RNA support', 'Smart Parameter Optimization', 'Batch Processing'],
       image: '/4.jpeg',
       path: '/design/designworkflow',
       color: theme.palette.primary.main,
       bgColor: 'rgba(37, 99, 235, 0.05)',
       icon: <AutoAwesome />,
       difficulty: 'Recommended',
-      estimatedTime: '10-30 minutes'
+      estimatedTime: '5-10 minutes'
     },
     {
       title: 'Custom Probe',
-      subtitle: 'Advanced Configuration',
-      description: 'Flexible probe design options for experienced users with customizable parameters and algorithms',
-      features: ['Advanced Parameters', 'Algorithm Selection', 'Custom Output', 'Expert Mode'],
+      description: 'Flexible probe type design for experienced users with customizable probe attributes',
+      features: ['DNA/RNA support', 'Custom probe group', 'Custom probe attributes'],
       image: '/3.webp',
       path: '/design/customprobe',
       color: theme.palette.secondary.main,
       bgColor: 'rgba(8, 145, 178, 0.05)',
       icon: <Build />,
       difficulty: 'Advanced',
-      estimatedTime: '30-60 minutes'
+      estimatedTime: '10-15 minutes'
     }
   ];
 
   return (
     <Box sx={{ 
       minHeight: 'calc(100vh - 64px)',
-      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-      py: { xs: 3, sm: 4, md: 6 },
+      backgroundColor: '#fafbfc',
+      py: { xs: 3, sm: 4, md: 5 },
     }}>
       <Container maxWidth="lg">
         {isSubRoute ? (
@@ -77,7 +75,7 @@ const Design: React.FC = () => {
                   WebkitTextFillColor: 'transparent',
                 }}
               >
-                Choose Design Method
+                Please start your probe design journey !
               </Typography>
               
               <Typography 
@@ -89,7 +87,7 @@ const Design: React.FC = () => {
                   lineHeight: 1.6
                 }}
               >
-                Select the most suitable probe design method based on your needs and experience level
+                Select the most suitable probe design method based on your needs and experience.
               </Typography>
             </Box>
 
@@ -184,15 +182,6 @@ const Design: React.FC = () => {
                         >
                           {option.title}
                         </Typography>
-                        <Typography 
-                          variant="body2" 
-                          sx={{ 
-                            color: 'text.secondary',
-                            fontStyle: 'italic'
-                          }}
-                        >
-                          {option.subtitle}
-                        </Typography>
                       </Box>
 
                       <Typography 
@@ -272,7 +261,7 @@ const Design: React.FC = () => {
                       <Button 
                         onClick={() => navigate('/tutorial')} 
                         variant="outlined"
-                        size="small"
+                        size="large"
                         startIcon={<HelpOutline />}
                         sx={{
                           borderColor: option.color,
@@ -304,7 +293,7 @@ const Design: React.FC = () => {
                 Need Help Choosing?
               </Typography>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                If you're new to the platform, we recommend starting with "Design Workflow". If you have extensive probe design experience, choose "Custom Probe" for more control.
+                If you don't need to customize probe type, we recommend starting with "Design Workflow". If you have extensive probe design experience, choose "Custom Probe" for more control.
               </Typography>
               <Button
                 variant="outlined"
