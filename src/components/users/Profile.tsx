@@ -8,28 +8,15 @@ import {
   TextField, 
   Card,
   CardContent,
-  CardHeader,
   Dialog, 
   DialogActions, 
   DialogContent, 
   DialogTitle, 
   IconButton, 
-  Tooltip,
-  Chip,
-  Divider,
   Alert,
   Snackbar,
   useTheme,
-  Paper,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  LinearProgress
+  Divider
 } from '@mui/material';
 import {
   Edit,
@@ -40,40 +27,49 @@ import {
   Email,
   Work,
   LocationOn,
-  Phone,
-  Language,
-  CalendarToday,
-  Badge,
-  Security,
-  Verified
+  Phone
 } from '@mui/icons-material';
+import { useAuth } from '../../contexts/AuthContext';
+import ApiService from '../../api';
 
 const Profile: React.FC = () => {
   const theme = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user, updateUser } = useAuth();
   
   const [isEditMode, setIsEditMode] = useState(false);
   const [avatarDialog, setAvatarDialog] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
   
   const [profileData, setProfileData] = useState({
-    name: 'Dr. Sarah Chen',
-    email: 'sarah.chen@uprobe.com',
-    role: 'Administrator',
-    title: 'Senior Bioinformatics Researcher',
+    name: user?.full_name || user?.username || 'Unknown User',
+    email: user?.email || 'No email set',
+    title: 'Researcher',
     department: 'Research & Development',
-    location: 'San Francisco, CA',
-    phone: '+1 (555) 123-4567',
-    language: 'English',
-    joinDate: '2022-01-15',
-    bio: 'Experienced researcher specializing in probe design and bioinformatics analysis. Passionate about advancing genomic research through innovative tools.',
+    location: 'Not set',
+    phone: 'Not set',
+    bio: 'Researcher specializing in probe design and bioinformatics analysis.',
     avatar: null as string | null,
-    isVerified: true,
-    profileComplete: 85
   });
   const [tempProfileData, setTempProfileData] = useState({ ...profileData });
+
+  // Sync user data to local state when updated
+  React.useEffect(() => {
+    if (user) {
+      const updatedData = {
+        name: user.full_name || user.username || 'Unknown User',
+        email: user.email || 'No email set',
+        title: 'Researcher',
+        department: 'Research & Development',
+        location: 'Not set',
+        phone: 'Not set',
+        bio: 'Researcher specializing in probe design and bioinformatics analysis.',
+        avatar: null as string | null,
+      };
+      setProfileData(updatedData);
+      setTempProfileData(updatedData);
+    }
+  }, [user]);
 
   const handleEditClick = () => {
     setIsEditMode(true);
@@ -84,21 +80,32 @@ const Profile: React.FC = () => {
     setTempProfileData({ ...profileData });
   };
 
-  const handleSaveClick = () => {
-    setProfileData({ ...tempProfileData });
-    setIsEditMode(false);
-    setSnackbar({ open: true, message: 'Profile updated successfully!', severity: 'success' });
+  const handleSaveClick = async () => {
+    try {
+      // Call API to update user profile
+      const updatedUser = await ApiService.updateUserProfile({
+        full_name: tempProfileData.name,
+        email: tempProfileData.email
+      });
+      
+      // Update local state
+      setProfileData({ ...tempProfileData });
+      
+      // Update user info in auth context
+      updateUser({
+        full_name: updatedUser.full_name,
+        email: updatedUser.email
+      });
+      
+      setIsEditMode(false);
+      setSnackbar({ open: true, message: 'Profile updated successfully!', severity: 'success' });
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      setSnackbar({ open: true, message: 'Failed to update profile. Please try again.', severity: 'error' });
+    }
   };
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = event.target;
-    setTempProfileData({
-      ...tempProfileData,
-      [name]: value,
-    });
-  };
-
-  const handleSelectChange = (event: any) => {
     const { name, value } = event.target;
     setTempProfileData({
       ...tempProfileData,
@@ -110,84 +117,70 @@ const Profile: React.FC = () => {
     setAvatarDialog(true);
   };
 
-  const handleAvatarDialogClose = () => {
-    setAvatarDialog(false);
-    setUploadProgress(0);
-  };
-
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Simulate upload progress
-      setIsUploading(true);
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 10;
-        setUploadProgress(progress);
-        if (progress >= 100) {
-          clearInterval(interval);
-          setIsUploading(false);
-          setProfileData(prev => ({ ...prev, avatar: URL.createObjectURL(file) }));
-          setTempProfileData(prev => ({ ...prev, avatar: URL.createObjectURL(file) }));
-          setAvatarDialog(false);
-          setSnackbar({ open: true, message: 'Avatar updated successfully!', severity: 'success' });
-          setUploadProgress(0);
-        }
-      }, 200);
+      const newAvatar = URL.createObjectURL(file);
+      setProfileData(prev => ({ ...prev, avatar: newAvatar }));
+      setTempProfileData(prev => ({ ...prev, avatar: newAvatar }));
+      setAvatarDialog(false);
+      setSnackbar({ open: true, message: 'Avatar updated successfully!', severity: 'success' });
     }
   };
 
-  const handleSnackbarClose = () => {
-    setSnackbar(prev => ({ ...prev, open: false }));
-  };
-
   return (
-    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
+    <Box sx={{ p: 3, maxWidth: 900, mx: 'auto' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Typography variant="h4" sx={{ fontWeight: 600 }}>
+          My Profile
+        </Typography>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-            👤 My Profile
-          </Typography>
-          <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
-            Manage your personal information and account settings
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Box sx={{ textAlign: 'right' }}>
-            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-              Profile Completion
-            </Typography>
-            <LinearProgress 
-              variant="determinate" 
-              value={profileData.profileComplete} 
-              sx={{ width: 120, height: 6, borderRadius: 3 }}
-            />
-            <Typography variant="caption" sx={{ color: theme.palette.primary.main, fontWeight: 600 }}>
-              {profileData.profileComplete}%
-            </Typography>
-          </Box>
+          {!isEditMode ? (
+            <Button
+              variant="contained"
+              startIcon={<Edit />}
+              onClick={handleEditClick}
+            >
+              Edit Profile
+            </Button>
+          ) : (
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button
+                variant="contained"
+                startIcon={<Save />}
+                onClick={handleSaveClick}
+              >
+                Save
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<Cancel />}
+                onClick={handleCancelClick}
+              >
+                Cancel
+              </Button>
+            </Box>
+          )}
         </Box>
       </Box>
 
       <Grid container spacing={4}>
         {/* Left Column - Avatar and Basic Info */}
         <Grid item xs={12} md={4}>
-          <Card elevation={3} sx={{ borderRadius: 3 }}>
-            <CardContent sx={{ textAlign: 'center', p: 4 }}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center', p: 3 }}>
               <Box sx={{ position: 'relative', display: 'inline-block', mb: 3 }}>
                 <Avatar 
                   sx={{ 
-                    width: 120, 
-                    height: 120,
+                    width: 100, 
+                    height: 100,
                     mx: 'auto',
                     background: profileData.avatar 
                       ? 'transparent' 
                       : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                    fontSize: '2rem',
-                    fontWeight: 600,
-                    border: `4px solid ${theme.palette.background.paper}`,
-                    boxShadow: theme.shadows[8]
+                    fontSize: '1.8rem',
+                    fontWeight: 600
                   }}
                   src={profileData.avatar || undefined}
                 >
@@ -210,107 +203,25 @@ const Profile: React.FC = () => {
                 </IconButton>
               </Box>
               
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  {profileData.name}
-                </Typography>
-                {profileData.isVerified && (
-                  <Verified sx={{ color: theme.palette.primary.main, fontSize: 20 }} />
-                )}
-              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                {profileData.name}
+              </Typography>
               
               <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 2 }}>
                 {profileData.title}
               </Typography>
               
-              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 3 }}>
-                <Chip 
-                  label={profileData.role}
-                  icon={<Badge />}
-                  color="primary"
-                  variant="outlined"
-                />
-              </Box>
-              
-              <Divider sx={{ my: 2 }} />
-              
-              <List dense>
-                <ListItem>
-                  <ListItemIcon sx={{ minWidth: 40 }}>
-                    <Email fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={profileData.email}
-                    primaryTypographyProps={{ variant: 'body2' }}
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemIcon sx={{ minWidth: 40 }}>
-                    <Phone fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={profileData.phone}
-                    primaryTypographyProps={{ variant: 'body2' }}
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemIcon sx={{ minWidth: 40 }}>
-                    <LocationOn fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={profileData.location}
-                    primaryTypographyProps={{ variant: 'body2' }}
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemIcon sx={{ minWidth: 40 }}>
-                    <CalendarToday fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={`Joined ${new Date(profileData.joinDate).toLocaleDateString()}`}
-                    primaryTypographyProps={{ variant: 'body2' }}
-                  />
-                </ListItem>
-              </List>
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                {profileData.department}
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
 
         {/* Right Column - Detailed Information */}
         <Grid item xs={12} md={8}>
-          <Card elevation={3} sx={{ borderRadius: 3 }}>
-            <CardHeader
-              title="Personal Information"
-              action={
-                !isEditMode ? (
-                  <Button
-                    variant="contained"
-                    startIcon={<Edit />}
-                    onClick={handleEditClick}
-                  >
-                    Edit Profile
-                  </Button>
-                ) : (
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Button
-                      variant="contained"
-                      startIcon={<Save />}
-                      onClick={handleSaveClick}
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<Cancel />}
-                      onClick={handleCancelClick}
-                    >
-                      Cancel
-                    </Button>
-                  </Box>
-                )
-              }
-            />
-            <CardContent>
+          <Card>
+            <CardContent sx={{ p: 3 }}>
               {isEditMode ? (
                 <Grid container spacing={3}>
                   <Grid item xs={12} sm={6}>
@@ -383,45 +294,13 @@ const Profile: React.FC = () => {
                       }}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>Language</InputLabel>
-                      <Select
-                        name="language"
-                        value={tempProfileData.language}
-                        onChange={handleSelectChange}
-                        startAdornment={<Language sx={{ mr: 1, color: 'action.active' }} />}
-                      >
-                        <MenuItem value="English">English</MenuItem>
-                        <MenuItem value="Chinese">中文</MenuItem>
-                        <MenuItem value="Spanish">Español</MenuItem>
-                        <MenuItem value="French">Français</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>Role</InputLabel>
-                      <Select
-                        name="role"
-                        value={tempProfileData.role}
-                        onChange={handleSelectChange}
-                        startAdornment={<Security sx={{ mr: 1, color: 'action.active' }} />}
-                      >
-                        <MenuItem value="Administrator">Administrator</MenuItem>
-                        <MenuItem value="Researcher">Researcher</MenuItem>
-                        <MenuItem value="Analyst">Analyst</MenuItem>
-                        <MenuItem value="User">User</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
                       label="Bio"
                       name="bio"
                       multiline
-                      rows={4}
+                      rows={3}
                       value={tempProfileData.bio}
                       onChange={handleInputChange}
                       placeholder="Tell us about yourself..."
@@ -430,55 +309,39 @@ const Profile: React.FC = () => {
                 </Grid>
               ) : (
                 <Grid container spacing={3}>
-                  <Grid item xs={12} sm={6}>
-                    <Paper elevation={1} sx={{ p: 2, borderRadius: 2 }}>
-                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                        Full Name
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                        {profileData.name}
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Paper elevation={1} sx={{ p: 2, borderRadius: 2 }}>
-                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                        Department
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                        {profileData.department}
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Paper elevation={1} sx={{ p: 2, borderRadius: 2 }}>
-                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                        Language
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                        {profileData.language}
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Paper elevation={1} sx={{ p: 2, borderRadius: 2 }}>
-                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                        Member Since
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                        {new Date(profileData.joinDate).toLocaleDateString()}
-                      </Typography>
-                    </Paper>
-                  </Grid>
                   <Grid item xs={12}>
-                    <Paper elevation={1} sx={{ p: 3, borderRadius: 2 }}>
-                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 1, display: 'block' }}>
-                        Bio
-                      </Typography>
-                      <Typography variant="body1">
-                        {profileData.bio}
-                      </Typography>
-                    </Paper>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <Email sx={{ color: 'text.secondary', fontSize: 20 }} />
+                      <Typography variant="body2" color="text.secondary">Email:</Typography>
+                      <Typography variant="body1">{profileData.email}</Typography>
+                    </Box>
+                    <Divider sx={{ my: 2 }} />
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <Phone sx={{ color: 'text.secondary', fontSize: 20 }} />
+                      <Typography variant="body2" color="text.secondary">Phone:</Typography>
+                      <Typography variant="body1">{profileData.phone}</Typography>
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <LocationOn sx={{ color: 'text.secondary', fontSize: 20 }} />
+                      <Typography variant="body2" color="text.secondary">Location:</Typography>
+                      <Typography variant="body1">{profileData.location}</Typography>
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Bio
+                    </Typography>
+                    <Typography variant="body1">
+                      {profileData.bio}
+                    </Typography>
                   </Grid>
                 </Grid>
               )}
@@ -488,7 +351,7 @@ const Profile: React.FC = () => {
       </Grid>
 
       {/* Avatar Upload Dialog */}
-      <Dialog open={avatarDialog} onClose={handleAvatarDialogClose} maxWidth="sm" fullWidth>
+      <Dialog open={avatarDialog} onClose={() => setAvatarDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
           <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <PhotoCamera />
@@ -512,15 +375,6 @@ const Profile: React.FC = () => {
               {!profileData.avatar && profileData.name.split(' ').map(n => n[0]).join('')}
             </Avatar>
             
-            {isUploading && (
-              <Box sx={{ mb: 2 }}>
-                <LinearProgress variant="determinate" value={uploadProgress} />
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  Uploading... {uploadProgress}%
-                </Typography>
-              </Box>
-            )}
-            
             <input
               ref={fileInputRef}
               type="file"
@@ -533,7 +387,6 @@ const Profile: React.FC = () => {
               variant="contained"
               startIcon={<PhotoCamera />}
               onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
               sx={{ mb: 2 }}
             >
               Choose New Photo
@@ -545,7 +398,7 @@ const Profile: React.FC = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleAvatarDialogClose} disabled={isUploading}>
+          <Button onClick={() => setAvatarDialog(false)}>
             Close
           </Button>
         </DialogActions>
@@ -554,11 +407,11 @@ const Profile: React.FC = () => {
       {/* Success/Error Snackbar */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={handleSnackbarClose}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%' }}>
+        <Alert onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} severity={snackbar.severity} sx={{ width: '100%' }}>
           {snackbar.message}
         </Alert>
       </Snackbar>
