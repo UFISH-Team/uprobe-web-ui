@@ -6,7 +6,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
   Grid,
   FormControl,
   InputLabel,
@@ -14,16 +13,9 @@ import {
   MenuItem,
   Alert,
   Snackbar,
-  LinearProgress,
-  Chip,
   IconButton,
-  Divider,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
   useTheme,
-  Paper
+  LinearProgress
 } from '@mui/material';
 import {
   PersonAdd,
@@ -32,11 +24,7 @@ import {
   Email,
   Person,
   Work,
-  Security,
-  AdminPanelSettings,
-  CheckCircle,
-  Warning,
-  Info
+  Security
 } from '@mui/icons-material';
 
 const AddAccount: React.FC = () => {
@@ -50,8 +38,7 @@ const AddAccount: React.FC = () => {
     password: '',
     confirmPassword: '',
     role: 'user',
-    department: '',
-    sendInvite: true
+    department: ''
   });
 
   const [showPassword, setShowPassword] = useState({
@@ -64,14 +51,14 @@ const AddAccount: React.FC = () => {
   const [snackbar, setSnackbar] = useState({ 
     open: false, 
     message: '', 
-    severity: 'success' as 'success' | 'error' | 'warning' 
+    severity: 'success' as 'success' | 'error' 
   });
 
   const roles = [
-    { value: 'user', label: 'User', description: 'Basic access to application features' },
-    { value: 'researcher', label: 'Researcher', description: 'Access to research tools and data analysis' },
-    { value: 'analyst', label: 'Analyst', description: 'Advanced analysis capabilities' },
-    { value: 'admin', label: 'Administrator', description: 'Full system access and user management' }
+    { value: 'user', label: 'User' },
+    { value: 'researcher', label: 'Researcher' },
+    { value: 'analyst', label: 'Analyst' },
+    { value: 'admin', label: 'Administrator' }
   ];
 
   const departments = [
@@ -84,30 +71,11 @@ const AddAccount: React.FC = () => {
     'Other'
   ];
 
-  const getPasswordStrength = (password: string) => {
-    let strength = 0;
-    const checks = [
-      { test: password.length >= 8, label: 'At least 8 characters' },
-      { test: /[a-z]/.test(password), label: 'Lowercase letter' },
-      { test: /[A-Z]/.test(password), label: 'Uppercase letter' },
-      { test: /\d/.test(password), label: 'Number' },
-      { test: /[!@#$%^&*(),.?":{}|<>]/.test(password), label: 'Special character' }
-    ];
-    
-    checks.forEach(check => {
-      if (check.test) strength += 20;
-    });
-    
-    return { strength, checks };
-  };
-
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.username.trim()) {
       newErrors.username = 'Username is required';
-    } else if (formData.username.length < 3) {
-      newErrors.username = 'Username must be at least 3 characters';
     }
 
     if (!formData.email.trim()) {
@@ -126,8 +94,8 @@ const AddAccount: React.FC = () => {
 
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (getPasswordStrength(formData.password).strength < 60) {
-      newErrors.password = 'Password is too weak';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
     }
 
     if (formData.password !== formData.confirmPassword) {
@@ -149,7 +117,7 @@ const AddAccount: React.FC = () => {
     }
   };
 
-  const handleTogglePasswordVisibility = (field: string) => {
+  const handleTogglePasswordVisibility = (field: keyof typeof showPassword) => {
     setShowPassword(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
@@ -168,7 +136,7 @@ const AddAccount: React.FC = () => {
       
       setSnackbar({ 
         open: true, 
-        message: `Account created successfully! ${formData.sendInvite ? 'Invitation email sent.' : ''}`, 
+        message: 'Account created successfully!', 
         severity: 'success' 
       });
       
@@ -181,8 +149,7 @@ const AddAccount: React.FC = () => {
         password: '',
         confirmPassword: '',
         role: 'user',
-        department: '',
-        sendInvite: true
+        department: ''
       });
       
     } catch (error) {
@@ -196,36 +163,30 @@ const AddAccount: React.FC = () => {
     }
   };
 
-  const passwordStrength = getPasswordStrength(formData.password);
-  const selectedRole = roles.find(role => role.value === formData.role);
-
   return (
-    <Box sx={{ p: 3, maxWidth: 800, mx: 'auto' }}>
+    <Box sx={{ p: 3, maxWidth: 700, mx: 'auto' }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-          👥 Add New Account
+          Add New Account
         </Typography>
         <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
-          Create a new user account with appropriate permissions and access levels
+          Create a new user account with appropriate permissions
         </Typography>
       </Box>
 
-      <Card elevation={3} sx={{ borderRadius: 3 }}>
-        <CardHeader
-          title="Account Information"
-          subheader="Fill in the details for the new user account"
-          avatar={<PersonAdd color="primary" />}
-        />
-        <CardContent>
+      <Card>
+        <CardContent sx={{ p: 3 }}>
           <Box component="form" onSubmit={handleSubmit}>
             <Grid container spacing={3}>
               {/* Personal Information */}
               <Grid item xs={12}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Person />
-                  Personal Information
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <Person color="primary" />
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Personal Information
+                  </Typography>
+                </Box>
               </Grid>
               
               <Grid item xs={12} sm={6}>
@@ -259,7 +220,7 @@ const AddAccount: React.FC = () => {
                   value={formData.username}
                   onChange={(e) => handleInputChange('username', e.target.value)}
                   error={!!errors.username}
-                  helperText={errors.username || 'Unique identifier for login'}
+                  helperText={errors.username}
                   required
                 />
               </Grid>
@@ -272,7 +233,7 @@ const AddAccount: React.FC = () => {
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
                   error={!!errors.email}
-                  helperText={errors.email || 'Will be used for notifications and password reset'}
+                  helperText={errors.email}
                   required
                   InputProps={{
                     startAdornment: <Email sx={{ mr: 1, color: 'action.active' }} />
@@ -280,12 +241,14 @@ const AddAccount: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12}>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Work />
-                  Organization Details
-                </Typography>
+              {/* Organization Details */}
+              <Grid item xs={12} sx={{ mt: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <Work color="primary" />
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Organization Details
+                  </Typography>
+                </Box>
               </Grid>
 
               <Grid item xs={12} sm={6}>
@@ -315,7 +278,6 @@ const AddAccount: React.FC = () => {
                   <Select
                     value={formData.role}
                     onChange={(e) => handleInputChange('role', e.target.value)}
-                    startAdornment={<AdminPanelSettings sx={{ mr: 1, color: 'action.active' }} />}
                   >
                     {roles.map((role) => (
                       <MenuItem key={role.value} value={role.value}>
@@ -326,25 +288,14 @@ const AddAccount: React.FC = () => {
                 </FormControl>
               </Grid>
 
-              {selectedRole && (
-                <Grid item xs={12}>
-                  <Paper elevation={1} sx={{ p: 2, borderRadius: 2, backgroundColor: theme.palette.action.hover }}>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                      Role: {selectedRole.label}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                      {selectedRole.description}
-                    </Typography>
-                  </Paper>
-                </Grid>
-              )}
-
-              <Grid item xs={12}>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Security />
-                  Security Settings
-                </Typography>
+              {/* Security Settings */}
+              <Grid item xs={12} sx={{ mt: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <Security color="primary" />
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Password
+                  </Typography>
+                </Box>
               </Grid>
 
               <Grid item xs={12} sm={6}>
@@ -355,7 +306,7 @@ const AddAccount: React.FC = () => {
                   value={formData.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
                   error={!!errors.password}
-                  helperText={errors.password}
+                  helperText={errors.password || 'Minimum 6 characters'}
                   required
                   InputProps={{
                     endAdornment: (
@@ -368,39 +319,6 @@ const AddAccount: React.FC = () => {
                     )
                   }}
                 />
-                {formData.password && (
-                  <Box sx={{ mt: 1 }}>
-                    <Typography variant="caption" gutterBottom>
-                      Password Strength: {passwordStrength.strength}%
-                    </Typography>
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={passwordStrength.strength} 
-                      sx={{ 
-                        height: 4, 
-                        borderRadius: 2,
-                        '& .MuiLinearProgress-bar': {
-                          backgroundColor: 
-                            passwordStrength.strength < 40 ? theme.palette.error.main :
-                            passwordStrength.strength < 80 ? theme.palette.warning.main :
-                            theme.palette.success.main
-                        }
-                      }}
-                    />
-                    <Box sx={{ mt: 1 }}>
-                      {passwordStrength.checks.map((check, index) => (
-                        <Chip
-                          key={index}
-                          label={check.label}
-                          size="small"
-                          color={check.test ? 'success' : 'default'}
-                          variant={check.test ? 'filled' : 'outlined'}
-                          sx={{ mr: 0.5, mb: 0.5 }}
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                )}
               </Grid>
 
               <Grid item xs={12} sm={6}>
@@ -426,32 +344,8 @@ const AddAccount: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12}>
-                <Paper elevation={1} sx={{ p: 2, borderRadius: 2 }}>
-                  <List dense>
-                    <ListItem>
-                      <ListItemIcon>
-                        <Info color="primary" />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary="Account Creation Summary"
-                        secondary={`Creating ${formData.role} account for ${formData.firstName} ${formData.lastName} in ${formData.department || '[Department]'}`}
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon>
-                        <Email color="primary" />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary="Email Invitation"
-                        secondary="User will receive login credentials and setup instructions via email"
-                      />
-                    </ListItem>
-                  </List>
-                </Paper>
-              </Grid>
-
-              <Grid item xs={12}>
+              {/* Action Buttons */}
+              <Grid item xs={12} sx={{ mt: 3 }}>
                 <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                   <Button
                     variant="outlined"
@@ -465,8 +359,7 @@ const AddAccount: React.FC = () => {
                         password: '',
                         confirmPassword: '',
                         role: 'user',
-                        department: '',
-                        sendInvite: true
+                        department: ''
                       });
                       setErrors({});
                     }}
@@ -477,10 +370,14 @@ const AddAccount: React.FC = () => {
                     type="submit"
                     variant="contained"
                     disabled={isSubmitting}
-                    startIcon={isSubmitting ? <LinearProgress /> : <PersonAdd />}
+                    startIcon={isSubmitting ? null : <PersonAdd />}
                     sx={{ minWidth: 140 }}
                   >
-                    {isSubmitting ? 'Creating...' : 'Create Account'}
+                    {isSubmitting ? (
+                      <LinearProgress sx={{ width: '100px', height: '4px' }} />
+                    ) : (
+                      'Create Account'
+                    )}
                   </Button>
                 </Box>
               </Grid>
@@ -492,7 +389,7 @@ const AddAccount: React.FC = () => {
       {/* Snackbar */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={4000}
         onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
