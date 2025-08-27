@@ -27,12 +27,13 @@ import {
   Science,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import ApiService from '../api';
+import { useAuth } from '../contexts/AuthContext';
 
 const Auth = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { login } = useAuth();
   
   const [formData, setFormData] = useState({
     username: '',
@@ -83,12 +84,12 @@ const Auth = () => {
         throw new Error('Please fill in all fields');
       }
 
-      await ApiService.login(formData.username, formData.password);
+      await login(formData.username, formData.password);
       navigate('/home');
     } catch (err: any) {
       console.error('Login error:', err);
       setError(
-        err.response?.data?.message || 
+        err.response?.data?.detail || 
         err.message || 
         'Login failed. Please check your credentials and try again.'
       );
