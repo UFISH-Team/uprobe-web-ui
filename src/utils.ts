@@ -7,7 +7,7 @@ import { FolderChain } from "./types";
 
 export const getAlertCloseHandler = (setAlertOpen: (o: boolean) => void) => {
 
-  const handleAlertClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
+  const handleAlertClose = (_event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') {
       return;
     }
@@ -19,7 +19,7 @@ export const getAlertCloseHandler = (setAlertOpen: (o: boolean) => void) => {
 }
 
 export const folderChainToStr = (fc: FolderChain) => {
-  const path = fc.map((f) => (f).name).join("/")
+  const path = fc.map((f: any) => (f).name).join("/")
   return path
 }
 
@@ -118,15 +118,15 @@ export const getTokenRemainingTime = (): number => {
  * Format remaining time into readable string
  */
 export const formatRemainingTime = (milliseconds: number): string => {
-  if (milliseconds <= 0) return '已过期';
+  if (milliseconds <= 0) return 'Expired';
   
   const hours = Math.floor(milliseconds / (1000 * 60 * 60));
   const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
   
   if (hours > 0) {
-    return `${hours}小时${minutes}分钟`;
+    return `${hours}h ${minutes}m`;
   } else {
-    return `${minutes}分钟`;
+    return `${minutes}m`;
   }
 };
 
