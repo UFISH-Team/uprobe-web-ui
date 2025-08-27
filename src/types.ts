@@ -1,5 +1,8 @@
 import yaml from 'js-yaml';
 
+// Folder chain type for file navigation
+export type FolderChain = Array<{ name: string }>;
+
 // Task
 export interface Task {
   id: string;
