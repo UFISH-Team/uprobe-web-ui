@@ -96,15 +96,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth();
   }, []);
 
-  // 定期检查token是否过期
+  // 定期检查token是否过期，到期自动登出
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     const checkTokenExpiry = () => {
-      if (isAuthenticated && isTokenExpired()) {
+      if (isTokenExpired()) {
+        console.log('Token expired, automatically logging out...');
         logout();
       }
     };
 
-    const interval = setInterval(checkTokenExpiry, 60000); // 每分钟检查一次
+    // 初始检查
+    checkTokenExpiry();
+
+    // 每5分钟检查一次token是否过期
+    const interval = setInterval(checkTokenExpiry, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
