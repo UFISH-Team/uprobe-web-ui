@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Drawer,
   Box,
@@ -12,6 +12,12 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   PauseCircle as PauseIcon,
@@ -19,8 +25,12 @@ import {
   Download as DownloadIcon,
   Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
+  InsertDriveFile as FileIcon,
+  TableChart as CsvIcon,
+  Web as HtmlIcon,
 } from '@mui/icons-material';
 import type { Task } from '../../types';
+import ApiService from '../../api';
 
 const StyledDrawer = styled(Drawer)(({ theme }) => ({
   '& .MuiDrawer-paper': {
@@ -37,6 +47,13 @@ interface TaskDrawerProps {
   onResumeTask: (taskId: string) => void;
   onDownloadResult: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
+}
+
+interface TaskFile {
+  name: string;
+  size: number;
+  type: string;
+  url: string;
 }
 
 const getStatusColor = (status: string): "success" | "info" | "warning" | "error" | "default" => {
@@ -64,6 +81,65 @@ const TaskDrawer: React.FC<TaskDrawerProps> = ({
   onDownloadResult,
   onDeleteTask,
 }) => {
+  const [taskFiles, setTaskFiles] = useState<TaskFile[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+
+  // 获取任务文件列表
+  useEffect(() => {
+    if (task && task.status === "completed" && open) {
+      setLoadingFiles(true);
+      ApiService.getTaskFiles(task.id)
+        .then(response => {
+          if (response.data && response.data.files) {
+            setTaskFiles(response.data.files);
+          }
+        })
+        .catch(error => {
+          console.error("Failed to load task files", error);
+        })
+        .finally(() => {
+          setLoadingFiles(false);
+        });
+    }
+  }, [task, open]);
+
+  const handleDownloadFile = async (filename: string) => {
+    if (!task) return;
+    
+    try {
+      const blob = await ApiService.downloadTaskFile(task.id, filename);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to download file", error);
+    }
+  };
+
+  const getFileIcon = (type: string) => {
+    switch (type) {
+      case 'csv':
+        return <CsvIcon />;
+      case 'html':
+        return <HtmlIcon />;
+      default:
+        return <FileIcon />;
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   if (!task) return null;
 
   return (
@@ -162,6 +238,57 @@ const TaskDrawer: React.FC<TaskDrawerProps> = ({
             </Grid>
           )}
         </Grid>
+
+        {/* Result Files Section */}
+        {task.status === "completed" && (
+          <Box sx={{ mt: 3 }}>
+            <Accordion>
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                aria-controls="result-files-content"
+                id="result-files-header"
+              >
+                <Typography variant="h6">Result Files</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                {loadingFiles ? (
+                  <Typography>Loading files...</Typography>
+                ) : taskFiles.length > 0 ? (
+                  <List dense>
+                    {taskFiles.map((file, index) => (
+                      <ListItem
+                        key={index}
+                        secondaryAction={
+                          <Tooltip title={`下载 ${file.name}`}>
+                            <IconButton
+                              edge="end"
+                              size="small"
+                              onClick={() => handleDownloadFile(file.name)}
+                            >
+                              <DownloadIcon />
+                            </IconButton>
+                          </Tooltip>
+                        }
+                      >
+                        <ListItemIcon>
+                          {getFileIcon(file.type)}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={file.name}
+                          secondary={`${formatFileSize(file.size)} • ${file.type.toUpperCase()}`}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                ) : (
+                  <Typography color="text.secondary">
+                    No result files available
+                  </Typography>
+                )}
+              </AccordionDetails>
+            </Accordion>
+          </Box>
+        )}
 
         {/* YAML Configuration Section */}
         <Box sx={{ mt: 3 }}>
