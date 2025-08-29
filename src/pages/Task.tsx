@@ -149,25 +149,29 @@ const Task: React.FC = () => {
   };
 
   const handleDownloadResult = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    const filename = task ? `${task.name}_${taskId}_results.zip` : `${taskId}_results.zip`;
+    
     ApiService.downloadTaskResult(taskId)
-      .then(response => {
-        if (response && response.data && response.data.url) {
-          window.open(response.data.url, '_blank');
-          setSnackbar({
-            open: true,
-            message: "开始下载结果文件",
-            severity: "success"
-          });
-        } else {
-          setSnackbar({
-            open: true,
-            message: "该任务暂无结果文件",
-            severity: "warning"
-          });
-        }
+      .then(blob => {
+        // 创建下载链接
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        setSnackbar({
+          open: true,
+          message: "结果文件下载成功",
+          severity: "success"
+        });
       })
       .catch(error => {
-        console.error("Failed to get result URL", error);
+        console.error("Failed to download result file", error);
         setSnackbar({
           open: true,
           message: "下载结果文件失败，请稍后重试",
