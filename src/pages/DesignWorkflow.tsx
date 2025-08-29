@@ -67,7 +67,7 @@ interface AttributeValue {
   max?: number;
   threshold?: number;
   kmer_len?: number;
-  aligner?: 'BLAST' | 'Bowtie2' | 'MMseqs2';
+  aligner?: 'blast' | 'bowtie2' | 'mmseqs2' | 'jellyfish';
   enabled: boolean;
 }
 
@@ -675,7 +675,7 @@ const DesignWorkflow: React.FC = () => {
       min: attribute.min || 0,
       max: attribute.max || 100,
       threshold: attribute.threshold,
-      aligner: attribute.aligner,
+      aligner: attribute.aligner as 'blast' | 'bowtie2' | 'mmseqs2' | 'jellyfish' | undefined,
       enabled: true
     };
     setEditingAttribute(updatedAttribute);
@@ -750,9 +750,9 @@ const DesignWorkflow: React.FC = () => {
       foldScore: { max: 40, enabled: true },
       tm: { min: 60, max: 75, enabled: true },
       selfMatch: { max: 4, enabled: true },
-      mappedGenes: { max: 5, aligner: 'Bowtie2', enabled: true },
-      kmerCount: { kmer_len: 35, aligner: 'Bowtie2', enabled: true },
-      mappedSites: { aligner: 'Bowtie2', enabled: true }
+      mappedGenes: { max: 5, aligner: 'bowtie2', enabled: true },
+      kmerCount: { kmer_len: 35, aligner: 'jellyfish', enabled: true },
+      mappedSites: { aligner: 'bowtie2', enabled: true }
     };
 
     const attributeValue = defaultValues[attributeId];
@@ -919,7 +919,7 @@ const DesignWorkflow: React.FC = () => {
     if (selectedCustomType.probes) {
       const probeFields: SortField[] = [];
       Object.entries(selectedCustomType.probes).forEach(([probeName, probe]) => {
-        const formattedProbeName = /^\d+$/.test(probeName) ? `probe_${parseInt(probeName) + 1}` : probeName;
+        const formattedProbeName = /^\d+$/.test(probeName) ? `probe${parseInt(probeName) + 1}` : probeName;
         
         if (probe.attributes) {
           Object.entries(probe.attributes).forEach(([key, value]) => {
@@ -944,7 +944,7 @@ const DesignWorkflow: React.FC = () => {
       // 添加探针部分属性
       const partFields: SortField[] = [];
       Object.entries(selectedCustomType.probes).forEach(([probeName, probe]) => {
-        const formattedProbeName = /^\d+$/.test(probeName) ? `probe_${parseInt(probeName) + 1}` : probeName;
+        const formattedProbeName = /^\d+$/.test(probeName) ? `probe${parseInt(probeName) + 1}` : probeName;
         
         if (probe.parts) {
           Object.entries(probe.parts).forEach(([partName, part]) => {
@@ -1035,7 +1035,7 @@ const DesignWorkflow: React.FC = () => {
     
     const filtered: any = {};
     for (const [key, value] of Object.entries(obj)) {
-      if (key !== 'attributes' && key !== 'target_sequence') {
+      if (key !== 'attributes' && key !== 'target_sequence' && key !== 'barcodes') {
         filtered[key] = removeAttributes(value);
       }
     }
@@ -1125,31 +1125,17 @@ const DesignWorkflow: React.FC = () => {
   };
 
   const generateTaskConfig = () => {
-    // Generate probe name based on custom type or probe type
     const probeName = selectedCustomType?.name || probeType;
     
-    // Start with basic configuration
+    // 基础配置 - 按期望格式顺序排列
     const config: any = {
       name: probeName.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_'),
       description: `Protocol for designing ${probeName} probes from species ${species}`,
       genome: species,
-      extracts: {
-        target_region: {
-          source: selectedCustomType?.targetConfig?.source || 
-                  (probeType === 'RCA' ? 'exon' : 
-                   probeType === 'DNA-FISH' ? 'genome' : 'exon'),
-          length: minLength,
-          overlap: overlap
-        }
-      }
+      targets: targetList.map(item => item.target).filter(target => target.trim() !== '')
     };
 
-    // Add unified target input data
-    const targetSamples = targetList.map(item => item.target).filter(target => target.trim() !== '');
-    config.targets = targetSamples;
-    config.samples = targetSamples; // Keep for compatibility
-    
-    // Generate encoding section for targets (转换为BC1, BC2格式)
+    // 编码配置 (条码映射)
     const targetEncoding: any = {};
     targetList.forEach(item => {
       if (item.target.trim() !== '' && selectedCustomType?.barcodeCount) {
@@ -1170,35 +1156,54 @@ const DesignWorkflow: React.FC = () => {
       config.encoding = targetEncoding;
     }
 
+    // 提取配置
+    config.extracts = {
+      target_region: {
+        source: selectedCustomType?.targetConfig?.source || 
+                (probeType === 'RCA' ? 'exon' : 
+                 probeType === 'DNA-FISH' ? 'genome' : 'exon'),
+        length: minLength,
+        overlap: overlap
+      }
+    };
+    
     // Add custom probe type parameters if selected (probes section - 倒数第三)
     if (selectedCustomType) {
-      // Extract probes section from yamlContent，只提取实际的探针配置
+      // Extract only the actual probe configurations from yamlContent
       const yamlContent = selectedCustomType.yamlContent;
       const yamlObj = YAML.parse(yamlContent);
-      const cleanedYamlObj = removeAttributes(yamlObj);
       
-      // Remove the top-level 'probes' key if it exists
-      if (cleanedYamlObj.probes === null) {
-        delete cleanedYamlObj.probes;
+      // Find the probes section and extract only probe configurations (probe_1, probe_2, etc.)
+      let probesConfig: any = {};
+      
+      if (yamlObj.probes) {
+        // Extract probe configurations from the probes section
+        Object.entries(yamlObj.probes).forEach(([key, value]) => {
+          // Only include actual probe configurations (probe_1, probe_2, etc.), skip barcodes and other configs
+          if (key.startsWith('probe_') || /^probe\d+$/.test(key)) {
+            probesConfig[key] = removeAttributes(value);
+          }
+        });
+      } else {
+        // If no probes section, look for probe configurations at the top level
+        Object.entries(yamlObj).forEach(([key, value]) => {
+          if (key.startsWith('probe_') || /^probe\d+$/.test(key)) {
+            probesConfig[key] = removeAttributes(value);
+          }
+        });
       }
       
-      // Convert to YAML string and clean up formatting
-      let probesYaml = YAML.stringify(cleanedYamlObj);
-      // Remove any trailing newlines
-      probesYaml = probesYaml.trim();
-      // Remove the '---\n' prefix if it exists
-      probesYaml = probesYaml.replace(/^---\n/, '');
-
-      // Parse the probes YAML back into an object
-      const probesObj = YAML.parse(probesYaml);
-      config.probes = probesObj;
+      // Only add probes config if we found actual probe configurations
+      if (Object.keys(probesConfig).length > 0) {
+        config.probes = probesConfig;
+      }
     }
 
-    // Add attributes section (倒数第二) - 生成扁平化的attributes格式
+    // 属性配置 - 使用期望的命名格式
     if (selectedCustomType) {
       const attributes: any = {};
       
-      // 处理target_region属性
+      // 目标区域属性
       if (selectedCustomType.targetConfig?.attributes) {
         Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
           if (attrValue.enabled) {
@@ -1208,12 +1213,20 @@ const DesignWorkflow: React.FC = () => {
               type: getAttributeType(attrName)
             };
             
-            // 添加特定参数
             if (attrValue.aligner) {
               attr.aligner = attrValue.aligner.toLowerCase();
             }
-            if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'kmerCount' || attrName === 'mappedSites')) {
-              attr.min_mapq = 30; // 默认值
+            if (attrValue.aligner && (attrName === 'mappedGenes')) {
+              attr.min_mapq = 30;
+            }
+            if (attrValue.aligner && (attrName === 'mappedSites')) {
+              attr.aligner = attrValue.aligner;
+            }
+            // 添加特定属性参数
+            if (attrName === 'kmerCount' && attrValue.kmer_len) {
+              attr.kmer_len = attrValue.kmer_len;
+              attr.threads = 10;
+              attr.size = '1G';
             }
             
             attributes[attributeKey] = attr;
@@ -1221,28 +1234,35 @@ const DesignWorkflow: React.FC = () => {
         });
       }
       
-      // 处理probe属性
+      // 探针属性 - 使用期望的命名格式 (probe1 而不是 probe_1)
       if (selectedCustomType.probes) {
         Object.entries(selectedCustomType.probes).forEach(([probeName, probeConfig]) => {
-          // 统一probe命名格式
-          const formattedProbeName = /^\d+$/.test(probeName) ? `probe_${parseInt(probeName) + 1}` : probeName;
+          const formattedProbeName = /^\d+$/.test(probeName) ? `probe${parseInt(probeName) + 1}` : probeName;
           
-          // 处理probe级别属性
+          // 探针级别属性
           if (probeConfig.attributes) {
             Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
               if (attrValue.enabled) {
                 const attributeKey = `${formattedProbeName}_${attrName}`;
                 const attr: any = {
-                  target: formattedProbeName,
+                  target: formattedProbeName.replace(/probe(\d+)/, 'probe_$1'), // 在target中使用probe_1格式
                   type: getAttributeType(attrName)
                 };
                 
-                // 添加特定参数
                 if (attrValue.aligner) {
                   attr.aligner = attrValue.aligner.toLowerCase();
                 }
-                if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'kmerCount' || attrName === 'mappedSites')) {
-                  attr.min_mapq = 30; // 默认值
+                if (attrValue.aligner && (attrName === 'mappedGenes')) {
+                  attr.min_mapq = 30;
+                }
+                if (attrValue.aligner && (attrName === 'mappedSites')) {
+                  attr.aligner = 'bowtie2';
+                }
+                if (attrName === 'kmerCount' && attrValue.kmer_len) {
+                  attr.aligner = 'jellyfish';
+                  attr.kmer_len = attrValue.kmer_len;
+                  attr.threads = 10;
+                  attr.size = '1G';
                 }
                 
                 attributes[attributeKey] = attr;
@@ -1250,10 +1270,9 @@ const DesignWorkflow: React.FC = () => {
             });
           }
           
-          // 处理part级别属性
+          // 部件级别属性 - 使用点号分隔符
           if (probeConfig.parts) {
             Object.entries(probeConfig.parts).forEach(([partName, partConfig]) => {
-              // 统一part命名格式
               const formattedPartName = /^\d+$/.test(partName) ? `part${parseInt(partName) + 1}` : partName;
               
               if (partConfig.attributes) {
@@ -1261,16 +1280,23 @@ const DesignWorkflow: React.FC = () => {
                   if (attrValue.enabled) {
                     const attributeKey = `${formattedProbeName}_${formattedPartName}_${attrName}`;
                     const attr: any = {
-                      target: `${formattedProbeName}:${formattedPartName}`,
+                      target: `${formattedProbeName.replace(/probe(\d+)/, 'probe_$1')}.${formattedPartName}`, // 使用点号分隔
                       type: getAttributeType(attrName)
                     };
                     
-                    // 添加特定参数
                     if (attrValue.aligner) {
                       attr.aligner = attrValue.aligner.toLowerCase();
                     }
-                    if (attrValue.aligner && (attrName === 'mappedGenes' || attrName === 'kmerCount' || attrName === 'mappedSites')) {
-                      attr.min_mapq = 30; // 默认值
+                    if (attrValue.aligner && (attrName === 'mappedGenes')) {
+                      attr.min_mapq = 30;
+                    }
+                    if (attrValue.aligner && (attrName === 'mappedSites')) {
+                      attr.aligner = attrValue.aligner;
+                    }
+                    if (attrName === 'kmerCount' && attrValue.kmer_len) {
+                      attr.kmer_len = attrValue.kmer_len;
+                      attr.threads = 10;
+                      attr.size = '1G';
                     }
                     
                     attributes[attributeKey] = attr;
@@ -1287,14 +1313,14 @@ const DesignWorkflow: React.FC = () => {
       }
     }
 
-    // Add post processing section (order: filters, avoid_otp, equal_space, remove_overlap, sorts)
+    // 后处理配置
     const post_process: any = {};
     
-    // 1. Basic Filtering
+    // 1. 过滤器
     if (enableBasicFilter && selectedCustomType) {
       const filters: any = {};
       
-      // Process target_region attributes
+      // 目标区域过滤
       if (selectedCustomType.targetConfig?.attributes) {
         Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
           if (attrValue.enabled) {
@@ -1302,22 +1328,16 @@ const DesignWorkflow: React.FC = () => {
             let condition = '';
             
             if (attrName === 'gcContent' || attrName === 'tm') {
-              // GC content and temperature are usually represented as percentages, need to divide by 100
               if (attrValue.min !== undefined && attrValue.max !== undefined) {
                 condition = `${filterName} >= ${attrValue.min/100} & ${filterName} <= ${attrValue.max/100}`;
               } else if (attrValue.max !== undefined) {
                 condition = `${filterName} <= ${attrValue.max/100}`;
-              } else if (attrValue.threshold !== undefined) {
-                condition = `${filterName} >= ${attrValue.threshold/100}`;
               }
             } else {
-              // Other attributes use values directly
               if (attrValue.min !== undefined && attrValue.max !== undefined) {
                 condition = `${filterName} >= ${attrValue.min} & ${filterName} <= ${attrValue.max}`;
               } else if (attrValue.max !== undefined) {
                 condition = `${filterName} <= ${attrValue.max}`;
-              } else if (attrValue.threshold !== undefined) {
-                condition = `${filterName} >= ${attrValue.threshold}`;
               }
             }
             
@@ -1328,13 +1348,11 @@ const DesignWorkflow: React.FC = () => {
         });
       }
       
-      // Process probe attributes
+      // 探针和部件过滤 - 使用期望的命名格式
       if (selectedCustomType.probes) {
         Object.entries(selectedCustomType.probes).forEach(([probeName, probeConfig]) => {
-          // Standardize probe naming format
-          const formattedProbeName = /^\d+$/.test(probeName) ? `probe_${parseInt(probeName) + 1}` : probeName;
+          const formattedProbeName = /^\d+$/.test(probeName) ? `probe${parseInt(probeName) + 1}` : probeName;
           
-          // Process probe-level attributes
           if (probeConfig.attributes) {
             Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
               if (attrValue.enabled) {
@@ -1342,22 +1360,16 @@ const DesignWorkflow: React.FC = () => {
                 let condition = '';
                 
                 if (attrName === 'gcContent' || attrName === 'tm') {
-                  // GC content and temperature are usually represented as percentages, need to divide by 100
                   if (attrValue.min !== undefined && attrValue.max !== undefined) {
                     condition = `${filterName} >= ${attrValue.min/100} & ${filterName} <= ${attrValue.max/100}`;
                   } else if (attrValue.max !== undefined) {
                     condition = `${filterName} <= ${attrValue.max/100}`;
-                  } else if (attrValue.threshold !== undefined) {
-                    condition = `${filterName} >= ${attrValue.threshold/100}`;
                   }
                 } else {
-                  // Other attributes use values directly
                   if (attrValue.min !== undefined && attrValue.max !== undefined) {
                     condition = `${filterName} >= ${attrValue.min} & ${filterName} <= ${attrValue.max}`;
                   } else if (attrValue.max !== undefined) {
                     condition = `${filterName} <= ${attrValue.max}`;
-                  } else if (attrValue.threshold !== undefined) {
-                    condition = `${filterName} >= ${attrValue.threshold}`;
                   }
                 }
                 
@@ -1368,10 +1380,8 @@ const DesignWorkflow: React.FC = () => {
             });
           }
           
-          // Process part-level attributes
           if (probeConfig.parts) {
             Object.entries(probeConfig.parts).forEach(([partName, partConfig]) => {
-              // Standardize part naming format
               const formattedPartName = /^\d+$/.test(partName) ? `part${parseInt(partName) + 1}` : partName;
               
               if (partConfig.attributes) {
@@ -1381,22 +1391,16 @@ const DesignWorkflow: React.FC = () => {
                     let condition = '';
                     
                     if (attrName === 'gcContent' || attrName === 'tm') {
-                      // GC content and temperature are usually represented as percentages
                       if (attrValue.min !== undefined && attrValue.max !== undefined) {
-                        condition = `${filterName} >= ${attrValue.min} & ${filterName} <= ${attrValue.max}`;
+                        condition = `${filterName} >= ${attrValue.min/100} & ${filterName} <= ${attrValue.max/100}`;
                       } else if (attrValue.max !== undefined) {
-                        condition = `${filterName} <= ${attrValue.max}`;
-                      } else if (attrValue.threshold !== undefined) {
-                        condition = `${filterName} >= ${attrValue.threshold}`;
+                        condition = `${filterName} <= ${attrValue.max/100}`;
                       }
                     } else {
-                      // Other attributes use values directly
                       if (attrValue.min !== undefined && attrValue.max !== undefined) {
                         condition = `${filterName} >= ${attrValue.min} & ${filterName} <= ${attrValue.max}`;
                       } else if (attrValue.max !== undefined) {
                         condition = `${filterName} <= ${attrValue.max}`;
-                      } else if (attrValue.threshold !== undefined) {
-                        condition = `${filterName} >= ${attrValue.threshold}`;
                       }
                     }
                     
@@ -1416,24 +1420,31 @@ const DesignWorkflow: React.FC = () => {
       }
     }
     
-    // 2. Avoid OTP
+    // 2. 避免脱靶 - 修改为数组格式
     if (enableAvoidOtp && Object.keys(avoidOtpConfig).length > 0) {
-      post_process.avoid_otp = avoidOtpConfig;
+      const avoid_otp: any = {};
+      Object.entries(avoidOtpConfig).forEach(([target, config]) => {
+        avoid_otp[target] = {
+          target_regions: [config.target_regions], // 转换为数组格式
+          density_thresh: config.density_thresh
+        };
+      });
+      post_process.avoid_otp = avoid_otp;
     }
     
-    // 3. Equal Space
+    // 3. 等距分布
     if (enableEqualSpace && Object.keys(equalSpaceConfig).length > 0) {
       post_process.equal_space = equalSpaceConfig;
     }
     
-    // 4. Remove Overlap
+    // 4. 移除重叠
     if (enableRemoveOverlap) {
       post_process.remove_overlap = {
         location_interval: overlapThreshold
       };
     }
     
-    // 5. Sorting (last step)
+    // 5. 排序
     if (enableSorting && sortOptions.length > 0) {
       const ascFields = sortOptions.filter(opt => opt.order === 'asc').map(opt => opt.field);
       const descFields = sortOptions.filter(opt => opt.order === 'desc').map(opt => opt.field);
@@ -1446,6 +1457,9 @@ const DesignWorkflow: React.FC = () => {
     }
     
     config.post_process = post_process;
+
+    // 添加报告配置
+    config.report = ['base_info'];
 
     return config;
   };
@@ -2779,14 +2793,15 @@ const DesignWorkflow: React.FC = () => {
                     <InputLabel>Aligner</InputLabel>
                     <Select
                       value={editingAttribute?.aligner || 'BLAST'}
-                      onChange={(e) => setEditingAttribute(prev => prev ? {
+                      onChange={(e) =>                       setEditingAttribute(prev => prev ? {
                         ...prev,
-                        aligner: e.target.value as 'BLAST' | 'Bowtie2' | 'MMseqs2'
+                        aligner: e.target.value as 'blast' | 'bowtie2' | 'mmseqs2' | 'jellyfish'
                       } : null)}
                     >
-                      <MenuItem value="BLAST">BLAST</MenuItem>
-                      <MenuItem value="Bowtie2">Bowtie2</MenuItem>
-                      <MenuItem value="MMseqs2">MMseqs2</MenuItem>
+                      <MenuItem value="blast">BLAST</MenuItem>
+                      <MenuItem value="bowtie2">Bowtie2</MenuItem>
+                      <MenuItem value="mmseqs2">MMseqs2</MenuItem>
+                      <MenuItem value="jellyfish">Jellyfish</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
