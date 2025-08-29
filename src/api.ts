@@ -2,7 +2,7 @@ import axios from 'axios';
 import { ApiResponse, PaginatedResponse } from './types';
 import { AUTH_CONFIG } from './utils';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8123';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:53252';
 
 // 创建 axios 实例
 const api = axios.create({
@@ -288,8 +288,28 @@ class ApiService {
     return api.delete(`/task/${taskId}`);
   }
 
-  static async downloadTaskResult(taskId: string): Promise<ApiResponse<any>> {
-    return api.get(`/task/${taskId}/download`);
+  static async downloadTaskResult(taskId: string): Promise<Blob> {
+    const response = await axios.get(`${API_BASE_URL}/task/${taskId}/download`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      },
+      responseType: 'blob'
+    });
+    return response.data;
+  }
+
+  static async getTaskFiles(taskId: string): Promise<ApiResponse<{ files: any[] }>> {
+    return api.get(`/task/${taskId}/files`);
+  }
+
+  static async downloadTaskFile(taskId: string, filename: string): Promise<Blob> {
+    const response = await axios.get(`${API_BASE_URL}/task/${taskId}/file/${filename}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      },
+      responseType: 'blob'
+    });
+    return response.data;
   }
 
   // 保留job相关方法以向后兼容
