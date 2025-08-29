@@ -82,9 +82,9 @@ export const getAxiosInstance = (serverAddr: string) => {
 
 // Authentication and token management utilities
 export const AUTH_CONFIG = {
-  // Token expiration time in milliseconds (30 minutes)
-  TOKEN_EXPIRY_DURATION: 0.5 * 60 * 60 * 1000,
-  // Warning time before expiration (30 minutes)
+  // Token expiration time in milliseconds (7 days)
+  TOKEN_EXPIRY_DURATION: 7 * 24 * 60 * 60 * 1000,
+  // Warning time before expiration (no longer used for popup)
   EXPIRY_WARNING_DURATION: 20 * 60 * 1000,
 };
 
