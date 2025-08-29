@@ -33,7 +33,6 @@ import TutorialIcon from '@mui/icons-material/HelpOutline';
 
 import theme from './theme';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import TokenExpirationWarning from './components/common/TokenExpirationWarning';
 
 // Navigation items configuration
 const navItems = [
@@ -367,7 +366,6 @@ function App() {
           </Route>
         </Routes>
       </Box>
-      <TokenExpirationWarning />
     </Box>
   );
 }
