@@ -11,8 +11,7 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemSecondaryAction,
-  ListItemButton,
+
   IconButton,
   Dialog,
   DialogTitle,
@@ -34,6 +33,10 @@ import {
   InputLabel,
   InputAdornment,
   OutlinedInput,
+  Chip,
+  Stack,
+  LinearProgress,
+  Menu,
 } from '@mui/material';
 import {
   Folder as FolderIcon,
@@ -44,11 +47,13 @@ import {
   Delete as DeleteIcon,
   CreateNewFolder as CreateFolderIcon,
   Refresh as RefreshIcon,
-  Visibility as ViewIcon,
   Home as HomeIcon,
   NavigateNext as NavigateNextIcon,
   Search as SearchIcon,
-  FolderDelete as FolderDeleteIcon,
+
+  CloudUpload as CloudUploadIcon,
+  FolderOpen as FolderOpenIcon,
+  ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
 import { useGenomeData } from '../hooks/useGenomeData';
 import { useNotification } from '../hooks/useNotification';
@@ -59,6 +64,12 @@ interface FileItem {
   size?: number;
   modified?: string;
   path: string;
+  fullPath: string;
+  isDirectory?: boolean;
+  extension?: string;
+  children?: FileItem[];
+  isPreset?: boolean;
+  canDelete?: boolean;
 }
 
 interface GenomeItem {
@@ -83,6 +94,7 @@ const Genome: React.FC = () => {
     uploadGenomeFile,
     deleteGenomeFile,
     downloadGenomeFile,
+    getFileMetadata,
     addGenome,
     deleteGenome,
   } = useGenomeData();
@@ -102,6 +114,12 @@ const Genome: React.FC = () => {
   const [showDeleteGenomeDialog, setShowDeleteGenomeDialog] = useState(false);
   const [genomeToDelete, setGenomeToDelete] = useState<string>('');
   const [genomeList, setGenomeList] = useState<GenomeItem[]>([]);
+  const [showCreateFolderDialog, setShowCreateFolderDialog] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [sortBy] = useState<'name' | 'size' | 'modified'>('name');
+  const [sortOrder] = useState<'asc' | 'desc'>('asc');
+  const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number; item?: FileItem } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Load genomes on component mount
   useEffect(() => {
@@ -151,20 +169,143 @@ const Genome: React.FC = () => {
     }
   }, [selectedGenome, fetchGenomeFiles]);
 
-  // Convert API files to FileItem format
+  // Convert API files to FileItem format with folder structure
   useEffect(() => {
-    if (genomeFiles) {
-      const items: FileItem[] = genomeFiles.map(file => ({
-        name: file,
-        type: 'file',
-        size: 0,
-        modified: new Date().toISOString(),
-        path: currentPath.length > 0 ? `${currentPath.join('/')}/${file}` : file,
-      }));
-      setFileItems(items);
-      setFilteredItems(items);
+    if (genomeFiles && selectedGenome) {
+      buildFileStructureWithMetadata(genomeFiles, currentPath, selectedGenome);
     }
-  }, [genomeFiles, currentPath]);
+  }, [genomeFiles, currentPath, selectedGenome]);
+
+  // Build file structure with metadata
+  const buildFileStructureWithMetadata = async (files: string[], currentPath: string[], genomeName: string) => {
+    const items = buildFileStructure(files, currentPath);
+    
+    // 获取每个文件的元数据
+    const itemsWithMetadata = await Promise.all(
+      items.map(async (item) => {
+        if (item.type === 'file') {
+          const metadata = await getFileMetadata(genomeName, item.fullPath);
+          if (metadata) {
+            return {
+              ...item,
+              size: metadata.size,
+              modified: metadata.modified,
+              isPreset: metadata.is_preset,
+              canDelete: metadata.can_delete
+            };
+          }
+        }
+        return item;
+      })
+    );
+    
+    setFileItems(itemsWithMetadata);
+    setFilteredItems(itemsWithMetadata);
+  };
+
+  // Build hierarchical file structure
+  const buildFileStructure = (files: string[], currentPath: string[]): FileItem[] => {
+    const currentPathStr = currentPath.join('/');
+    const items: FileItem[] = [];
+    const folders = new Set<string>();
+    
+    files.forEach(file => {
+      const parts = file.split('/');
+      
+      if (currentPath.length === 0) {
+        // Root level
+        if (parts.length === 1) {
+          // File in root
+          items.push({
+            name: file,
+            type: 'file',
+            size: 0,
+            modified: new Date().toISOString(),
+            path: file,
+            fullPath: file,
+            extension: getFileExtension(file)
+          });
+        } else {
+          // File in subfolder, add folder if not exists
+          const folderName = parts[0];
+          if (!folders.has(folderName)) {
+            folders.add(folderName);
+            items.push({
+              name: folderName,
+              type: 'folder',
+              path: folderName,
+              fullPath: folderName,
+              isDirectory: true
+            });
+          }
+        }
+      } else {
+        // In subfolder
+        if (file.startsWith(currentPathStr + '/')) {
+          const relativePath = file.substring(currentPathStr.length + 1);
+          const relativeParts = relativePath.split('/');
+          
+          if (relativeParts.length === 1) {
+            // Direct file in current folder
+            items.push({
+              name: relativePath,
+              type: 'file',
+              size: 0,
+              modified: new Date().toISOString(),
+              path: relativePath,
+              fullPath: file,
+              extension: getFileExtension(relativePath)
+            });
+          } else {
+            // File in subfolder
+            const folderName = relativeParts[0];
+            if (!folders.has(folderName)) {
+              folders.add(folderName);
+              items.push({
+                name: folderName,
+                type: 'folder',
+                path: folderName,
+                fullPath: currentPathStr + '/' + folderName,
+                isDirectory: true
+              });
+            }
+          }
+        }
+      }
+    });
+    
+    return sortItems(items);
+  };
+
+
+
+  const getFileExtension = (fileName: string): string => {
+    return fileName.split('.').pop()?.toLowerCase() || '';
+  };
+
+  const sortItems = (items: FileItem[]): FileItem[] => {
+    return [...items].sort((a, b) => {
+      // Folders first
+      if (a.type !== b.type) {
+        return a.type === 'folder' ? -1 : 1;
+      }
+      
+      let comparison = 0;
+      switch (sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'size':
+          comparison = (a.size || 0) - (b.size || 0);
+          break;
+        case 'modified':
+          comparison = new Date(a.modified || 0).getTime() - new Date(b.modified || 0).getTime();
+          break;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  };
 
   const handleGenomeSelect = (genomeName: string) => {
     setSelectedGenome(genomeName);
@@ -181,6 +322,39 @@ const Genome: React.FC = () => {
     setSelectedFiles(newSelected);
   };
 
+  const handleFolderClick = (folderName: string) => {
+    const newPath = [...currentPath, folderName];
+    setCurrentPath(newPath);
+    setSelectedFiles(new Set());
+  };
+
+  const handleNavigateUp = () => {
+    if (currentPath.length > 0) {
+      const newPath = currentPath.slice(0, -1);
+      setCurrentPath(newPath);
+      setSelectedFiles(new Set());
+    }
+  };
+
+  const handleBreadcrumbClick = (index: number) => {
+    const newPath = currentPath.slice(0, index + 1);
+    setCurrentPath(newPath);
+    setSelectedFiles(new Set());
+  };
+
+  const handleContextMenu = (event: React.MouseEvent, item?: FileItem) => {
+    event.preventDefault();
+    setContextMenu({
+      mouseX: event.clientX - 2,
+      mouseY: event.clientY - 4,
+      item
+    });
+  };
+
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
   const handleFileDownload = async (fileName: string) => {
     if (!selectedGenome) return;
     try {
@@ -192,12 +366,24 @@ const Genome: React.FC = () => {
 
   const handleFileDelete = async (fileName: string) => {
     if (!selectedGenome) return;
+    
+    // 检查文件权限
+    const item = fileItems.find(f => f.fullPath === fileName);
+    if (item && item.isPreset) {
+      showNotification('Cannot delete preset files', 'error');
+      return;
+    }
+    
     try {
       await deleteGenomeFile(selectedGenome, fileName);
       showNotification('File deleted successfully', 'success');
       fetchGenomeFiles(selectedGenome); // Refresh the file list
-    } catch (error) {
-      showNotification('Failed to delete file', 'error');
+    } catch (error: any) {
+      if (error.response?.status === 403) {
+        showNotification('Cannot delete preset files', 'error');
+      } else {
+        showNotification('Failed to delete file', 'error');
+      }
     }
   };
 
@@ -244,21 +430,55 @@ const Genome: React.FC = () => {
     }
   };
 
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim() || !selectedGenome) return;
+    
+    try {
+      // Create a placeholder file in the folder to ensure it exists
+      const folderPath = currentPath.length > 0 
+        ? `${currentPath.join('/')}/${newFolderName.trim()}` 
+        : newFolderName.trim();
+      
+      const placeholderFile = new File([''], `${folderPath}/.gitkeep`, { type: 'text/plain' });
+      await uploadGenomeFile(selectedGenome, placeholderFile);
+      
+      setShowCreateFolderDialog(false);
+      setNewFolderName('');
+      showNotification('Folder created successfully', 'success');
+      fetchGenomeFiles(selectedGenome);
+    } catch (error) {
+      showNotification('Failed to create folder', 'error');
+    }
+  };
+
   const handleFileUpload = async () => {
     if (!selectedGenome || uploadFiles.length === 0) return;
     
+    setIsUploading(true);
     try {
       for (const file of uploadFiles) {
         setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
-        await uploadGenomeFile(selectedGenome, file);
+        
+        // Handle folder structure in file path
+        let uploadFile = file;
+        if (currentPath.length > 0) {
+          const folderPath = currentPath.join('/');
+          const newFileName = `${folderPath}/${file.name}`;
+          uploadFile = new File([file], newFileName, { type: file.type });
+        }
+        
+        await uploadGenomeFile(selectedGenome, uploadFile);
         setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
       }
       setShowUploadDialog(false);
       setUploadFiles([]);
       setUploadProgress({});
       showNotification('Files uploaded successfully', 'success');
+      fetchGenomeFiles(selectedGenome);
     } catch (error) {
       showNotification('Failed to upload files', 'error');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -272,28 +492,18 @@ const Genome: React.FC = () => {
     setUploadFiles(prev => [...prev, ...files]);
   };
 
-  const getFileIcon = (fileName: string) => {
-    const extension = fileName.split('.').pop()?.toLowerCase();
-    switch (extension) {
-      case 'fasta':
-      case 'fa':
-        return '🧬';
-      case 'fastq':
-      case 'fq':
-        return '📊';
-      case 'bam':
-        return '📈';
-      case 'vcf':
-        return '🔍';
-      case 'gtf':
-      case 'gff':
-        return '📋';
-      case 'txt':
-        return '📄';
-      default:
-        return '📁';
-    }
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault();
   };
+
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    const files = Array.from(event.dataTransfer.files);
+    setUploadFiles(files);
+    setShowUploadDialog(true);
+  };
+
+
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -415,167 +625,511 @@ const Genome: React.FC = () => {
               {selectedGenome ? (
                 <>
                   {/* Header with breadcrumbs and actions */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />}>
-                        <Link
-                          component="button"
-                          variant="body2"
-                          onClick={() => setCurrentPath([])}
-                          sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-                        >
-                          <HomeIcon fontSize="small" />
-                          {selectedGenome}
-                        </Link>
-                        {currentPath.map((path, index) => (
+                  <Box sx={{ mb: 2 }}>
+                    {/* Navigation and Path */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                        {currentPath.length > 0 && (
+                          <Tooltip title="Back">
+                            <IconButton size="small" onClick={handleNavigateUp}>
+                              <ArrowBackIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ flex: 1 }}>
                           <Link
-                            key={index}
                             component="button"
                             variant="body2"
-                            onClick={() => setCurrentPath(currentPath.slice(0, index + 1))}
+                            onClick={() => setCurrentPath([])}
+                            sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
                           >
-                            {path}
+                            <HomeIcon fontSize="small" />
+                            {selectedGenome}
                           </Link>
-                        ))}
-                      </Breadcrumbs>
+                          {currentPath.map((path, index) => (
+                            <Link
+                              key={index}
+                              component="button"
+                              variant="body2"
+                              onClick={() => handleBreadcrumbClick(index)}
+                            >
+                              {path}
+                            </Link>
+                          ))}
+                        </Breadcrumbs>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Tooltip title="Refresh">
+                          <IconButton size="small" onClick={() => fetchGenomeFiles(selectedGenome)}>
+                            <RefreshIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     </Box>
-                    
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Tooltip title="Refresh">
-                        <IconButton size="small" onClick={() => fetchGenomeFiles(selectedGenome)}>
-                          <RefreshIcon />
-                        </IconButton>
-                      </Tooltip>
+
+                    {/* Action Buttons */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<CreateFolderIcon />}
+                          onClick={() => setShowCreateFolderDialog(true)}
+                        >
+                          New Folder
+                        </Button>
+                        {selectedFiles.size > 0 && (
+                          <>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<DownloadIcon />}
+                              onClick={() => {
+                                selectedFiles.forEach(fileName => {
+                                  const item = fileItems.find(f => f.name === fileName);
+                                  if (item && item.type === 'file') {
+                                    handleFileDownload(item.fullPath);
+                                  }
+                                });
+                              }}
+                            >
+                              Download ({selectedFiles.size})
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<DeleteIcon />}
+                              color="error"
+                              onClick={() => {
+                                if (window.confirm(`Delete ${selectedFiles.size} selected items?`)) {
+                                  selectedFiles.forEach(fileName => {
+                                    const item = fileItems.find(f => f.name === fileName);
+                                    if (item) {
+                                      if (item.type === 'file') {
+                                        handleFileDelete(item.fullPath);
+                                      } else {
+                                        handleFolderDelete(item.fullPath);
+                                      }
+                                    }
+                                  });
+                                  setSelectedFiles(new Set());
+                                }
+                              }}
+                            >
+                              Delete ({selectedFiles.size})
+                            </Button>
+                          </>
+                        )}
+                      </Box>
+                      
+                      {/* Upload Button on the right */}
                       <Button
                         variant="contained"
                         size="small"
-                        startIcon={<UploadIcon />}
+                        startIcon={<CloudUploadIcon />}
                         onClick={() => setShowUploadDialog(true)}
+                        disabled={isUploading}
+                        sx={{ 
+                          minWidth: 120,
+                          fontWeight: 600
+                        }}
                       >
-                        Upload
+                        Upload Files
                       </Button>
+                    </Box>
+                    
+                    {/* File Stats */}
+                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          {fileItems.filter(f => f.type === 'folder').length} folders, {fileItems.filter(f => f.type === 'file').length} files
+                        </Typography>
+                        {selectedFiles.size > 0 && (
+                          <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
+                            {selectedFiles.size} selected
+                          </Typography>
+                        )}
+                      </Box>
+                      
+                      {/* Quick Tips */}
+                      <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                        💡 Tip: Right-click for more options
+                      </Typography>
                     </Box>
                   </Box>
 
                   <Divider sx={{ mb: 2 }} />
 
                   {/* File List */}
-                  {isLoading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                      <CircularProgress />
-                    </Box>
-                  ) : (searchQuery ? filteredItems : fileItems).length > 0 ? (
-                    <List>
-                      {(searchQuery ? filteredItems : fileItems).map((item) => (
-                        <ListItem
-                          key={item.name}
-                          sx={{
-                            borderRadius: 1,
-                            mb: 0.5,
-                            '& .MuiListItemButton-root': {
-                              '&.Mui-selected': {
-                                backgroundColor: theme.palette.action.selected,
-                              },
-                            },
+                  <Box 
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                    onContextMenu={(e) => handleContextMenu(e)}
+                    sx={{ 
+                      minHeight: 300,
+                      border: '2px dashed transparent',
+                      borderRadius: 1,
+                      transition: 'border-color 0.2s',
+                      '&:hover': {
+                        borderColor: theme.palette.primary.light,
+                      }
+                    }}
+                  >
+                    {isLoading ? (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4 }}>
+                        <CircularProgress />
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                          Loading files...
+                        </Typography>
+                      </Box>
+                    ) : (searchQuery ? filteredItems : fileItems).length > 0 ? (
+                      <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                        {/* Table Header */}
+                        <Box 
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            px: 2,
+                            py: 1,
+                            bgcolor: 'grey.50',
+                            borderBottom: '1px solid',
+                            borderColor: 'divider',
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            color: 'text.secondary'
                           }}
                         >
-                          <ListItemButton
-                            selected={selectedFiles.has(item.name)}
-                            onClick={() => handleFileSelect(item.name)}
-                            sx={{ borderRadius: 1 }}
-                          >
-                            <ListItemIcon>
-                              <Typography variant="h6" sx={{ fontSize: '1.2rem' }}>
-                                {item.type === 'folder' ? '📁' : getFileIcon(item.name)}
-                              </Typography>
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={item.name}
-                              secondary={
-                                <>
-                                  {item.type === 'folder' ? 'Folder' : (item.size ? formatFileSize(item.size) : '')}
-                                  {item.modified && ` • ${new Date(item.modified).toLocaleDateString()}`}
-                                </>
+                          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              Name
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              (Click to select, double-click folder to open)
+                            </Typography>
+                          </Box>
+                          <Box sx={{ width: 120, textAlign: 'center' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              Size
+                            </Typography>
+                          </Box>
+                          <Box sx={{ width: 140, textAlign: 'center' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              Modified
+                            </Typography>
+                          </Box>
+                          <Box sx={{ width: 100, textAlign: 'center' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              Actions
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        {/* File List */}
+                        {(searchQuery ? filteredItems : fileItems).map((item, index) => (
+                          <Box
+                            key={item.name}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              px: 2,
+                              py: 1.5,
+                              borderBottom: index < (searchQuery ? filteredItems : fileItems).length - 1 ? '1px solid' : 'none',
+                              borderColor: 'divider',
+                              cursor: 'pointer',
+                              bgcolor: selectedFiles.has(item.name) ? 'primary.light' : 'transparent',
+                              '&:hover': {
+                                bgcolor: selectedFiles.has(item.name) ? 'primary.light' : 'action.hover',
+                              },
+                              transition: 'background-color 0.2s'
+                            }}
+                            onClick={() => {
+                              if (item.type === 'folder') {
+                                handleFolderClick(item.name);
+                              } else {
+                                handleFileSelect(item.name);
                               }
-                              primaryTypographyProps={{
-                                fontSize: '0.9rem',
-                                fontWeight: 500,
-                              }}
-                            />
-                          </ListItemButton>
-                          <ListItemSecondaryAction>
-                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            }}
+                            onDoubleClick={() => {
+                              if (item.type === 'folder') {
+                                handleFolderClick(item.name);
+                              }
+                            }}
+                            onContextMenu={(e) => handleContextMenu(e, item)}
+                          >
+                            {/* File Name */}
+                            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              {item.type === 'folder' ? (
+                                <FolderIcon sx={{ color: 'primary.main', fontSize: '1.2rem' }} />
+                              ) : (
+                                <FileIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
+                              )}
+                              <Box>
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    fontWeight: item.type === 'folder' ? 600 : 400,
+                                    color: item.type === 'folder' ? 'primary.main' : 'text.primary'
+                                  }}
+                                >
+                                  {item.name}
+                                </Typography>
+                                {item.isPreset && (
+                                  <Chip 
+                                    size="small" 
+                                    label="PRESET"
+                                    color="secondary"
+                                    sx={{ height: 16, fontSize: '0.65rem', mt: 0.5 }}
+                                  />
+                                )}
+                              </Box>
+                            </Box>
+
+                            {/* File Size */}
+                            <Box sx={{ width: 120, textAlign: 'center' }}>
+                              <Typography variant="body2" color="text.secondary">
+                                {item.type === 'folder' ? '—' : (
+                                  item.size ? formatFileSize(item.size) : '—'
+                                )}
+                              </Typography>
+                            </Box>
+
+                            {/* Modified Date */}
+                            <Box sx={{ width: 140, textAlign: 'center' }}>
+                              <Typography variant="body2" color="text.secondary">
+                                {item.modified ? new Date(item.modified).toLocaleDateString() : '—'}
+                              </Typography>
+                            </Box>
+
+                            {/* Actions */}
+                            <Box sx={{ width: 100, display: 'flex', justifyContent: 'center', gap: 0.5 }}>
                               {item.type === 'file' ? (
                                 <>
-                                  <Tooltip title="View">
-                                    <IconButton size="small">
-                                      <ViewIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                  <Tooltip title="Download">
+                                  <Tooltip title="Download file">
                                     <IconButton 
                                       size="small"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleFileDownload(item.name);
+                                        handleFileDownload(item.fullPath);
                                       }}
                                     >
                                       <DownloadIcon fontSize="small" />
                                     </IconButton>
                                   </Tooltip>
+                                  {item.canDelete !== false && (
+                                    <Tooltip title="Delete file">
+                                      <IconButton 
+                                        size="small"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (window.confirm(`Delete ${item.name}?`)) {
+                                            handleFileDelete(item.fullPath);
+                                          }
+                                        }}
+                                        sx={{ color: 'error.main' }}
+                                      >
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
                                 </>
                               ) : (
-                                <Tooltip title="Delete Folder">
-                                  <IconButton 
-                                    size="small"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleFolderDelete(item.path);
-                                    }}
-                                    sx={{ color: theme.palette.error.main }}
-                                  >
-                                    <FolderDeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
+                                <>
+                                  <Tooltip title="Open folder">
+                                    <IconButton 
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleFolderClick(item.name);
+                                      }}
+                                    >
+                                      <FolderOpenIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete folder">
+                                    <IconButton 
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (window.confirm(`Delete folder ${item.name}?`)) {
+                                          handleFolderDelete(item.fullPath);
+                                        }
+                                      }}
+                                      sx={{ color: 'error.main' }}
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </>
                               )}
-                              <Tooltip title="Delete">
-                                <IconButton 
-                                  size="small"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    item.type === 'folder' ? handleFolderDelete(item.path) : handleFileDelete(item.name);
-                                  }}
-                                  sx={{ color: theme.palette.error.main }}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
                             </Box>
-                          </ListItemSecondaryAction>
-                        </ListItem>
-                      ))}
-                    </List>
-                  ) : (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <Typography variant="body1" color="text.secondary" gutterBottom>
-                        {searchQuery 
-                          ? 'No files match your search'
-                          : selectedGenome
-                            ? 'No files found in this genome'
-                            : 'Select a genome to browse files'
-                        }
-                      </Typography>
-                      {selectedGenome && !searchQuery && (
-                        <Button
-                          variant="outlined"
-                          startIcon={<UploadIcon />}
-                          onClick={() => setShowUploadDialog(true)}
-                        >
-                          Upload Files
-                        </Button>
-                      )}
-                    </Box>
-                  )}
+                          </Box>
+                        ))}
+                      </Box>
+                    ) : (
+                      <Box sx={{ 
+                        textAlign: 'center', 
+                        py: 6,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        bgcolor: 'grey.25'
+                      }}>
+                        {searchQuery ? (
+                          <>
+                            <SearchIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                            <Typography variant="h6" color="text.secondary" gutterBottom>
+                              No files match your search
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Try adjusting your search terms or browse all files
+                            </Typography>
+                          </>
+                        ) : selectedGenome ? (
+                          currentPath.length > 0 ? (
+                            <>
+                              <FolderIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                              <Typography variant="h6" color="text.secondary" gutterBottom>
+                                This folder is empty
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                                Upload files to this folder or create subfolders to organize your data
+                              </Typography>
+                              <Stack direction="row" spacing={2} justifyContent="center">
+                                <Button
+                                  variant="contained"
+                                  startIcon={<CloudUploadIcon />}
+                                  onClick={() => setShowUploadDialog(true)}
+                                >
+                                  Upload Files
+                                </Button>
+                                <Button
+                                  variant="outlined"
+                                  startIcon={<CreateFolderIcon />}
+                                  onClick={() => setShowCreateFolderDialog(true)}
+                                >
+                                  Create Folder
+                                </Button>
+                              </Stack>
+                            </>
+                          ) : (
+                            <>
+                              <CloudUploadIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                              <Typography variant="h6" color="text.secondary" gutterBottom>
+                                No files in this genome
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                                Start by uploading genome files (.fa, .fasta, .gtf, etc.) or create folders to organize your data
+                              </Typography>
+                              <Stack direction="row" spacing={2} justifyContent="center">
+                                <Button
+                                  variant="contained"
+                                  startIcon={<CloudUploadIcon />}
+                                  onClick={() => setShowUploadDialog(true)}
+                                >
+                                  Upload Files
+                                </Button>
+                                <Button
+                                  variant="outlined"
+                                  startIcon={<CreateFolderIcon />}
+                                  onClick={() => setShowCreateFolderDialog(true)}
+                                >
+                                  Create Folder
+                                </Button>
+                              </Stack>
+                            </>
+                          )
+                        ) : (
+                          <>
+                            <FolderIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                            <Typography variant="h6" color="text.secondary" gutterBottom>
+                              Select a genome to browse files
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Choose a genome from the dropdown above to view and manage its files
+                            </Typography>
+                          </>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Context Menu */}
+                  <Menu
+                    open={contextMenu !== null}
+                    onClose={handleCloseContextMenu}
+                    anchorReference="anchorPosition"
+                    anchorPosition={
+                      contextMenu !== null
+                        ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+                        : undefined
+                    }
+                  >
+                    {contextMenu?.item ? (
+                      <>
+                        {contextMenu.item.type === 'folder' ? (
+                          <MenuItem key="open" onClick={() => {
+                            handleFolderClick(contextMenu.item!.name);
+                            handleCloseContextMenu();
+                          }}>
+                            <ListItemIcon>
+                              <FolderOpenIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText>Open</ListItemText>
+                          </MenuItem>
+                        ) : (
+                          <MenuItem key="download" onClick={() => {
+                            handleFileDownload(contextMenu.item!.fullPath);
+                            handleCloseContextMenu();
+                          }}>
+                            <ListItemIcon>
+                              <DownloadIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText>Download</ListItemText>
+                          </MenuItem>
+                        )}
+                        {contextMenu.item.canDelete !== false && (
+                          <MenuItem key="delete" onClick={() => {
+                            const item = contextMenu.item!;
+                            if (window.confirm(`Delete ${item.name}?`)) {
+                              if (item.type === 'folder') {
+                                handleFolderDelete(item.fullPath);
+                              } else {
+                                handleFileDelete(item.fullPath);
+                              }
+                            }
+                            handleCloseContextMenu();
+                          }}>
+                            <ListItemIcon>
+                              <DeleteIcon fontSize="small" color="error" />
+                            </ListItemIcon>
+                            <ListItemText>Delete</ListItemText>
+                          </MenuItem>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <MenuItem key="upload" onClick={() => {
+                          setShowUploadDialog(true);
+                          handleCloseContextMenu();
+                        }}>
+                          <ListItemIcon>
+                            <CloudUploadIcon fontSize="small" />
+                          </ListItemIcon>
+                          <ListItemText>Upload Files</ListItemText>
+                        </MenuItem>
+                        <MenuItem key="newfolder" onClick={() => {
+                          setShowCreateFolderDialog(true);
+                          handleCloseContextMenu();
+                        }}>
+                          <ListItemIcon>
+                            <CreateFolderIcon fontSize="small" />
+                          </ListItemIcon>
+                          <ListItemText>New Folder</ListItemText>
+                        </MenuItem>
+                      </>
+                    )}
+                  </Menu>
                 </>
               ) : (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -648,9 +1202,44 @@ const Genome: React.FC = () => {
         </DialogActions>
       </Dialog>
 
+      {/* Create Folder Dialog */}
+      <Dialog open={showCreateFolderDialog} onClose={() => setShowCreateFolderDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New Folder</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Folder Name"
+            fullWidth
+            variant="outlined"
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            placeholder="Enter folder name"
+            helperText={currentPath.length > 0 ? `Will be created in: ${currentPath.join('/')}` : 'Will be created in root directory'}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setShowCreateFolderDialog(false);
+            setNewFolderName('');
+          }}>Cancel</Button>
+          <Button onClick={handleCreateFolder} variant="contained" disabled={!newFolderName.trim()}>
+            Create Folder
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Upload Files Dialog */}
       <Dialog open={showUploadDialog} onClose={() => setShowUploadDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Upload Files to {selectedGenome}</DialogTitle>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CloudUploadIcon />
+            Upload Files to {selectedGenome}
+            {currentPath.length > 0 && (
+              <Chip size="small" label={`/${currentPath.join('/')}`} variant="outlined" />
+            )}
+          </Box>
+        </DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <input
@@ -669,7 +1258,37 @@ const Genome: React.FC = () => {
               onChange={handleFolderUpload}
             />
             
-            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            {/* Upload Area */}
+            <Box 
+              sx={{ 
+                border: '2px dashed',
+                borderColor: 'primary.main',
+                borderRadius: 2,
+                p: 4,
+                textAlign: 'center',
+                bgcolor: 'primary.light',
+                color: 'primary.contrastText',
+                mb: 2,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  bgcolor: 'primary.main',
+                }
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              <CloudUploadIcon sx={{ fontSize: 48, mb: 1 }} />
+              <Typography variant="h6" gutterBottom>
+                Drag & Drop Files Here
+              </Typography>
+              <Typography variant="body2">
+                or click to select files
+              </Typography>
+            </Box>
+            
+            <Box sx={{ display: 'flex', gap: 2, mb: 2, justifyContent: 'center' }}>
               <Button
                 variant="outlined"
                 startIcon={<UploadIcon />}
@@ -688,10 +1307,27 @@ const Genome: React.FC = () => {
 
             {uploadFiles.length > 0 && (
               <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Selected Files ({uploadFiles.length})
-                </Typography>
-                <List dense>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                    Selected Files ({uploadFiles.length})
+                  </Typography>
+                  <Button 
+                    size="small" 
+                    onClick={() => setUploadFiles([])}
+                    startIcon={<DeleteIcon />}
+                  >
+                    Clear All
+                  </Button>
+                </Box>
+                {isUploading && (
+                  <Box sx={{ mb: 2 }}>
+                    <LinearProgress />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                      Uploading files...
+                    </Typography>
+                  </Box>
+                )}
+                <List dense sx={{ maxHeight: 300, overflow: 'auto' }}>
                   {uploadFiles.map((file, index) => (
                     <ListItem key={index}>
                       <ListItemIcon>
@@ -702,7 +1338,12 @@ const Genome: React.FC = () => {
                         secondary={formatFileSize(file.size)}
                       />
                       {uploadProgress[file.name] !== undefined && (
-                        <CircularProgress size={20} variant="determinate" value={uploadProgress[file.name]} />
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CircularProgress size={20} variant="determinate" value={uploadProgress[file.name]} />
+                          <Typography variant="caption">
+                            {uploadProgress[file.name]}%
+                          </Typography>
+                        </Box>
                       )}
                     </ListItem>
                   ))}
@@ -712,13 +1353,18 @@ const Genome: React.FC = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowUploadDialog(false)}>Cancel</Button>
+          <Button onClick={() => {
+            setShowUploadDialog(false);
+            setUploadFiles([]);
+            setUploadProgress({});
+          }}>Cancel</Button>
           <Button 
             onClick={handleFileUpload} 
             variant="contained" 
-            disabled={uploadFiles.length === 0 || isLoading}
+            disabled={uploadFiles.length === 0 || isUploading}
+            startIcon={isUploading ? <CircularProgress size={16} /> : <CloudUploadIcon />}
           >
-            Upload Files
+            {isUploading ? 'Uploading...' : `Upload ${uploadFiles.length} Files`}
           </Button>
         </DialogActions>
       </Dialog>
