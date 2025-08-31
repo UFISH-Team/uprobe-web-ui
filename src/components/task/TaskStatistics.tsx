@@ -1,5 +1,13 @@
 import React from 'react';
-import { Grid, Card, CardContent, Typography, styled } from '@mui/material';
+import { Grid, Card, CardContent, Typography, styled, Box } from '@mui/material';
+import {
+  Assignment as TotalIcon,
+  CheckCircle as CompletedIcon,
+  PlayCircle as RunningIcon,
+  Schedule as PendingIcon,
+  Error as FailedIcon,
+  PauseCircle as PausedIcon,
+} from '@mui/icons-material';
 
 const StyledCard = styled(Card)(({ theme }) => ({
   height: '100%',
@@ -35,66 +43,34 @@ interface TaskStatisticsProps {
 }
 
 const TaskStatistics: React.FC<TaskStatisticsProps> = ({ stats }) => {
+  const statItems = [
+    { value: stats.total, label: 'Total Tasks', color: 'text.primary', icon: <TotalIcon /> },
+    { value: stats.completed, label: 'Completed', color: 'success.main', icon: <CompletedIcon /> },
+    { value: stats.running, label: 'Running', color: 'info.main', icon: <RunningIcon /> },
+    { value: stats.pending, label: 'Pending', color: 'warning.main', icon: <PendingIcon /> },
+    { value: stats.failed, label: 'Failed', color: 'error.main', icon: <FailedIcon /> },
+    { value: stats.paused, label: 'Paused', color: 'text.secondary', icon: <PausedIcon /> },
+  ];
+
   return (
     <Grid container spacing={3} sx={{ mb: 4 }}>
-      <Grid item xs={12} sm={4} md={2}>
-        <StyledCard>
-          <CardContent>
-            <StyledStatValue>{stats.total}</StyledStatValue>
-            <StyledStatLabel>Total Tasks</StyledStatLabel>
-          </CardContent>
-        </StyledCard>
-      </Grid>
-      <Grid item xs={12} sm={4} md={2}>
-        <StyledCard>
-          <CardContent>
-            <StyledStatValue color="success.main">
-              {stats.completed}
-            </StyledStatValue>
-            <StyledStatLabel>Completed</StyledStatLabel>
-          </CardContent>
-        </StyledCard>
-      </Grid>
-      <Grid item xs={12} sm={4} md={2}>
-        <StyledCard>
-          <CardContent>
-            <StyledStatValue color="info.main">
-              {stats.running}
-            </StyledStatValue>
-            <StyledStatLabel>Running</StyledStatLabel>
-          </CardContent>
-        </StyledCard>
-      </Grid>
-      <Grid item xs={12} sm={4} md={2}>
-        <StyledCard>
-          <CardContent>
-            <StyledStatValue color="warning.main">
-              {stats.pending}
-            </StyledStatValue>
-            <StyledStatLabel>Pending</StyledStatLabel>
-          </CardContent>
-        </StyledCard>
-      </Grid>
-      <Grid item xs={12} sm={4} md={2}>
-        <StyledCard>
-          <CardContent>
-            <StyledStatValue color="error.main">
-              {stats.failed}
-            </StyledStatValue>
-            <StyledStatLabel>Failed</StyledStatLabel>
-          </CardContent>
-        </StyledCard>
-      </Grid>
-      <Grid item xs={12} sm={4} md={2}>
-        <StyledCard>
-          <CardContent>
-            <StyledStatValue sx={{ color: 'text.secondary' }}>
-              {stats.paused}
-            </StyledStatValue>
-            <StyledStatLabel>Paused</StyledStatLabel>
-          </CardContent>
-        </StyledCard>
-      </Grid>
+      {statItems.map((item, index) => (
+        <Grid item xs={12} sm={4} md={2} key={index}>
+          <StyledCard>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <StyledStatValue sx={{ color: item.color, mb: 0 }}>
+                  {item.value}
+                </StyledStatValue>
+                <Box sx={{ color: item.color, opacity: 0.7 }}>
+                  {item.icon}
+                </Box>
+              </Box>
+              <StyledStatLabel>{item.label}</StyledStatLabel>
+            </CardContent>
+          </StyledCard>
+        </Grid>
+      ))}
     </Grid>
   );
 };
