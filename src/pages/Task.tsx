@@ -23,7 +23,7 @@ import { useNavigate } from "react-router-dom";
 import useTaskStore from "../store/taskStore";
 import TaskStatistics from '../components/task/TaskStatistics';
 import TaskTable from '../components/task/TaskTable';
-import TaskDrawer from '../components/task/TaskDrawer';
+
 
 const Task: React.FC = () => {
   const { 
@@ -33,12 +33,10 @@ const Task: React.FC = () => {
     deleteTask, 
     pauseTask, 
     resumeTask, 
-    runTask,
-    setCurrentTask,
-    currentTask
+    runTask
   } = useTaskStore();
   
-  const [detailDrawerVisible, setDetailDrawerVisible] = useState<boolean>(false);
+
   const [activeTab, setActiveTab] = useState<string>("all");
   const [searchText, setSearchText] = useState<string>("");
   const [page, setPage] = useState(0);
@@ -64,10 +62,7 @@ const Task: React.FC = () => {
     navigate('/design');
   };
 
-  const handleViewTask = (task: Task) => {
-    setCurrentTask(task);
-    setDetailDrawerVisible(true);
-  };
+
 
   const handleDeleteTask = (taskId: string) => {
     const confirmDelete = window.confirm("Are you sure you want to delete this task? This action cannot be undone.");
@@ -134,7 +129,7 @@ const Task: React.FC = () => {
       .then(() => {
         setSnackbar({
           open: true,
-          message: "任务已开始运行",
+          message: "Task started successfully",
           severity: "success"
         });
       })
@@ -142,7 +137,7 @@ const Task: React.FC = () => {
         console.error("Failed to run task", error);
         setSnackbar({
           open: true,
-          message: "启动任务失败，请稍后重试",
+          message: "Failed to start task, please try again later",
           severity: "error"
         });
       });
@@ -166,7 +161,7 @@ const Task: React.FC = () => {
         
         setSnackbar({
           open: true,
-          message: "结果文件下载成功",
+          message: "Result file downloaded successfully",
           severity: "success"
         });
       })
@@ -174,7 +169,7 @@ const Task: React.FC = () => {
         console.error("Failed to download result file", error);
         setSnackbar({
           open: true,
-          message: "下载结果文件失败，请稍后重试",
+          message: "Failed to download result file, please try again later",
           severity: "error"
         });
       });
@@ -276,20 +271,9 @@ const Task: React.FC = () => {
           setRowsPerPage(parseInt(event.target.value, 10));
           setPage(0);
         }}
-        onViewTask={handleViewTask}
         onPauseTask={handlePauseTask}
         onResumeTask={handleResumeTask}
         onRunTask={handleRunTask}
-        onDownloadResult={handleDownloadResult}
-        onDeleteTask={handleDeleteTask}
-      />
-
-      <TaskDrawer
-        task={currentTask}
-        open={detailDrawerVisible}
-        onClose={() => setDetailDrawerVisible(false)}
-        onPauseTask={handlePauseTask}
-        onResumeTask={handleResumeTask}
         onDownloadResult={handleDownloadResult}
         onDeleteTask={handleDeleteTask}
       />
