@@ -71,7 +71,9 @@ export const useGenomeData = () => {
       const url = window.URL.createObjectURL(new Blob([response]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', fileName);
+      // 获取文件名（不包含路径）
+      const actualFileName = fileName.split('/').pop() || fileName;
+      link.setAttribute('download', actualFileName);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -82,6 +84,17 @@ export const useGenomeData = () => {
       setIsLoading(false);
     }
   }, [showNotification]);
+
+  // 获取文件元数据
+  const getFileMetadata = useCallback(async (genomeName: string, fileName: string) => {
+    try {
+      const response = await ApiService.getFileMetadata(genomeName, fileName);
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch file metadata:', error);
+      return null;
+    }
+  }, []);
 
   // 添加新基因组
   const addGenome = useCallback(async (genomeName: string) => {
@@ -125,6 +138,7 @@ export const useGenomeData = () => {
     uploadGenomeFile,
     deleteGenomeFile,
     downloadGenomeFile,
+    getFileMetadata,
     addGenome,
     deleteGenome,
   };
