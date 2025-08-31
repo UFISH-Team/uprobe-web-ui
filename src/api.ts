@@ -169,6 +169,8 @@ class ApiService {
     size: number;
     created: string;
     modified: string;
+    is_preset: boolean;
+    can_delete: boolean;
   }> {
     return api.get(`/genome/${genomeName}/${fileName}/metadata`);
   }
