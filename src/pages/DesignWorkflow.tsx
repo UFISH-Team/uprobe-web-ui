@@ -976,14 +976,13 @@ const DesignWorkflow: React.FC = () => {
     return categories;
   };
 
-  // 当探针类型改变时重置排序选项
+  // when probe type changes, reset sort options
   useEffect(() => {
     setSortOptions([]);
   }, [selectedCustomType]);
 
   const getActiveSteps = () => {
     const steps = [
-      { label: 'Task Name', completed: !!taskName },
       { label: 'Species', completed: !!species },
       { label: 'Probe Type', completed: !!probeType }
     ];
@@ -1002,6 +1001,11 @@ const DesignWorkflow: React.FC = () => {
     steps.push({ 
       label: 'Post Processing', 
       completed: sortOptions.length > 0 || overlapThreshold !== 20 
+    });
+
+    steps.push({ 
+      label: 'Task Name', 
+      completed: true // Task name is optional, so always completed
     });
 
     return steps;
@@ -1124,12 +1128,61 @@ const DesignWorkflow: React.FC = () => {
     return typeMapping[attrName] || attrName;
   };
 
+  // Helper function to generate automatic task name
+  const generateAutoTaskName = () => {
+    const probeName = selectedCustomType?.name || probeType || 'probe';
+    const timestamp = Date.now().toString().slice(-6); // Last 6 digits of timestamp
+    return `${probeName.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_')}_${timestamp}`;
+  };
+
+  // Helper function to validate form before submission
+  const validateForm = () => {
+    const errors: string[] = [];
+    
+    if (!species) {
+      errors.push('please select species');
+    }
+    
+    if (!probeType) {
+      errors.push('please select probe type');
+    }
+    
+    const hasValidTargets = targetList.some(item => item.target.trim() !== '');
+    if (!hasValidTargets) {
+      errors.push('please add at least one target');
+    }
+    
+    // Check if barcode fields are filled when required
+    if (selectedCustomType?.barcodeCount) {
+      const targetsWithMissingBarcodes = targetList.filter(item => {
+        if (item.target.trim() === '') return false;
+        
+        for (let i = 1; i <= selectedCustomType.barcodeCount; i++) {
+          const barcodeKey = `barcode${i}`;
+          const mode = barcodeModes[barcodeKey] || 'builtin';
+          
+          if (mode !== 'builtin' && !(item as any)[barcodeKey]) {
+            return true;
+          }
+        }
+        return false;
+      });
+      
+      if (targetsWithMissingBarcodes.length > 0) {
+        errors.push('some target barcodes are incomplete, please check the barcode configuration');
+      }
+    }
+    
+    return errors;
+  };
+
   const generateTaskConfig = () => {
     const probeName = selectedCustomType?.name || probeType;
+    const finalTaskName = taskName.trim() || generateAutoTaskName();
     
     // 基础配置 - 按期望格式顺序排列
     const config: any = {
-      name: probeName.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_'),
+      name: finalTaskName.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_'),
       description: `Protocol for designing ${probeName} probes from species ${species}`,
       genome: species,
       targets: targetList.map(item => item.target).filter(target => target.trim() !== '')
@@ -1466,6 +1519,13 @@ const DesignWorkflow: React.FC = () => {
 
   const handleSubmitTask = async () => {
     try {
+      // Validate form before submission
+      const validationErrors = validateForm();
+      if (validationErrors.length > 0) {
+        setAlert(true, `please complete the following information:\n${validationErrors.join('\n')}`, 'error');
+        return;
+      }
+
       setSubmitting(true);
       setProgress(0);
 
@@ -1547,30 +1607,6 @@ const DesignWorkflow: React.FC = () => {
           </Step>
         ))}
       </Stepper>
-
-      {/* Task Name */}
-      <Card sx={{ mb: 3 }}>
-        <CardHeader 
-          title="📝 Task Name" 
-          subheader="Give your task a unique name to easily identify it"
-          action={
-            <IconButton onClick={() => toggleSection('taskName')}>
-              {expandedSections.taskName ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            </IconButton>
-          }
-        />
-        <Collapse in={expandedSections.taskName}>
-          <CardContent>
-            <TextField
-              fullWidth
-              label="Task Name"
-              placeholder="Enter the task name"
-              value={taskName}
-              onChange={(e) => setTaskName(e.target.value)}
-            />
-          </CardContent>
-        </Collapse>
-      </Card>
 
       {/* Species Option */}
       <Card sx={{ mb: 3 }}>
@@ -2562,6 +2598,31 @@ const DesignWorkflow: React.FC = () => {
                 </Paper>
               </Collapse>
             </Stack>
+          </CardContent>
+        </Collapse>
+      </Card>
+
+      {/* Task Name */}
+      <Card sx={{ mb: 3 }}>
+        <CardHeader 
+          title="📝 Task Name" 
+          subheader="Give your task a unique name to easily identify it (optional - will auto-generate if empty)"
+          action={
+            <IconButton onClick={() => toggleSection('taskName')}>
+              {expandedSections.taskName ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          }
+        />
+        <Collapse in={expandedSections.taskName}>
+          <CardContent>
+            <TextField
+              fullWidth
+              label="Task Name (Optional)"
+              placeholder={probeType ? `Auto-generated: ${generateAutoTaskName()}` : "Select probe type first"}
+              value={taskName}
+              onChange={(e) => setTaskName(e.target.value)}
+              helperText="Leave empty to auto-generate based on probe type and timestamp"
+            />
           </CardContent>
         </Collapse>
       </Card>
