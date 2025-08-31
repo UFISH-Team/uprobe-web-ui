@@ -18,7 +18,6 @@ import {
   styled,
 } from '@mui/material';
 import {
-  Visibility as VisibilityIcon,
   PauseCircle as PauseIcon,
   PlayCircle as PlayIcon,
   PlayArrow as PlayArrowIcon,
@@ -43,7 +42,6 @@ interface TaskTableProps {
   rowsPerPage: number;
   onPageChange: (event: unknown, newPage: number) => void;
   onRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onViewTask: (task: Task) => void;
   onPauseTask: (taskId: string) => void;
   onResumeTask: (taskId: string) => void;
   onRunTask: (taskId: string) => void;
@@ -68,11 +66,11 @@ const getStatusColor = (status: string): "success" | "info" | "warning" | "error
 };
 
 const statusIcons = {
-  pending: <ScheduleIcon />,
-  running: <LinearProgress size={16} />,
-  completed: <CheckCircleIcon />,
-  failed: <DeleteIcon />,
-  paused: <PauseIcon />,
+  pending: <ScheduleIcon fontSize="small" />,
+  running: <PlayArrowIcon fontSize="small" />,
+  completed: <CheckCircleIcon fontSize="small" />,
+  failed: <DeleteIcon fontSize="small" />,
+  paused: <PauseIcon fontSize="small" />,
 };
 
 const TaskTable: React.FC<TaskTableProps> = ({
@@ -81,7 +79,6 @@ const TaskTable: React.FC<TaskTableProps> = ({
   rowsPerPage,
   onPageChange,
   onRowsPerPageChange,
-  onViewTask,
   onPauseTask,
   onResumeTask,
   onRunTask,
@@ -93,6 +90,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
       <Table>
         <TableHead>
           <TableRow>
+            <TableCell>Task ID</TableCell>
             <TableCell>Task Name</TableCell>
             <TableCell>Description</TableCell>
             <TableCell>Genome</TableCell>
@@ -107,6 +105,11 @@ const TaskTable: React.FC<TaskTableProps> = ({
             .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
             .map((task) => (
               <TableRow key={task.id} hover>
+                <TableCell>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                    {task.id}
+                  </Typography>
+                </TableCell>
                 <TableCell>
                   <Typography variant="subtitle2">{task.name}</Typography>
                 </TableCell>
@@ -131,13 +134,14 @@ const TaskTable: React.FC<TaskTableProps> = ({
                 <TableCell>
                   <Chip
                     icon={statusIcons[task.status as keyof typeof statusIcons]}
-                    label={task.status}
+                    label={task.status.charAt(0).toUpperCase() + task.status.slice(1)}
                     color={getStatusColor(task.status)}
                     size="small"
+                    variant={task.status === 'running' ? 'filled' : 'outlined'}
                   />
                 </TableCell>
                 <TableCell>
-                  <Box sx={{ width: '100%', mr: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 120 }}>
                     <LinearProgress
                       variant="determinate"
                       value={task.progress}
@@ -148,7 +152,11 @@ const TaskTable: React.FC<TaskTableProps> = ({
                           ? "success"
                           : "primary"
                       }
+                      sx={{ flexGrow: 1, height: 6, borderRadius: 3 }}
                     />
+                    <Typography variant="caption" color="text.secondary" sx={{ minWidth: 35 }}>
+                      {task.progress}%
+                    </Typography>
                   </Box>
                 </TableCell>
                 <TableCell>
@@ -156,14 +164,8 @@ const TaskTable: React.FC<TaskTableProps> = ({
                 </TableCell>
                 <TableCell align="right">
                   <Stack direction="row" spacing={1} justifyContent="flex-end">
-                    <IconButton
-                      size="small"
-                      onClick={() => onViewTask(task)}
-                    >
-                      <VisibilityIcon />
-                    </IconButton>
                     {task.status === "pending" && (
-                      <Tooltip title="运行任务">
+                      <Tooltip title="Run Task">
                         <IconButton
                           size="small"
                           color="primary"
@@ -174,36 +176,47 @@ const TaskTable: React.FC<TaskTableProps> = ({
                       </Tooltip>
                     )}
                     {task.status === "running" && (
-                      <IconButton
-                        size="small"
-                        onClick={() => onPauseTask(task.id)}
-                      >
-                        <PauseIcon />
-                      </IconButton>
+                      <Tooltip title="Pause Task">
+                        <IconButton
+                          size="small"
+                          onClick={() => onPauseTask(task.id)}
+                          color="warning"
+                        >
+                          <PauseIcon />
+                        </IconButton>
+                      </Tooltip>
                     )}
                     {task.status === "paused" && (
-                      <IconButton
-                        size="small"
-                        onClick={() => onResumeTask(task.id)}
-                      >
-                        <PlayIcon />
-                      </IconButton>
+                      <Tooltip title="Resume Task">
+                        <IconButton
+                          size="small"
+                          onClick={() => onResumeTask(task.id)}
+                          color="primary"
+                        >
+                          <PlayIcon />
+                        </IconButton>
+                      </Tooltip>
                     )}
                     {task.status === "completed" && task.result_url && (
+                      <Tooltip title="Download Results">
+                        <IconButton
+                          size="small"
+                          onClick={() => onDownloadResult(task.id)}
+                          color="success"
+                        >
+                          <DownloadIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    <Tooltip title="Delete Task">
                       <IconButton
                         size="small"
-                        onClick={() => onDownloadResult(task.id)}
+                        color="error"
+                        onClick={() => onDeleteTask(task.id)}
                       >
-                        <DownloadIcon />
+                        <DeleteIcon />
                       </IconButton>
-                    )}
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={() => onDeleteTask(task.id)}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
+                    </Tooltip>
                   </Stack>
                 </TableCell>
               </TableRow>
