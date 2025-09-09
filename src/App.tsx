@@ -40,10 +40,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 const navItems = [
   { text: 'Home', icon: HomeIcon, path: '/home' },
   { text: 'Design', icon: DesignIcon, path: '/design' },
-  { text: 'Agent', icon: SmartToyIcon, path: '/agent' },
   { text: 'Genome', icon: GenomeIcon, path: '/genome' },
   { text: 'Task', icon: TaskIcon, path: '/task' },
   { text: 'Tutorial', icon: TutorialIcon, path: '/tutorial' },
+  { text: 'Agent', icon: SmartToyIcon, path: '/agent' },
 ];
 
 // Protected Route component
