@@ -11,6 +11,7 @@ import Genome from './pages/Genome';
 import Task from './pages/Task';
 import Tutorial from './pages/Tutorial';
 import Auth from './pages/Auth';
+import Agent from './pages/Agent';
 
 import Layout from './components/common/Layout';
 import AccountMenu from './components/users/AccountMenu';
@@ -30,6 +31,7 @@ import DesignIcon from '@mui/icons-material/Pinch';
 import GenomeIcon from '@mui/icons-material/Dataset';
 import TaskIcon from '@mui/icons-material/List';
 import TutorialIcon from '@mui/icons-material/HelpOutline';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 
 import theme from './theme';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -38,6 +40,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 const navItems = [
   { text: 'Home', icon: HomeIcon, path: '/home' },
   { text: 'Design', icon: DesignIcon, path: '/design' },
+  { text: 'Agent', icon: SmartToyIcon, path: '/agent' },
   { text: 'Genome', icon: GenomeIcon, path: '/genome' },
   { text: 'Task', icon: TaskIcon, path: '/task' },
   { text: 'Tutorial', icon: TutorialIcon, path: '/tutorial' },
@@ -352,8 +355,6 @@ function App() {
                 <Route path="customprobe" element={<CustomProbe />} />
                 <Route path="designworkflow" element={<DesignWorkflow />} />
               </Route>
-              <Route path="genome" element={<Genome />} />
-              <Route path="task" element={<Task />} />
               <Route path="tutorial" element={<Tutorial />} />
               <Route path="account/*" element={<AccountMenu />} />
               <Route path="account/profile" element={<Profile />} />
@@ -363,6 +364,11 @@ function App() {
               <Route path="account/logout" element={<Logout />} />
               <Route path="*" element={<NotFound />} />
             </Route>
+            {/* Full-width pages */}
+            <Route path="genome" element={<Layout fullWidth><Genome /></Layout>} />
+            <Route path="task" element={<Layout fullWidth><Task /></Layout>} />
+            {/* Agent page without Layout wrapper */}
+            <Route path="agent" element={<Agent />} />
           </Route>
         </Routes>
       </Box>
