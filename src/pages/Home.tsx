@@ -3,16 +3,12 @@ import {
   Box,
   Typography,
   Button,
-  Container,
   Card,
-  CardActions,
-  CardMedia,
   CardContent,
   useMediaQuery,
   useTheme,
   Grid,
   Paper,
-  Icon,
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { 
@@ -57,12 +53,7 @@ const Home: React.FC = () => {
   ];
 
   return (
-    <Box sx={{ 
-      minHeight: 'calc(100vh - 64px)',
-      backgroundColor: '#fafbfc',
-      py: { xs: 3, sm: 4, md: 5 },
-    }}>
-      <Container maxWidth="lg">
+    <>
         {/* Hero Section */}
         <Box
           sx={{
@@ -298,8 +289,7 @@ const Home: React.FC = () => {
             🧬 Start your probe design journey for more efficient and precise research
           </Typography>
         </Box>
-      </Container>
-    </Box>
+    </>
   );
 };
 
