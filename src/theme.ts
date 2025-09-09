@@ -16,7 +16,7 @@ let theme = createTheme({
       contrastText: '#ffffff',
     },
     background: {
-      default: '#fafbfc',  // 更纯净的背景色
+      default: '#ffffff',  // 纯白背景
       paper: '#ffffff',
     },
     error: {
@@ -210,11 +210,11 @@ let theme = createTheme({
     MuiAppBar: {
       styleOverrides: {
         root: {
-          background: 'rgba(255, 255, 255, 0.9)',
+          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
           backdropFilter: 'blur(12px)',
-          borderBottom: '1px solid rgba(226, 232, 240, 0.6)',
+          borderBottom: '1px solid rgba(226, 232, 240, 0.8)',
           color: '#0f172a',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
         },
       },
     },
