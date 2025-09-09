@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Card, CardActions, CardContent, CardMedia, Button, Typography, Box, Container, 
+  Card, CardActions, CardContent, CardMedia, Button, Typography, Box,
   useTheme, useMediaQuery, Paper, Chip, Grid 
 } from '@mui/material';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
@@ -51,12 +51,7 @@ const Design: React.FC = () => {
   ];
 
   return (
-    <Box sx={{ 
-      minHeight: 'calc(100vh - 64px)',
-      backgroundColor: '#fafbfc',
-      py: { xs: 3, sm: 4, md: 5 },
-    }}>
-      <Container maxWidth="lg">
+    <>
         {isSubRoute ? (
           <Outlet />
         ) : (
@@ -311,8 +306,7 @@ const Design: React.FC = () => {
             </Paper>
           </>
         )}
-      </Container>
-    </Box>
+    </>
   );
 };
 
