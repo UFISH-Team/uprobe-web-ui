@@ -166,6 +166,30 @@ export const extractParametersFromYaml = (yamlContent: string) => {
       default_length: parsed.barcode_config.default_length,
       barcodes: parsed.barcode_config.barcodes || {}
     };
+  } else if (parsed.barcodes) {
+    // Handle the format used in CustomProbe page and downloaded configs
+    const barcodes = parsed.barcodes.barcodes || {};
+    const barcodeEntries: Record<string, { name: string; length: number }> = {};
+    
+    // Convert BC1, BC2 format to barcode1, barcode2 format for internal use
+    Object.entries(barcodes).forEach(([key, config]: [string, any]) => {
+      if (key.startsWith('BC')) {
+        const barcodeIndex = key.replace('BC', '');
+        const barcodeKey = `barcode${barcodeIndex}`;
+        barcodeEntries[barcodeKey] = {
+          name: key,
+          length: config.length || 12
+        };
+      }
+    });
+    
+    parameters.barcodeConfig = {
+      count: parsed.barcodes.count,
+      default_length: parsed.barcodes.default_length || 
+        (Object.keys(barcodeEntries).length > 0 ? 
+          Math.min(...Object.values(barcodeEntries).map(b => b.length)) : 12),
+      barcodes: barcodeEntries
+    };
   }
 
   // Extract overlap from extracts section
