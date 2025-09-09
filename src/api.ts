@@ -2,7 +2,7 @@ import axios from 'axios';
 import { ApiResponse, PaginatedResponse } from './types';
 import { AUTH_CONFIG } from './utils';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:53252';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 // 创建 axios 实例
 const api = axios.create({
@@ -212,14 +212,47 @@ class ApiService {
     return api.put('/auth/profile', data);
   }
 
-  // Barcode generation
+  // Barcode generation using workflow routes
+  static async generateQuickBarcode(config: {
+    num_barcodes: number;
+    length: number;
+    alphabet?: string;
+    rc_free?: boolean;
+    gc_limits?: [number, number];
+    prevent_patterns?: string[];
+  }): Promise<string[]> {
+    return api.post('/workflow/barcodes/quick', config);
+  }
+
+  static async generatePcrBarcode(config: {
+    num_barcodes: number;
+    length?: number;
+  }): Promise<string[]> {
+    return api.post('/workflow/barcodes/pcr', config);
+  }
+
+  static async generateSequencingBarcode(config: {
+    num_barcodes: number;
+    length?: number;
+  }): Promise<string[]> {
+    return api.post('/workflow/barcodes/sequencing', config);
+  }
+
+  // Legacy method - kept for backward compatibility
   static async generateBarcode(config: {
     length: number;
     type?: string;
     count?: number;
     constraints?: any;
   }): Promise<{ barcode: string }> {
-    return api.post('/barcode/generate', config);
+    // Use quick generation by default
+    const result = await this.generateQuickBarcode({
+      num_barcodes: 1,
+      length: config.length,
+      alphabet: 'ACTG',
+      rc_free: true
+    });
+    return { barcode: result[0] };
   }
 
   static async generateBarcodes(config: {
@@ -228,7 +261,13 @@ class ApiService {
     count: number;
     constraints?: any;
   }): Promise<{ barcodes: string[] }> {
-    return api.post('/barcode/generate_batch', config);
+    const result = await this.generateQuickBarcode({
+      num_barcodes: config.count,
+      length: config.length,
+      alphabet: 'ACTG',
+      rc_free: true
+    });
+    return { barcodes: result };
   }
 
   // 文件上传
@@ -335,7 +374,7 @@ class ApiService {
     return this.deleteTask(jobId);
   }
 
-  static async getJobResult(jobId: string): Promise<ApiResponse<any>> {
+  static async getJobResult(jobId: string): Promise<Blob> {
     return this.downloadTaskResult(jobId);
   }
 
