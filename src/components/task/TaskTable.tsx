@@ -7,7 +7,6 @@ import {
   TableHead,
   TableRow,
   TablePagination,
-  Paper,
   Typography,
   Chip,
   Box,
@@ -29,10 +28,18 @@ import {
 import type { Task } from '../../types';
 
 const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
-  marginTop: theme.spacing(3),
+  marginTop: theme.spacing(1),
+  boxShadow: theme.shadows[2],
+  borderRadius: theme.spacing(1),
+  backgroundColor: theme.palette.background.paper,
+  overflow: 'hidden',
   '& .MuiTableCell-head': {
     fontWeight: 'bold',
     backgroundColor: theme.palette.background.default,
+    borderBottom: `2px solid ${theme.palette.divider}`,
+  },
+  '& .MuiTableRow-hover:hover': {
+    backgroundColor: theme.palette.action.hover,
   },
 }));
 
@@ -73,6 +80,37 @@ const statusIcons = {
   paused: <PauseIcon fontSize="small" />,
 };
 
+// Helper function to determine probe type from task
+const getTaskProbeType = (task: Task): 'DNA' | 'RNA' => {
+  try {
+    // Check if task has yaml_content
+    if (task.yaml_content) {
+      const yamlData = JSON.parse(task.yaml_content);
+      
+      // Check extracts.target_region.source
+      if (yamlData.extracts?.target_region?.source) {
+        return yamlData.extracts.target_region.source === 'genome' ? 'DNA' : 'RNA';
+      }
+    }
+    
+    // Check parameters for source information
+    if (task.parameters?.extracts?.target_region?.source) {
+      return task.parameters.extracts.target_region.source === 'genome' ? 'DNA' : 'RNA';
+    }
+    
+    // Check summary report_name if available
+    if (task.parameters?.summary?.report_name) {
+      return task.parameters.summary.report_name === 'dna_report' ? 'DNA' : 'RNA';
+    }
+    
+    // Default to RNA for legacy tasks
+    return 'RNA';
+  } catch (error) {
+    console.warn('Error determining probe type for task:', task.id, error);
+    return 'RNA';
+  }
+};
+
 const TaskTable: React.FC<TaskTableProps> = ({
   tasks,
   page,
@@ -86,7 +124,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
   onDeleteTask,
 }) => {
   return (
-    <StyledTableContainer component={Paper}>
+    <StyledTableContainer>
       <Table>
         <TableHead>
           <TableRow>
@@ -94,6 +132,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
             <TableCell>Task Name</TableCell>
             <TableCell>Description</TableCell>
             <TableCell>Genome</TableCell>
+            <TableCell>Probe Type</TableCell>
             <TableCell>Status</TableCell>
             <TableCell>Progress</TableCell>
             <TableCell>Created At</TableCell>
@@ -130,6 +169,14 @@ const TaskTable: React.FC<TaskTableProps> = ({
                 </TableCell>
                 <TableCell>
                   <Chip label={task.genome} size="small" />
+                </TableCell>
+                <TableCell>
+                  <Chip 
+                    label={getTaskProbeType(task)} 
+                    size="small" 
+                    color={getTaskProbeType(task) === 'DNA' ? 'primary' : 'secondary'}
+                    variant="outlined"
+                  />
                 </TableCell>
                 <TableCell>
                   <Chip
