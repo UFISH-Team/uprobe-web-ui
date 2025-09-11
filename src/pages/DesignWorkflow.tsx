@@ -110,6 +110,14 @@ const DesignWorkflow: React.FC = () => {
     return probeName;
   };
 
+  // Helper function to get probe type (DNA/RNA)
+  const getProbeType = (customType?: CustomProbeType | null): 'DNA' | 'RNA' => {
+    if (!customType) return 'RNA'; // Default for built-in types
+    
+    const probeSource = customType.targetConfig?.source;
+    return probeSource === 'genome' ? 'DNA' : 'RNA';
+  };
+
   const formatPartName = (partName: string): string => {
     // Convert "part1" to "Part_1", "part2" to "Part_2", etc.
     const match = partName.match(/^part(\d+)$/);
@@ -1708,7 +1716,61 @@ const DesignWorkflow: React.FC = () => {
     config.post_process = post_process;
 
     // 添加报告配置
-    config.report = ['base_info'];
+    const summaryConfig: any = {};
+    
+    // 判断探针类型：DNA (source为genome) 或 RNA (source为非genome)
+    const probeSource = selectedCustomType?.targetConfig?.source || 
+                       (probeType === 'DNA-FISH' ? 'genome' : 'exon');
+    const isDnaProbe = probeSource === 'genome';
+    summaryConfig.report_name = isDnaProbe ? 'dna_report' : 'rna_report';
+    
+    // 动态收集所有启用的属性
+    const summaryAttributes: string[] = [];
+    
+    // 收集目标区域属性
+    if (selectedCustomType?.targetConfig?.attributes) {
+      Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
+        if (attrValue.enabled) {
+          summaryAttributes.push(`target_${attrName}`);
+        }
+      });
+    }
+    
+    // 收集探针属性
+    if (selectedCustomType?.probes) {
+      Object.entries(selectedCustomType.probes).forEach(([probeName, probeConfig]) => {
+        const formattedProbeName = /^\d+$/.test(probeName) ? `probe${parseInt(probeName) + 1}` : probeName;
+        
+        if (probeConfig.attributes) {
+          Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
+            if (attrValue.enabled) {
+              summaryAttributes.push(`${formattedProbeName}_${attrName}`);
+            }
+          });
+        }
+        
+        // 收集部件属性
+        if (probeConfig.parts) {
+          Object.entries(probeConfig.parts).forEach(([partName, partConfig]) => {
+            const formattedPartName = /^\d+$/.test(partName) ? `part${parseInt(partName) + 1}` : partName;
+            
+            if (partConfig.attributes) {
+              Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
+                if (attrValue.enabled) {
+                  summaryAttributes.push(`${formattedProbeName}_${formattedPartName}_${attrName}`);
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+    
+    if (summaryAttributes.length > 0) {
+      summaryConfig.attributes = summaryAttributes;
+    }
+    
+    config.summary = summaryConfig;
 
     return config;
   };
@@ -1835,7 +1897,15 @@ const DesignWorkflow: React.FC = () => {
                   ) : (
                     customProbeTypes.map((type) => (
                       <MenuItem key={type.id} value={type.name}>
-                        {type.name} 
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                          <Typography>{type.name}</Typography>
+                          <Chip 
+                            size="small" 
+                            label={getProbeType(type)} 
+                            color={getProbeType(type) === 'DNA' ? 'primary' : 'secondary'}
+                            sx={{ fontSize: '0.7rem', height: 20 }}
+                          />
+                        </Box>
                       </MenuItem>
                     ))
                   )}
