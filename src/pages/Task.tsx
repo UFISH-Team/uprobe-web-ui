@@ -197,10 +197,10 @@ const Task: React.FC = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 4 }}>
-        <Stack spacing={1}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
+        <Stack spacing={0.5}>
           <Stack direction="row" spacing={1} alignItems="center">
-            <AssignmentIcon color="primary" sx={{ fontSize: 32 }} />
+            <AssignmentIcon color="primary" sx={{ fontSize: 28 }} />
             <Typography variant="h4" component="h1">
               Task Management
             </Typography>
@@ -231,9 +231,8 @@ const Task: React.FC = () => {
 
       <TaskStatistics stats={getTasksStatistics()} />
 
-      <Box sx={{ mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <TextField
-          fullWidth
           variant="outlined"
           placeholder="Search tasks..."
           value={searchText}
@@ -246,21 +245,21 @@ const Task: React.FC = () => {
             ),
           }}
           sx={{ maxWidth: 400 }}
+          size="small"
         />
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          sx={{ borderBottom: 0 }}
+        >
+          <Tab label="All Tasks" value="all" />
+          <Tab label="Running" value="running" />
+          <Tab label="Pending" value="pending" />
+          <Tab label="Completed" value="completed" />
+          <Tab label="Paused" value="paused" />
+          <Tab label="Failed" value="failed" />
+        </Tabs>
       </Box>
-
-      <Tabs
-        value={activeTab}
-        onChange={(_, newValue) => setActiveTab(newValue)}
-        sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}
-      >
-        <Tab label="All Tasks" value="all" />
-        <Tab label="Running" value="running" />
-        <Tab label="Pending" value="pending" />
-        <Tab label="Completed" value="completed" />
-        <Tab label="Paused" value="paused" />
-        <Tab label="Failed" value="failed" />
-      </Tabs>
 
       <TaskTable
         tasks={filteredTasks}
