@@ -11,17 +11,18 @@ import {
 
 const StyledCard = styled(Card)(({ theme }) => ({
   height: '100%',
+  minHeight: 'auto',
   transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
   '&:hover': {
-    transform: 'translateY(-4px)',
-    boxShadow: theme.shadows[4],
+    transform: 'translateY(-2px)',
+    boxShadow: theme.shadows[3],
   },
 }));
 
 const StyledStatValue = styled(Typography)(({ theme }) => ({
-  fontSize: '2rem',
+  fontSize: '1.5rem',
   fontWeight: 'bold',
-  marginBottom: theme.spacing(1),
+  marginBottom: theme.spacing(0.5),
 }));
 
 const StyledStatLabel = styled(Typography)(({ theme }) => ({
@@ -53,12 +54,12 @@ const TaskStatistics: React.FC<TaskStatisticsProps> = ({ stats }) => {
   ];
 
   return (
-    <Grid container spacing={3} sx={{ mb: 4 }}>
+    <Grid container spacing={2} sx={{ mb: 3 }}>
       {statItems.map((item, index) => (
         <Grid item xs={12} sm={4} md={2} key={index}>
           <StyledCard>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
                 <StyledStatValue sx={{ color: item.color, mb: 0 }}>
                   {item.value}
                 </StyledStatValue>
