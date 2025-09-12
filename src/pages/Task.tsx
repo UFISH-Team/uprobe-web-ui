@@ -33,7 +33,8 @@ const Task: React.FC = () => {
     deleteTask, 
     pauseTask, 
     resumeTask, 
-    runTask
+    runTask,
+    rerunTask
   } = useTaskStore();
   
 
@@ -138,6 +139,25 @@ const Task: React.FC = () => {
         setSnackbar({
           open: true,
           message: "Failed to start task, please try again later",
+          severity: "error"
+        });
+      });
+  };
+
+  const handleRerunTask = (taskId: string) => {
+    rerunTask(taskId)
+      .then(() => {
+        setSnackbar({
+          open: true,
+          message: "Task is restarting successfully",
+          severity: "success"
+        });
+      })
+      .catch(error => {
+        console.error("Failed to rerun task", error);
+        setSnackbar({
+          open: true,
+          message: "Failed to restart task, please try again later",
           severity: "error"
         });
       });
@@ -273,6 +293,7 @@ const Task: React.FC = () => {
         onPauseTask={handlePauseTask}
         onResumeTask={handleResumeTask}
         onRunTask={handleRunTask}
+        onRerunTask={handleRerunTask}
         onDownloadResult={handleDownloadResult}
         onDeleteTask={handleDeleteTask}
       />
