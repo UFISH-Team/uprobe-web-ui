@@ -3,7 +3,14 @@ import React from 'react';
 import { AppBar, Toolbar, Button, Box, IconButton, useMediaQuery, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
 import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
+import { CssBaseline } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
+import HomeIcon from '@mui/icons-material/Home';
+import DesignIcon from '@mui/icons-material/Pinch';
+import GenomeIcon from '@mui/icons-material/Dataset';
+import TaskIcon from '@mui/icons-material/List';
+import TutorialIcon from '@mui/icons-material/HelpOutline';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 
 import Home from './pages/Home';
 import Design from './pages/Design';
@@ -16,35 +23,14 @@ import Agent from './pages/Agent';
 import Layout from './components/common/Layout';
 import AccountMenu from './components/users/AccountMenu';
 import Profile from './components/users/Profile';
-import MyAccount from './components/users/MyAccount';
-import AddAccount from './components/users/AddAccount';
 import Settings from './components/users/Settings';
 import Logout from './components/users/Logout';
 import CustomProbe from './pages/CustomProbe';
 import DesignWorkflow from './pages/DesignWorkflow';
 import NotFound from './components/common/NotFound';
 
-import { ThemeProvider } from '@mui/material/styles';
-import { CssBaseline } from '@mui/material';
-import HomeIcon from '@mui/icons-material/Home';
-import DesignIcon from '@mui/icons-material/Pinch';
-import GenomeIcon from '@mui/icons-material/Dataset';
-import TaskIcon from '@mui/icons-material/List';
-import TutorialIcon from '@mui/icons-material/HelpOutline';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
-
-import theme from './theme';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-
-// Navigation items configuration
-const navItems = [
-  { text: 'Home', icon: HomeIcon, path: '/home' },
-  { text: 'Design', icon: DesignIcon, path: '/design' },
-  { text: 'Genome', icon: GenomeIcon, path: '/genome' },
-  { text: 'Task', icon: TaskIcon, path: '/task' },
-  { text: 'Tutorial', icon: TutorialIcon, path: '/tutorial' },
-  { text: 'Agent', icon: SmartToyIcon, path: '/agent' },
-];
+import { ThemeProvider } from './contexts/ThemeContext';
 
 // Protected Route component
 const ProtectedRoute = () => {
@@ -78,6 +64,16 @@ function App() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = React.useState(false);
+
+  // Navigation items configuration
+  const navItems = [
+    { text: 'Home', icon: HomeIcon, path: '/home' },
+    { text: 'Design', icon: DesignIcon, path: '/design' },
+    { text: 'Genome', icon: GenomeIcon, path: '/genome' },
+    { text: 'Task', icon: TaskIcon, path: '/task' },
+    { text: 'Tutorial', icon: TutorialIcon, path: '/tutorial' },
+    { text: 'Agent', icon: SmartToyIcon, path: '/agent' },
+  ];
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -358,8 +354,6 @@ function App() {
               <Route path="tutorial" element={<Tutorial />} />
               <Route path="account/*" element={<AccountMenu />} />
               <Route path="account/profile" element={<Profile />} />
-              <Route path="account/my-account" element={<MyAccount />} />
-              <Route path="account/add-account" element={<AddAccount />} />
               <Route path="account/settings" element={<Settings />} />
               <Route path="account/logout" element={<Logout />} />
               <Route path="*" element={<NotFound />} />
@@ -378,7 +372,7 @@ function App() {
 
 const MainApp = () => (
   <Router>
-    <ThemeProvider theme={theme}>
+    <ThemeProvider>
       <CssBaseline />
       <AuthProvider>
         <App />
