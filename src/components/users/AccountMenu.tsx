@@ -16,10 +16,10 @@ import { useNavigate } from 'react-router-dom';
 import {
   Person,
   Settings,
-  ExitToApp,
-  Security
+  ExitToApp
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import { getAvatarUrl } from '../../utils';
 
 const AccountMenu = () => {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -32,7 +32,7 @@ const AccountMenu = () => {
     name: user?.full_name || user?.username || 'Unknown User',
     email: user?.email || 'No email set',
     role: 'User',
-    avatar: null, // Could be a URL
+    avatar: getAvatarUrl(user?.avatar_url),
     notifications: 0,
     isOnline: true
   };
@@ -66,16 +66,10 @@ const AccountMenu = () => {
       description: 'Manage your personal information'
     },
     {
-      label: 'Account Security',
-      icon: <Security />,
-      path: 'my-account',
-      description: 'Password and security settings'
-    },
-    {
       label: 'Preferences',
       icon: <Settings />,
       path: 'settings',
-      description: 'Customize your experience'
+      description: 'Customize your experience and notification settings'
     }
   ];
 
