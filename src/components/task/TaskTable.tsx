@@ -24,8 +24,10 @@ import {
   Delete as DeleteIcon,
   CheckCircle as CheckCircleIcon,
   Schedule as ScheduleIcon,
+  Replay as ReplayIcon,
 } from '@mui/icons-material';
 import type { Task } from '../../types';
+import YAML from 'yaml';
 
 const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
   marginTop: theme.spacing(1),
@@ -52,6 +54,7 @@ interface TaskTableProps {
   onPauseTask: (taskId: string) => void;
   onResumeTask: (taskId: string) => void;
   onRunTask: (taskId: string) => void;
+  onRerunTask: (taskId: string) => void;
   onDownloadResult: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
 }
@@ -80,35 +83,76 @@ const statusIcons = {
   paused: <PauseIcon fontSize="small" />,
 };
 
-// Helper function to determine probe type from task
-const getTaskProbeType = (task: Task): 'DNA' | 'RNA' => {
+// Helper function to get probe name from task
+const getTaskProbeName = (task: Task): string => {
   try {
-    // Check if task has yaml_content
+    // First try to get the probe type name from description
+    // The description format is: "Protocol for designing {probeName} probes from species {species}"
+    const match = task.description.match(/Protocol for designing (.+?) probes from species/);
+    if (match && match[1]) {
+      return match[1];
+    }
+    
+    // Fallback: check yaml_content for probe configurations
     if (task.yaml_content) {
-      const yamlData = JSON.parse(task.yaml_content);
+      const yamlData = YAML.parse(task.yaml_content);
       
-      // Check extracts.target_region.source
-      if (yamlData.extracts?.target_region?.source) {
-        return yamlData.extracts.target_region.source === 'genome' ? 'DNA' : 'RNA';
+      // Look for probe configurations (probe_1, probe_2, etc.)
+      if (yamlData.probes) {
+        const probeKeys = Object.keys(yamlData.probes).filter(key => key.startsWith('probe_'));
+        if (probeKeys.length > 0) {
+          return `Custom (${probeKeys.length} probes)`;
+        }
       }
     }
     
-    // Check parameters for source information
-    if (task.parameters?.extracts?.target_region?.source) {
-      return task.parameters.extracts.target_region.source === 'genome' ? 'DNA' : 'RNA';
+    // Check parameters for probe configurations
+    if (task.parameters?.probes) {
+      const probeKeys = Object.keys(task.parameters.probes).filter(key => key.startsWith('probe_'));
+      if (probeKeys.length > 0) {
+        return `Custom (${probeKeys.length} probes)`;
+      }
     }
     
-    // Check summary report_name if available
-    if (task.parameters?.summary?.report_name) {
-      return task.parameters.summary.report_name === 'dna_report' ? 'DNA' : 'RNA';
-    }
-    
-    // Default to RNA for legacy tasks
-    return 'RNA';
+    // Default fallback
+    return 'Custom Probe';
   } catch (error) {
-    console.warn('Error determining probe type for task:', task.id, error);
-    return 'RNA';
+    console.warn('Error determining probe name for task:', task.id, error);
+    return 'Unknown';
   }
+};
+
+// Helper function to get probe type (source) from task
+const getTaskSource = (task: Task): string => {
+  try {
+    // Check yaml_content for extracts.target_region.source
+    if (task.yaml_content) {
+      const yamlData = YAML.parse(task.yaml_content);
+      if (yamlData.extracts?.target_region?.source) {
+        return yamlData.extracts.target_region.source;
+      }
+    }
+    
+    // Check parameters for extracts.target_region.source
+    if (task.parameters?.extracts?.target_region?.source) {
+      return task.parameters.extracts.target_region.source;
+    }
+    
+    // Default fallback
+    return 'exon';
+  } catch (error) {
+    console.warn('Error determining source for task:', task.id, error);
+    return 'Unknown';
+  }
+};
+
+// Helper function to get probe type (DNA/RNA) from task
+const getTaskProbeType = (task: Task): 'DNA' | 'RNA' => {
+  const source = getTaskSource(task);
+  if (source === 'genome') {
+    return 'DNA';
+  }
+  return 'RNA';
 };
 
 const TaskTable: React.FC<TaskTableProps> = ({
@@ -122,19 +166,21 @@ const TaskTable: React.FC<TaskTableProps> = ({
   onRunTask,
   onDownloadResult,
   onDeleteTask,
+  onRerunTask,
 }) => {
   return (
     <StyledTableContainer>
-      <Table>
+      <Table sx={{ minWidth: 800 }}>
         <TableHead>
           <TableRow>
-            <TableCell>Task ID</TableCell>
-            <TableCell>Task Name</TableCell>
-            <TableCell>Description</TableCell>
+            <TableCell sx={{ width: '20%' }}>Task</TableCell>
+            <TableCell sx={{ width: '20%' }}>Description</TableCell>
             <TableCell>Genome</TableCell>
+            <TableCell>Probe Name</TableCell>
             <TableCell>Probe Type</TableCell>
+            <TableCell>Source</TableCell>
             <TableCell>Status</TableCell>
-            <TableCell>Progress</TableCell>
+            <TableCell sx={{ width: '15%' }}>Progress</TableCell>
             <TableCell>Created At</TableCell>
             <TableCell align="right">Actions</TableCell>
           </TableRow>
@@ -145,17 +191,20 @@ const TaskTable: React.FC<TaskTableProps> = ({
             .map((task) => (
               <TableRow key={task.id} hover>
                 <TableCell>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                    {task.id}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="subtitle2">{task.name}</Typography>
+                  <Box>
+                    <Typography variant="subtitle2" component="div" sx={{ fontWeight: 500 }}>
+                      {task.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                      {task.id}
+                    </Typography>
+                  </Box>
                 </TableCell>
                 <TableCell>
                   <Tooltip title={task.description}>
                     <Typography
                       variant="body2"
+                      color="text.secondary"
                       sx={{
                         maxWidth: 200,
                         overflow: 'hidden',
@@ -168,15 +217,24 @@ const TaskTable: React.FC<TaskTableProps> = ({
                   </Tooltip>
                 </TableCell>
                 <TableCell>
-                  <Chip label={task.genome} size="small" />
+                  <Typography variant="body2">{task.genome}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">{getTaskProbeName(task)}</Typography>
                 </TableCell>
                 <TableCell>
                   <Chip 
                     label={getTaskProbeType(task)} 
                     size="small" 
                     color={getTaskProbeType(task) === 'DNA' ? 'primary' : 'secondary'}
-                    variant="outlined"
+                    sx={{
+                      fontWeight: 500,
+                      borderRadius: '6px',
+                    }}
                   />
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" color="text.secondary">{getTaskSource(task)}</Typography>
                 </TableCell>
                 <TableCell>
                   <Chip
@@ -184,7 +242,6 @@ const TaskTable: React.FC<TaskTableProps> = ({
                     label={task.status.charAt(0).toUpperCase() + task.status.slice(1)}
                     color={getStatusColor(task.status)}
                     size="small"
-                    variant={task.status === 'running' ? 'filled' : 'outlined'}
                   />
                 </TableCell>
                 <TableCell>
@@ -241,6 +298,13 @@ const TaskTable: React.FC<TaskTableProps> = ({
                           color="primary"
                         >
                           <PlayIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    {(task.status === 'failed' || task.status === 'completed') && (
+                      <Tooltip title="Rerun Task">
+                        <IconButton onClick={() => onRerunTask(task.id)} color="primary">
+                          <ReplayIcon />
                         </IconButton>
                       </Tooltip>
                     )}
