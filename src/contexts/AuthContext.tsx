@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { isTokenExpired, clearAuthData } from '../utils';
+import { isTokenExpired, clearAuthData, getToken } from '../utils';
 import ApiService from '../api';
 
 export interface User {
@@ -7,13 +7,20 @@ export interface User {
   email?: string;
   full_name?: string;
   disabled?: boolean;
+  avatar_url?: string;
+  title?: string;
+  department?: string;
+  location?: string;
+  phone?: string;
+  bio?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (emailOrUsername: string, password: string, rememberMe?: boolean) => Promise<void>;
+  register: (email: string, password: string, full_name: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
@@ -38,9 +45,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const login = async (username: string, password: string) => {
+  const login = async (emailOrUsername: string, password: string, rememberMe: boolean = false) => {
     try {
-      const response = await ApiService.login(username, password);
+      const response = await ApiService.login(emailOrUsername, password, rememberMe);
+      if (response.access_token) {
+        setIsAuthenticated(true);
+        await checkAuth(); // 获取用户信息
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const register = async (email: string, password: string, full_name: string) => {
+    try {
+      const response = await ApiService.register(email, password, full_name);
       if (response.access_token) {
         setIsAuthenticated(true);
         await checkAuth(); // 获取用户信息
@@ -65,8 +84,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const checkAuth = async () => {
     setIsLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const isAuthStored = localStorage.getItem('isAuthenticated') === 'true';
+      const token = getToken();
+      const isAuthStored = (localStorage.getItem('isAuthenticated') === 'true') || (sessionStorage.getItem('isAuthenticated') === 'true');
       
       if (!token || !isAuthStored || isTokenExpired()) {
         throw new Error('Token invalid or expired');
@@ -120,6 +139,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated,
     isLoading,
     login,
+    register,
     logout,
     checkAuth,
     updateUser,
