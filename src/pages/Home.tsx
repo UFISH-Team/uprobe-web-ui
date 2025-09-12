@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Box,
   Typography,
-  Button,
   Card,
   CardContent,
   useMediaQuery,
@@ -12,7 +11,6 @@ import {
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { 
-  AutoAwesome, 
   RocketLaunch, 
   Visibility, 
   CloudUpload,
@@ -23,7 +21,6 @@ import {
 const Home: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
 
   const quickActions = [
     {
