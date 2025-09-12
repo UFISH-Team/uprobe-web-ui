@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import ApiService from '../api';
 import { Task } from '../types';
+import YAML from 'yaml';
 
 interface TaskState {
   // State
@@ -14,6 +15,7 @@ interface TaskState {
   pauseTask: (taskId: string) => Promise<void>;
   resumeTask: (taskId: string) => Promise<void>;
   runTask: (taskId: string) => Promise<void>;
+  rerunTask: (taskId: string) => Promise<void>;
   refreshTaskList: () => void;
   setCurrentTask: (task: Task | null) => void;
 }
@@ -123,6 +125,38 @@ const useTaskStore = create<TaskState>((set, get) => ({
       return Promise.resolve();
     } catch (error) {
       console.error("Failed to run task", error);
+      return Promise.reject(error);
+    }
+  },
+
+  rerunTask: async (taskId: string) => {
+    const { tasks, fetchTasks } = get();
+    const taskToRerun = tasks.find(t => t.id === taskId);
+
+    if (!taskToRerun || !taskToRerun.yaml_content) {
+      const errorMessage = 'Task configuration not found, cannot rerun.';
+      console.error(errorMessage);
+      return Promise.reject(new Error(errorMessage));
+    }
+
+    try {
+      const config = YAML.parse(taskToRerun.yaml_content);
+      
+      // Create a new name for the rerun task to avoid confusion
+      config.name = `${config.name}-rerun-${Date.now().toString().slice(-4)}`;
+
+      // Submit a new task with the old configuration
+      const newTask = await ApiService.submitTask(config);
+      
+      // Immediately run the new task
+      if (newTask && newTask.id) {
+        await ApiService.runTask(newTask.id);
+      }
+
+      // Refresh the task list to show the new task
+      await fetchTasks();
+    } catch (error) {
+      console.error('Failed to rerun task:', error);
       return Promise.reject(error);
     }
   },
