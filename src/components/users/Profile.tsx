@@ -31,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import ApiService from '../../api';
+import { getAvatarUrl } from '../../utils';
 
 const Profile: React.FC = () => {
   const theme = useTheme();
@@ -44,11 +45,11 @@ const Profile: React.FC = () => {
   const [profileData, setProfileData] = useState({
     name: user?.full_name || user?.username || 'Unknown User',
     email: user?.email || 'No email set',
-    title: 'Researcher',
-    department: 'Research & Development',
-    location: 'Not set',
-    phone: 'Not set',
-    bio: 'Researcher specializing in probe design and bioinformatics analysis.',
+    title: user?.title || 'Researcher',
+    department: user?.department || 'Research & Development',
+    location: user?.location || 'Not set',
+    phone: user?.phone || 'Not set',
+    bio: user?.bio || 'Researcher specializing in probe design and bioinformatics analysis.',
     avatar: null as string | null,
   });
   const [tempProfileData, setTempProfileData] = useState({ ...profileData });
@@ -59,12 +60,12 @@ const Profile: React.FC = () => {
       const updatedData = {
         name: user.full_name || user.username || 'Unknown User',
         email: user.email || 'No email set',
-        title: 'Researcher',
-        department: 'Research & Development',
-        location: 'Not set',
-        phone: 'Not set',
-        bio: 'Researcher specializing in probe design and bioinformatics analysis.',
-        avatar: null as string | null,
+        title: user.title || 'Researcher',
+        department: user.department || 'Research & Development',
+        location: user.location || 'Not set',
+        phone: user.phone || 'Not set',
+        bio: user.bio || 'Researcher specializing in probe design and bioinformatics analysis.',
+        avatar: getAvatarUrl(user.avatar_url),
       };
       setProfileData(updatedData);
       setTempProfileData(updatedData);
@@ -85,7 +86,12 @@ const Profile: React.FC = () => {
       // Call API to update user profile
       const updatedUser = await ApiService.updateUserProfile({
         full_name: tempProfileData.name,
-        email: tempProfileData.email
+        email: tempProfileData.email,
+        title: tempProfileData.title,
+        department: tempProfileData.department,
+        location: tempProfileData.location,
+        phone: tempProfileData.phone,
+        bio: tempProfileData.bio
       });
       
       // Update local state
@@ -94,7 +100,12 @@ const Profile: React.FC = () => {
       // Update user info in auth context
       updateUser({
         full_name: updatedUser.full_name,
-        email: updatedUser.email
+        email: updatedUser.email,
+        title: updatedUser.title,
+        department: updatedUser.department,
+        location: updatedUser.location,
+        phone: updatedUser.phone,
+        bio: updatedUser.bio
       });
       
       setIsEditMode(false);
@@ -117,14 +128,30 @@ const Profile: React.FC = () => {
     setAvatarDialog(true);
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const newAvatar = URL.createObjectURL(file);
-      setProfileData(prev => ({ ...prev, avatar: newAvatar }));
-      setTempProfileData(prev => ({ ...prev, avatar: newAvatar }));
-      setAvatarDialog(false);
-      setSnackbar({ open: true, message: 'Avatar updated successfully!', severity: 'success' });
+      try {
+        const updatedUser = await ApiService.uploadAvatar(file);
+        
+        // Process the avatar URL consistently
+        const newAvatarUrl = getAvatarUrl(updatedUser.avatar_url);
+
+        // Update local state for immediate feedback
+        setProfileData(prev => ({ ...prev, avatar: newAvatarUrl }));
+        setTempProfileData(prev => ({ ...prev, avatar: newAvatarUrl }));
+        
+        // Update user info in auth context - store the original relative URL
+        updateUser({
+          avatar_url: updatedUser.avatar_url
+        });
+
+        setAvatarDialog(false);
+        setSnackbar({ open: true, message: 'Avatar updated successfully!', severity: 'success' });
+      } catch (error) {
+        console.error('Failed to upload avatar:', error);
+        setSnackbar({ open: true, message: 'Failed to upload avatar. Please try again.', severity: 'error' });
+      }
     }
   };
 
