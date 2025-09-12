@@ -89,10 +89,24 @@ export const AUTH_CONFIG = {
 };
 
 /**
+ * Get token from storage (check both localStorage and sessionStorage)
+ */
+export const getToken = (): string | null => {
+  return localStorage.getItem('token') || sessionStorage.getItem('token');
+};
+
+/**
+ * Get token expiration from storage
+ */
+export const getTokenExpiration = (): string | null => {
+  return localStorage.getItem('tokenExpiration') || sessionStorage.getItem('tokenExpiration');
+};
+
+/**
  * Check if the current token is expired
  */
 export const isTokenExpired = (): boolean => {
-  const tokenExpiration = localStorage.getItem('tokenExpiration');
+  const tokenExpiration = getTokenExpiration();
   if (!tokenExpiration) return true;
   
   const expirationTime = parseInt(tokenExpiration);
@@ -105,7 +119,7 @@ export const isTokenExpired = (): boolean => {
  * Get remaining time until token expires
  */
 export const getTokenRemainingTime = (): number => {
-  const tokenExpiration = localStorage.getItem('tokenExpiration');
+  const tokenExpiration = getTokenExpiration();
   if (!tokenExpiration) return 0;
   
   const expirationTime = parseInt(tokenExpiration);
@@ -145,4 +159,31 @@ export const clearAuthData = (): void => {
   localStorage.removeItem('token');
   localStorage.removeItem('isAuthenticated');
   localStorage.removeItem('tokenExpiration');
+  localStorage.removeItem('rememberMe');
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('isAuthenticated');
+  sessionStorage.removeItem('tokenExpiration');
+};
+
+/**
+ * Check if user chose to be remembered
+ */
+export const isRememberMeEnabled = (): boolean => {
+  return localStorage.getItem('rememberMe') === 'true';
+};
+
+/**
+ * 处理头像URL，确保返回完整的URL
+ */
+export const getAvatarUrl = (avatarUrl: string | null | undefined): string | null => {
+  if (!avatarUrl) return null;
+  
+  // 如果已经是完整URL，直接返回
+  if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+    return avatarUrl;
+  }
+  
+  // 如果是相对路径，加上API服务器地址
+  const API_BASE_URL = 'http://127.0.0.1:8000';
+  return `${API_BASE_URL}${avatarUrl}`;
 };
