@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { ApiResponse, PaginatedResponse } from './types';
-import { AUTH_CONFIG } from './utils';
+import { AUTH_CONFIG, getToken } from './utils';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
@@ -16,7 +16,7 @@ const api = axios.create({
 // 请求拦截器
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -66,17 +66,59 @@ api.interceptors.response.use(
 // API 服务类
 class ApiService {
   // 认证相关
-  static async login(username: string, password: string): Promise<{ access_token: string; token_type: string }> {
+  static async login(emailOrUsername: string, password: string, rememberMe: boolean = false): Promise<{ access_token: string; token_type: string }> {
     // Send JSON data to match backend LoginRequest model
     const response = await api.post('/auth/login', { 
-      username, 
-      password 
+      email_or_username: emailOrUsername, 
+      password,
+      remember_me: rememberMe
     }) as { token: string; token_type: string; user_info: any };
 
     // Map backend response to expected frontend format
     const mappedResponse = {
       access_token: response.token,
       token_type: response.token_type
+    };
+
+    if (response.token) {
+      if (rememberMe) {
+        // 记住我：使用localStorage，30天过期
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('rememberMe', 'true');
+        const expirationTime = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30天
+        localStorage.setItem('tokenExpiration', expirationTime.toString());
+        // 清除sessionStorage中的数据
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('isAuthenticated');
+        sessionStorage.removeItem('tokenExpiration');
+      } else {
+        // 不记住我：使用sessionStorage，关闭浏览器后过期
+        sessionStorage.setItem('token', response.token);
+        sessionStorage.setItem('isAuthenticated', 'true');
+        const expirationTime = Date.now() + AUTH_CONFIG.TOKEN_EXPIRY_DURATION;
+        sessionStorage.setItem('tokenExpiration', expirationTime.toString());
+        // 清除localStorage中的数据
+        localStorage.removeItem('token');
+        localStorage.removeItem('isAuthenticated');
+        localStorage.removeItem('tokenExpiration');
+        localStorage.removeItem('rememberMe');
+      }
+    }
+    return mappedResponse;
+  }
+
+  static async register(email: string, password: string, full_name: string): Promise<{ access_token: string; token_type: string }> {
+    const response = await api.post('/auth/register', { 
+      email, 
+      password, 
+      full_name 
+    }) as { token: string; token_type: string; user_info: any };
+    
+    const mappedResponse = {
+      access_token: response.token,
+      token_type: response.token_type,
+      user_info: response.user_info
     };
 
     if (response.token) {
@@ -87,10 +129,6 @@ class ApiService {
       localStorage.setItem('tokenExpiration', expirationTime.toString());
     }
     return mappedResponse;
-  }
-
-  static async register(username: string, email: string, password: string): Promise<ApiResponse<{ token: string }>> {
-    return api.post('/auth/register', { username, email, password });
   }
 
   // 探针设计相关
@@ -208,8 +246,42 @@ class ApiService {
     return api.get('/auth/check');
   }
 
-  static async updateUserProfile(data: { full_name?: string; email?: string }): Promise<any> {
+  static async updateUserProfile(data: { 
+    full_name?: string; 
+    email?: string;
+    title?: string;
+    department?: string;
+    location?: string;
+    phone?: string;
+    bio?: string;
+  }): Promise<any> {
     return api.put('/auth/profile', data);
+  }
+
+  static async updatePassword(data: { current_password: string; new_password: string }): Promise<any> {
+    return api.put('/auth/password', data);
+  }
+
+  static async forgotPassword(email: string): Promise<any> {
+    return api.post('/auth/forgot-password', { email });
+  }
+
+  static async resetPassword(email: string, reset_code: string, new_password: string): Promise<any> {
+    return api.post('/auth/reset-password', {
+      email,
+      reset_code,
+      new_password
+    });
+  }
+
+  static async uploadAvatar(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/user/upload-avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
   }
 
   // Barcode generation using workflow routes
@@ -332,7 +404,7 @@ class ApiService {
   static async downloadTaskResult(taskId: string): Promise<Blob> {
     const response = await axios.get(`${API_BASE_URL}/task/${taskId}/download`, {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
+        Authorization: `Bearer ${getToken()}`
       },
       responseType: 'blob'
     });
@@ -346,7 +418,7 @@ class ApiService {
   static async downloadTaskFile(taskId: string, filename: string): Promise<Blob> {
     const response = await axios.get(`${API_BASE_URL}/task/${taskId}/file/${filename}`, {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
+        Authorization: `Bearer ${getToken()}`
       },
       responseType: 'blob'
     });
@@ -396,4 +468,4 @@ class ApiService {
   }
 }
 
-export default ApiService; 
+export default ApiService;
