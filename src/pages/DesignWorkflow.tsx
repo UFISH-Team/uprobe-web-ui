@@ -93,6 +93,14 @@ interface Target {
   [key: string]: string | number;  // Allow dynamic barcode fields
 }
 
+// Helper function to get probe type (DNA/RNA)
+const getProbeType = (customType?: CustomProbeType | null): 'DNA' | 'RNA' => {
+  if (!customType) return 'RNA'; // Default for built-in types
+  
+  const probeSource = customType.targetConfig?.source;
+  return probeSource === 'genome' ? 'DNA' : 'RNA';
+};
+
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
   const [barcodeOptions, setBarcodeOptions] = useState<string[]>([]);
@@ -110,13 +118,6 @@ const DesignWorkflow: React.FC = () => {
     return probeName;
   };
 
-  // Helper function to get probe type (DNA/RNA)
-  const getProbeType = (customType?: CustomProbeType | null): 'DNA' | 'RNA' => {
-    if (!customType) return 'RNA'; // Default for built-in types
-    
-    const probeSource = customType.targetConfig?.source;
-    return probeSource === 'genome' ? 'DNA' : 'RNA';
-  };
 
   const formatPartName = (partName: string): string => {
     // Convert "part1" to "Part_1", "part2" to "Part_2", etc.
@@ -134,6 +135,7 @@ const DesignWorkflow: React.FC = () => {
   const [customProbeTypes, setCustomProbeTypes] = useState<CustomProbeType[]>([]);
   const [isLoadingCustomTypes, setIsLoadingCustomTypes] = useState(true);
   const [showCustomProbeTypes, setShowCustomProbeTypes] = useState(false);
+  const [expandedProbes, setExpandedProbes] = useState<Record<string, boolean>>({});
 
   const [expandedSections, setExpandedSections] = useState<{[key: string]: boolean}>({
     taskName: true,
@@ -159,7 +161,7 @@ const DesignWorkflow: React.FC = () => {
   const [enableAvoidOtp, setEnableAvoidOtp] = useState(false);
   const [enableEqualSpace, setEnableEqualSpace] = useState(false);
   const [enableRemoveOverlap, setEnableRemoveOverlap] = useState(true);
-  const [enableSorting, setEnableSorting] = useState(false);
+  const [enableSorting, setEnableSorting] = useState(true);
   
   // avoid_otp configuration interface
   interface AvoidOtpConfig {
@@ -177,6 +179,16 @@ const DesignWorkflow: React.FC = () => {
     };
   }
   const [equalSpaceConfig, setEqualSpaceConfig] = useState<EqualSpaceConfig>({});
+  
+  // Helper function to check if current probe type is DNA
+  const isCurrentProbeDna = (): boolean => {
+    return selectedCustomType ? getProbeType(selectedCustomType) === 'DNA' : false;
+  };
+  
+  // Helper function to check if OTP and Equal Space should be enabled for current probe type
+  const shouldEnableDnaFeatures = (): boolean => {
+    return isCurrentProbeDna();
+  };
   
   // Helper function: get current target list
   const getCurrentTargets = () => {
@@ -222,11 +234,6 @@ const DesignWorkflow: React.FC = () => {
   }
   const [barcodeModes, setBarcodeModes] = useState<BarcodeMode>({});
   
-  // Barcode generation types
-  interface BarcodeGenerationType {
-    [key: string]: 'quick' | 'pcr' | 'sequencing';
-  }
-  const [barcodeGenerationTypes, setBarcodeGenerationTypes] = useState<BarcodeGenerationType>({});
 
   // Function to validate barcode length
   const validateBarcodeLength = (barcode: string, expectedLength: number): boolean => {
@@ -327,19 +334,11 @@ const DesignWorkflow: React.FC = () => {
   const handleBarcodeModeChange = async (barcodeKey: string, mode: 'builtin' | 'auto' | 'manual' | 'file') => {
     setBarcodeModes(prev => ({ ...prev, [barcodeKey]: mode }));
     
-    // Set default generation type when switching to auto mode
-    if (mode === 'auto' && !barcodeGenerationTypes[barcodeKey]) {
-      setBarcodeGenerationTypes(prev => ({ ...prev, [barcodeKey]: 'quick' }));
-    }
   };
 
-  // Function to handle barcode generation type change
-  const handleBarcodeGenerationTypeChange = (barcodeKey: string, generationType: 'quick' | 'pcr' | 'sequencing') => {
-    setBarcodeGenerationTypes(prev => ({ ...prev, [barcodeKey]: generationType }));
-  };
 
   // Function to generate barcodes for all targets
-  const generateBarcodesForAllTargets = async (barcodeKey: string, generationType: 'quick' | 'pcr' | 'sequencing') => {
+  const generateBarcodesForAllTargets = async (barcodeKey: string) => {
     const loadingKey = `target_all_${barcodeKey}`;
     setGeneratingBarcodes(prev => ({ ...prev, [loadingKey]: true }));
     
@@ -367,38 +366,15 @@ const DesignWorkflow: React.FC = () => {
       let generatedBarcodes: string[] = [];
       
       try {
-        // Call appropriate API to generate multiple barcodes at once
-        switch (generationType) {
-          case 'quick':
-            const quickResult = await ApiService.generateQuickBarcode({
-              num_barcodes: targetsNeedingBarcodes.length,
-              length: expectedLength,
-              alphabet: 'ACTG',
-              rc_free: true,
-              gc_limits: [40, 60]
-            });
-            generatedBarcodes = quickResult;
-            break;
-            
-          case 'pcr':
-            const pcrResult = await ApiService.generatePcrBarcode({
-              num_barcodes: targetsNeedingBarcodes.length,
-              length: expectedLength
-            });
-            generatedBarcodes = pcrResult;
-            break;
-            
-          case 'sequencing':
-            const seqResult = await ApiService.generateSequencingBarcode({
-              num_barcodes: targetsNeedingBarcodes.length,
-              length: expectedLength
-            });
-            generatedBarcodes = seqResult;
-            break;
-            
-          default:
-            throw new Error(`Unsupported generation type: ${generationType}`);
-        }
+        // Use quick generation by default
+        const quickResult = await ApiService.generateQuickBarcode({
+          num_barcodes: targetsNeedingBarcodes.length,
+          length: expectedLength,
+          alphabet: 'ACTG',
+          rc_free: true,
+          gc_limits: [40, 60]
+        });
+        generatedBarcodes = quickResult;
       } catch (apiError) {
         console.warn('API barcode generation failed, falling back to local generation:', apiError);
         
@@ -455,8 +431,7 @@ const DesignWorkflow: React.FC = () => {
     
     try {
       const barcodeIndex = parseInt(barcodeKey.replace('barcode', '')) - 1;
-      const generationType = barcodeGenerationTypes[barcodeKey] || 'quick';
-      const newBarcode = await generateBarcode(barcodeIndex, generationType);
+      const newBarcode = await generateBarcode(barcodeIndex, 'quick');
       
       if (newBarcode) {
         updateTarget(itemIndex, barcodeKey as keyof Target, newBarcode);
@@ -539,15 +514,6 @@ const DesignWorkflow: React.FC = () => {
     navigateToJobs,
   } = useDesignStore();
 
-  const attributeOptions = [
-    { id: 'gcContent', label: 'GC Content', icon: '🧬' },
-    { id: 'foldScore', label: 'Fold Score', icon: '📊' },
-    { id: 'tm', label: 'Melting Temperature', icon: '🌡️' },
-    { id: 'selfMatch', label: 'Self Match', icon: '🔍' },
-    { id: 'mappedGenes', label: 'Mapped Genes', icon: '🧬' },
-    { id: 'kmerCount', label: 'K-mer Count', icon: '🔢' },
-    { id: 'mappedSites', label: 'Mapped Sites', icon: '📍' }
-  ];
 
 
 
@@ -583,18 +549,33 @@ const DesignWorkflow: React.FC = () => {
       const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
       const customTypes = savedGroups
         .filter((group: any) => group.type === 'custom')
-        .map((group: any) => ({
-          id: group.id,
-          name: group.name,
-          type: 'custom',
-          yamlContent: group.yamlContent,
-          createdAt: new Date(group.createdAt),
-          updatedAt: new Date(group.updatedAt),
-          barcodeCount: group.barcodeCount,
-          targetLength: group.targetLength,
-          overlap: group.overlap,
-          probes: group.probes || {}
-        }));
+        .map((group: any) => {
+          const parameters = extractParametersFromYaml(group.yamlContent);
+          
+          let targetConfig = null;
+          if (parameters?.target_sequence) {
+            targetConfig = {
+              source: parameters.target_sequence.source,
+              sequence: parameters.target_sequence.sequence,
+              length: parameters.target_sequence.length,
+              attributes: parameters.target_sequence.attributes || {}
+            };
+          }
+
+          return {
+            id: group.id,
+            name: group.name,
+            type: 'custom',
+            yamlContent: group.yamlContent,
+            createdAt: new Date(group.createdAt),
+            updatedAt: new Date(group.updatedAt),
+            barcodeCount: group.barcodeCount,
+            targetLength: group.targetLength,
+            overlap: group.overlap,
+            probes: group.probes || {},
+            targetConfig: targetConfig,
+          };
+        });
       setCustomProbeTypes(customTypes);
     } catch (error) {
       console.error('Error loading custom probe types:', error);
@@ -661,11 +642,20 @@ const DesignWorkflow: React.FC = () => {
     }
   }, [isLoadingCustomTypes, probeType, customProbeTypes, setMinLength, setOverlap, setSelectedCustomType]);
 
+  useEffect(() => {
+    if (selectedCustomType?.probes) {
+      const allProbesExpanded: Record<string, boolean> = {};
+      for (const probeName of Object.keys(selectedCustomType.probes)) {
+        allProbesExpanded[probeName] = true;
+      }
+      setExpandedProbes(allProbesExpanded);
+    }
+  }, [selectedCustomType]);
+
   const handleResetTargetList = () => {
     setTargetList([{ target: '' }]);
     setBarcodeFromFile({});
     setBarcodeModes({});
-    setBarcodeGenerationTypes({});
     setGeneratingBarcodes({});
     setAlert(true, 'Target list has been reset', 'success');
   };
@@ -756,7 +746,6 @@ const DesignWorkflow: React.FC = () => {
     // Reset barcode modes when changing probe type
     setBarcodeModes({});
     setBarcodeFromFile({});
-    setBarcodeGenerationTypes({});
     setGeneratingBarcodes({});
     
     // 查找自定义探针类型
@@ -995,12 +984,22 @@ const DesignWorkflow: React.FC = () => {
     if (!attrValue?.enabled) return null;
 
     const chipKey = partName ? `${probeName}-${partName}-${attrName}` : `${probeName}-${attrName}`;
+    
+    const handleDelete = () => {
+      if (partName) {
+        handleDeleteAttribute('part', attrName, probeName, partName);
+      } else {
+        handleDeleteAttribute('probe', attrName, probeName);
+      }
+    };
+
     const chipProps = {
       key: chipKey,
       size: "small" as const,
       variant: "outlined" as const,
       sx: { height: 20, fontSize: '0.7rem', cursor: 'pointer' },
-      onClick: () => handleAttributeClick(probeName, partName, attrName, attrValue)
+      onClick: () => handleAttributeClick(probeName, partName, attrName, attrValue),
+      onDelete: handleDelete
     };
 
     switch(attrName) {
@@ -1176,6 +1175,20 @@ const DesignWorkflow: React.FC = () => {
   // when probe type changes, reset sort options
   useEffect(() => {
     setSortOptions([]);
+  }, [selectedCustomType]);
+
+  // when probe type changes, update DNA-specific features
+  useEffect(() => {
+    const isDnaProbe = shouldEnableDnaFeatures();
+    if (isDnaProbe) {
+      // DNA探针：默认启用OTP和Equal Space
+      setEnableAvoidOtp(true);
+      setEnableEqualSpace(true);
+    } else {
+      // RNA探针：禁用OTP和Equal Space
+      setEnableAvoidOtp(false);
+      setEnableEqualSpace(false);
+    }
   }, [selectedCustomType]);
 
   const getActiveSteps = () => {
@@ -1790,16 +1803,22 @@ const DesignWorkflow: React.FC = () => {
       // Generate the complete task configuration
       const taskConfig = generateTaskConfig();
 
-      // Submit the task
-      await ApiService.submitTask(taskConfig);
+      // Submit the task and get the new task's ID
+      const response = await ApiService.submitTask(taskConfig);
+      const newTaskId = response.data?.job_id; // Assuming the response contains the new task ID
+
+      // Automatically start the task
+      if (newTaskId) {
+        await ApiService.runTask(newTaskId);
+        setAlert(true, 'Task submitted and started successfully!', 'success');
+      } else {
+        setAlert(true, 'Task submitted successfully! You can start it manually.', 'success');
+      }
       
-      setAlert(true, 'Task submitted successfully!', 'success');
       setProgress(100);
       
-      // Navigate to tasks page after a short delay
-      setTimeout(() => {
-        navigateToJobs();
-      }, 2000);
+      // Navigate to tasks page immediately
+      navigateToJobs();
     } catch (error) {
       console.error('Failed to submit task:', error);
       setAlert(true, 'Failed to submit task. Please try again.', 'error');
@@ -1808,6 +1827,63 @@ const DesignWorkflow: React.FC = () => {
       setSubmitting(false);
     }
   };
+
+  // Function to handle attribute deletion
+  const handleDeleteAttribute = (
+    type: 'target' | 'probe' | 'part',
+    attrName: string,
+    probeName?: string,
+    partName?: string
+  ) => {
+    if (!selectedCustomType) return;
+    
+    // 使用深拷贝避免状态突变
+    const newType = JSON.parse(JSON.stringify(selectedCustomType));
+
+    if (type === 'target') {
+      if (newType.targetConfig?.attributes?.[attrName]) {
+        delete newType.targetConfig.attributes[attrName];
+      }
+    } else if (type === 'probe' && probeName) {
+      if (newType.probes?.[probeName]?.attributes?.[attrName]) {
+        delete newType.probes[probeName].attributes[attrName];
+      }
+    } else if (type === 'part' && probeName && partName) {
+      if (newType.probes?.[probeName]?.parts?.[partName]?.attributes?.[attrName]) {
+        delete newType.probes[probeName].parts[partName].attributes[attrName];
+      }
+    }
+
+    setSelectedCustomType(newType);
+  };
+
+  const handleToggleProbeAccordion = (probeName: string) => {
+    setExpandedProbes(prev => ({
+      ...prev,
+      [probeName]: !prev[probeName],
+    }));
+  };
+
+  // Get all attribute options (always show all, but some may be disabled)
+  const getAllAttributeOptions = () => {
+    return [
+      { id: 'gcContent', label: 'GC Content', icon: '🧬', type: 'common' },
+      { id: 'foldScore', label: 'Fold Score', icon: '📊', type: 'common' },
+      { id: 'tm', label: 'Melting Temperature', icon: '🌡️', type: 'common' },
+      { id: 'selfMatch', label: 'Self Match', icon: '🔍', type: 'common' },
+      { id: 'mappedGenes', label: 'Mapped Genes', icon: '🧬', type: 'rna' },
+      { id: 'mappedSites', label: 'Mapped Sites', icon: '📍', type: 'dna' },
+      { id: 'kmerCount', label: 'K-mer Count', icon: '🔢', type: 'dna' }
+    ];
+  };
+
+  // Check if an attribute option should be disabled
+  const isAttributeOptionDisabled = (optionType: string) => {
+    if (!selectedCustomType || optionType === 'common') return false;
+    const isDna = isCurrentProbeDna();
+    return (optionType === 'dna' && !isDna) || (optionType === 'rna' && isDna);
+  };
+
 
   return (
     <Container
@@ -2018,14 +2094,15 @@ const DesignWorkflow: React.FC = () => {
                               size="small"
                               variant="outlined"
                               sx={{ height: 20, fontSize: '0.7rem', cursor: 'pointer' }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCurrentAttributeType('target');
-                                handleEditAttribute({
-                                  name: attrName,
-                                  ...attrValue
-                                });
-                              }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCurrentAttributeType('target');
+                                  handleEditAttribute({
+                                    name: attrName,
+                                    ...attrValue
+                                  });
+                                }}
+                                onDelete={() => handleDeleteAttribute('target', attrName)}
                               label={
                                 attrName === 'gcContent' ? `GC: ${attrValue.min}%-${attrValue.max}%` :
                                 attrName === 'foldScore' ? `Fold: max ${attrValue.max}` :
@@ -2069,7 +2146,12 @@ const DesignWorkflow: React.FC = () => {
                         console.log('Debug - Rendering probes:', selectedCustomType.probes);
                         return selectedCustomType.probes && Object.keys(selectedCustomType.probes).length > 0 ? (
                           Object.entries(selectedCustomType.probes).map(([probeName, probeConfig]) => (
-                        <Accordion key={probeName} sx={{ mb: 2 }}>
+                        <Accordion 
+                          key={probeName} 
+                          sx={{ mb: 2 }}
+                          expanded={expandedProbes[probeName] ?? true}
+                          onChange={() => handleToggleProbeAccordion(probeName)}
+                        >
                           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                               <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
@@ -2248,27 +2330,13 @@ const DesignWorkflow: React.FC = () => {
                               </Select>
                             </FormControl>
 
-                            {/* Generation Type Selector (only for auto mode) */}
-                            {currentMode === 'auto' && (
-                              <FormControl size="small" fullWidth>
-                                <InputLabel>Generation Type</InputLabel>
-                                <Select
-                                  value={barcodeGenerationTypes[barcodeKey] || 'quick'}
-                                  onChange={(e) => handleBarcodeGenerationTypeChange(barcodeKey, e.target.value as any)}
-                                >
-                                  <MenuItem value="quick">Quick</MenuItem>
-                                  <MenuItem value="pcr">PCR</MenuItem>
-                                  <MenuItem value="sequencing">Sequencing</MenuItem>
-                                </Select>
-                              </FormControl>
-                            )}
 
                             {/* Batch Generate Button (only for auto mode) */}
                             {currentMode === 'auto' && (
                               <Button
                                 size="small"
                                 variant="contained"
-                                onClick={() => generateBarcodesForAllTargets(barcodeKey, barcodeGenerationTypes[barcodeKey] || 'quick')}
+                                onClick={() => generateBarcodesForAllTargets(barcodeKey)}
                                 disabled={generatingBarcodes[`target_all_${barcodeKey}`]}
                                 sx={{ fontSize: '0.75rem' }}
                               >
@@ -2453,7 +2521,8 @@ const DesignWorkflow: React.FC = () => {
                       height: '100%',
                       border: enableAvoidOtp ? '2px solid' : '1px solid',
                       borderColor: enableAvoidOtp ? 'warning.main' : 'divider',
-                      backgroundColor: enableAvoidOtp ? 'warning.50' : 'background.paper',
+                      backgroundColor: enableAvoidOtp ? 'warning.50' : !shouldEnableDnaFeatures() ? 'grey.100' : 'background.paper',
+                      opacity: !shouldEnableDnaFeatures() ? 0.6 : 1,
                       transition: 'all 0.2s ease-in-out'
                     }}
                   >
@@ -2468,15 +2537,16 @@ const DesignWorkflow: React.FC = () => {
                             }
                           }}
                           color="warning"
+                          disabled={!shouldEnableDnaFeatures()}
                         />
                       }
                       label={
                         <Box>
-                          <Typography variant="subtitle1" fontWeight="medium">
+                          <Typography variant="subtitle1" fontWeight="medium" sx={{ color: !shouldEnableDnaFeatures() ? 'text.disabled' : 'text.primary' }}>
                             ⚠️ Avoid Off-Target
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Prevent off-target binding
+                          <Typography variant="caption" color={!shouldEnableDnaFeatures() ? 'text.disabled' : 'text.secondary'}>
+                            {!shouldEnableDnaFeatures() ? 'DNA only' : 'Prevent off-target binding'}
                           </Typography>
                         </Box>
                       }
@@ -2500,7 +2570,8 @@ const DesignWorkflow: React.FC = () => {
                       height: '100%',
                       border: enableEqualSpace ? '2px solid' : '1px solid',
                       borderColor: enableEqualSpace ? 'secondary.main' : 'divider',
-                      backgroundColor: enableEqualSpace ? 'secondary.50' : 'background.paper',
+                      backgroundColor: enableEqualSpace ? 'secondary.50' : !shouldEnableDnaFeatures() ? 'grey.100' : 'background.paper',
+                      opacity: !shouldEnableDnaFeatures() ? 0.6 : 1,
                       transition: 'all 0.2s ease-in-out'
                     }}
                   >
@@ -2515,15 +2586,16 @@ const DesignWorkflow: React.FC = () => {
                             }
                           }}
                           color="secondary"
+                          disabled={!shouldEnableDnaFeatures()}
                         />
                       }
                       label={
                         <Box>
-                          <Typography variant="subtitle1" fontWeight="medium">
+                          <Typography variant="subtitle1" fontWeight="medium" sx={{ color: !shouldEnableDnaFeatures() ? 'text.disabled' : 'text.primary' }}>
                             📏 Equal Spacing
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Distribute probes evenly
+                          <Typography variant="caption" color={!shouldEnableDnaFeatures() ? 'text.disabled' : 'text.secondary'}>
+                            {!shouldEnableDnaFeatures() ? 'DNA only' : 'Distribute probes evenly'}
                           </Typography>
                         </Box>
                       }
@@ -2803,8 +2875,8 @@ const DesignWorkflow: React.FC = () => {
                                 onChange={(e) => handleSortOptionChange(index, option.field, e.target.value as 'asc' | 'desc')}
                                 disabled={!option.field}
                               >
-                                <MenuItem value="asc">Ascending</MenuItem>
-                                <MenuItem value="desc">Descending</MenuItem>
+                                <MenuItem value="asc">Ascending⬆️</MenuItem>
+                                <MenuItem value="desc">Descending⬇️</MenuItem>
                               </Select>
                             </FormControl>
                           </Grid>
@@ -2976,26 +3048,36 @@ const DesignWorkflow: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={2}>
-            {attributeOptions.map((option) => (
-              <Grid item xs={12} sm={6} key={option.id}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => handleAddAttribute(option.id)}
-                  sx={{
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    p: 2
-                  }}
-                >
-                  <Typography variant="h4" sx={{ mb: 1 }}>{option.icon}</Typography>
-                  <Typography variant="body1">{option.label}</Typography>
-                </Button>
-              </Grid>
-            ))}
+              {getAllAttributeOptions().map((option) => {
+                const isDisabled = isAttributeOptionDisabled(option.type);
+                return (
+                  <Grid item xs={12} sm={6} key={option.id}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      onClick={() => handleAddAttribute(option.id)}
+                      disabled={isDisabled}
+                      sx={{
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        p: 2,
+                        opacity: isDisabled ? 0.5 : 1
+                      }}
+                    >
+                      <Typography variant="h4" sx={{ mb: 1 }}>{option.icon}</Typography>
+                      <Typography variant="body1">{option.label}</Typography>
+                      {isDisabled && (
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                          {option.type === 'dna' ? 'DNA only' : 'RNA only'}
+                        </Typography>
+                      )}
+                    </Button>
+                  </Grid>
+                );
+              })}
           </Grid>
         </DialogContent>
       </Dialog>
