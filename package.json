@@ -2,7 +2,11 @@
   "pnpm": {
     "overrides": {
       "typescript": "^5.5.4"
-    }
+    },
+    "ignoredBuiltDependencies": [
+      "es5-ext",
+      "esbuild"
+    ]
   },
   "name": "uprobe-web",
   "private": true,
@@ -29,6 +33,7 @@
     "chonky": "^2.3.2",
     "dagre": "^0.8.5",
     "js-yaml": "^4.1.0",
+    "jszip": "^3.10.1",
     "konva": "^9.3.20",
     "notistack": "^3.0.1",
     "papaparse": "^5.4.1",
@@ -39,7 +44,6 @@
     "react-plotly.js": "^2.6.0",
     "react-router-dom": "^6.26.1",
     "reactflow": "^11.11.4",
-    "shortid": "2.2.16",
     "universal-cookie": "^7.2.0",
     "uuid": "^10.0.0",
     "yaml": "^2.7.1",
@@ -47,8 +51,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
-    "@types/antd": "^1.0.0",
-    "@types/classnames": "2.3.1",
     "@types/d3": "^7.4.3",
     "@types/js-yaml": "^4.0.9",
     "@types/papaparse": "^5.3.14",
