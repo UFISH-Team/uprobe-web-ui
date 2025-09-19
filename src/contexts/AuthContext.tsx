@@ -21,6 +21,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (emailOrUsername: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (email: string, password: string, full_name: string) => Promise<void>;
+  registerWithCode: (email: string, verification_code: string, password: string, full_name: string) => Promise<void>;
+  sendVerificationCode: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
@@ -60,6 +62,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (email: string, password: string, full_name: string) => {
     try {
       const response = await ApiService.register(email, password, full_name);
+      if (response.access_token) {
+        setIsAuthenticated(true);
+        await checkAuth(); // 获取用户信息
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const sendVerificationCode = async (email: string) => {
+    try {
+      await ApiService.sendVerificationCode(email);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const registerWithCode = async (email: string, verification_code: string, password: string, full_name: string) => {
+    try {
+      const response = await ApiService.registerWithCode(email, verification_code, password, full_name);
       if (response.access_token) {
         setIsAuthenticated(true);
         await checkAuth(); // 获取用户信息
@@ -140,6 +162,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     login,
     register,
+    registerWithCode,
+    sendVerificationCode,
     logout,
     checkAuth,
     updateUser,
