@@ -63,6 +63,120 @@ const Task: React.FC = () => {
     navigate('/design');
   };
 
+  const handleViewReport = async (task: Task) => {
+    try {
+      setSnackbar({
+        open: true,
+        message: "Processing report, this may take a moment...",
+        severity: "info",
+      });
+
+      // 1. Download the zip file
+      const blob = await ApiService.downloadTaskResult(task.id);
+      const JSZip = (await import('jszip')).default;
+      const zip = await JSZip.loadAsync(blob);
+
+      // 2. Find the HTML file
+      const htmlFileEntry = Object.values(zip.files).find(
+        (file) => file.name.endsWith('.html') && !file.dir
+      );
+      
+      if (!htmlFileEntry) {
+        throw new Error("No HTML file found in the archive.");
+      }
+
+      const mainHtmlContent = await htmlFileEntry.async('text');
+      
+      // 3. Parse the HTML and prepare for inlining resources
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(mainHtmlContent, 'text/html');
+      const promises: Promise<void>[] = [];
+      const baseUrl = `file:///${htmlFileEntry.name}`;
+
+      // 4. Inline CSS
+      doc.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+        const href = link.getAttribute('href');
+        if (href && !href.startsWith('http') && !href.startsWith('//')) {
+          const resourcePath = new URL(href, baseUrl).pathname.substring(1);
+          const cssFile = zip.file(resourcePath);
+          if (cssFile) {
+            promises.push(
+              cssFile.async('text').then(cssContent => {
+                const style = doc.createElement('style');
+                style.textContent = cssContent;
+                link.replaceWith(style);
+              })
+            );
+          }
+        }
+      });
+
+      // 5. Inline Javascript
+      doc.querySelectorAll('script[src]').forEach(script => {
+        const src = script.getAttribute('src');
+        if (src && !src.startsWith('http') && !src.startsWith('//')) {
+          const resourcePath = new URL(src, baseUrl).pathname.substring(1);
+          const jsFile = zip.file(resourcePath);
+          if (jsFile) {
+            promises.push(
+              jsFile.async('text').then(jsContent => {
+                const newScript = doc.createElement('script');
+                newScript.textContent = jsContent;
+                script.replaceWith(newScript);
+              })
+            );
+          }
+        }
+      });
+      
+      // 6. Inline Images
+      doc.querySelectorAll('img[src]').forEach(img => {
+        const src = img.getAttribute('src');
+        if (src && !src.startsWith('data:') && !src.startsWith('http') && !src.startsWith('//')) {
+          const resourcePath = new URL(src, baseUrl).pathname.substring(1);
+          const imgFile = zip.file(resourcePath);
+          if (imgFile) {
+            promises.push(
+              imgFile.async('base64').then(base64Content => {
+                const extension = src.split('.').pop()?.toLowerCase() || 'png';
+                const mimeType = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
+                img.setAttribute('src', `data:${mimeType};base64,${base64Content}`);
+              })
+            );
+          }
+        }
+      });
+
+      await Promise.all(promises);
+
+      // 7. Create a blob from the modified, self-contained HTML
+      const finalHtml = doc.documentElement.outerHTML;
+      const htmlBlob = new Blob([finalHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(htmlBlob);
+
+      const newWindow = window.open(url, '_blank');
+      if (newWindow) {
+        newWindow.addEventListener('unload', () => URL.revokeObjectURL(url));
+      } else {
+        URL.revokeObjectURL(url);
+      }
+      
+      setSnackbar({
+        open: true,
+        message: "Report opened successfully.",
+        severity: "success",
+      });
+
+    } catch (error) {
+      console.error('Failed to create self-contained report:', error);
+      setSnackbar({
+        open: true,
+        message: "Failed to open report. See console for details.",
+        severity: "error",
+      });
+    }
+  };
+
 
 
   const handleDeleteTask = (taskId: string) => {
@@ -89,40 +203,40 @@ const Task: React.FC = () => {
 
   const handlePauseTask = (taskId: string) => {
     pauseTask(taskId)
-      .then(() => {
-        setSnackbar({
-          open: true,
-          message: "Task paused successfully",
-          severity: "success"
+        .then(() => {
+          setSnackbar({
+            open: true,
+            message: "Task paused successfully",
+            severity: "success"
+          });
+        })
+        .catch(error => {
+          console.error("Failed to pause task", error);
+          setSnackbar({
+            open: true,
+            message: "Failed to pause task, please try again later",
+            severity: "error"
+          });
         });
-      })
-      .catch(error => {
-        console.error("Failed to pause task", error);
-        setSnackbar({
-          open: true,
-          message: "Failed to pause task, please try again later",
-          severity: "error"
-        });
-      });
   };
 
   const handleResumeTask = (taskId: string) => {
     resumeTask(taskId)
-      .then(() => {
-        setSnackbar({
-          open: true,
-          message: "Task resumed successfully",
-          severity: "success"
+        .then(() => {
+          setSnackbar({
+            open: true,
+            message: "Task resumed successfully",
+            severity: "success"
+          });
+        })
+        .catch(error => {
+          console.error("Failed to resume task", error);
+          setSnackbar({
+            open: true,
+            message: "Failed to resume task, please try again later",
+            severity: "error"
+          });
         });
-      })
-      .catch(error => {
-        console.error("Failed to resume task", error);
-        setSnackbar({
-          open: true,
-          message: "Failed to resume task, please try again later",
-          severity: "error"
-        });
-      });
   };
 
   const handleRunTask = (taskId: string) => {
@@ -296,6 +410,7 @@ const Task: React.FC = () => {
         onRerunTask={handleRerunTask}
         onDownloadResult={handleDownloadResult}
         onDeleteTask={handleDeleteTask}
+        onViewReport={handleViewReport}
       />
 
       <Snackbar
@@ -313,6 +428,7 @@ const Task: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
     </Box>
   );
 };
