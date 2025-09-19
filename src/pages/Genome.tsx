@@ -180,7 +180,7 @@ const Genome: React.FC = () => {
   const buildFileStructureWithMetadata = async (files: string[], currentPath: string[], genomeName: string) => {
     const items = buildFileStructure(files, currentPath);
     
-    // 获取每个文件的元数据
+    // 获取每个文件和文件夹的元数据
     const itemsWithMetadata = await Promise.all(
       items.map(async (item) => {
         if (item.type === 'file') {
@@ -194,6 +194,26 @@ const Genome: React.FC = () => {
               canDelete: metadata.can_delete
             };
           }
+        } else if (item.type === 'folder') {
+          // 对于文件夹，检查其是否包含预设文件来判断是否为预设文件夹
+          const folderFiles = files.filter(file => file.startsWith(item.fullPath + '/'));
+          let isPresetFolder = false;
+          let canDeleteFolder = true;
+          
+          for (const file of folderFiles) {
+            const metadata = await getFileMetadata(genomeName, file);
+            if (metadata && metadata.is_preset) {
+              isPresetFolder = true;
+              canDeleteFolder = false;
+              break;
+            }
+          }
+          
+          return {
+            ...item,
+            isPreset: isPresetFolder,
+            canDelete: canDeleteFolder
+          };
         }
         return item;
       })
@@ -389,11 +409,26 @@ const Genome: React.FC = () => {
 
   const handleFolderDelete = async (folderPath: string) => {
     if (!selectedGenome) return;
+    
+    // 检查文件夹权限
+    const folderItem = fileItems.find(f => f.fullPath === folderPath);
+    if (folderItem && folderItem.isPreset) {
+      showNotification('Cannot delete preset folders', 'error');
+      return;
+    }
+    
     try {
       // Delete all files in the folder
       const folderFiles = fileItems.filter(item => 
         item.path?.startsWith(folderPath) || item.name.startsWith(folderPath)
       );
+      
+      // 检查文件夹内是否包含预设文件
+      const hasPresetFiles = folderFiles.some(file => file.isPreset);
+      if (hasPresetFiles) {
+        showNotification('Cannot delete folders containing preset files', 'error');
+        return;
+      }
       
       for (const file of folderFiles) {
         await deleteGenomeFile(selectedGenome, file.name);
@@ -401,8 +436,12 @@ const Genome: React.FC = () => {
       
       showNotification('Folder deleted successfully', 'success');
       fetchGenomeFiles(selectedGenome); // Refresh the file list
-    } catch (error) {
-      showNotification('Failed to delete folder', 'error');
+    } catch (error: any) {
+      if (error.response?.status === 403) {
+        showNotification('Cannot delete preset folders', 'error');
+      } else {
+        showNotification('Failed to delete folder', 'error');
+      }
     }
   };
 
@@ -702,10 +741,22 @@ const Genome: React.FC = () => {
                               startIcon={<DeleteIcon />}
                               color="error"
                               onClick={() => {
+                                // 检查选中项中是否有预设文件或文件夹
+                                const selectedItems = Array.from(selectedFiles).map(fileName => 
+                                  fileItems.find(f => f.name === fileName)
+                                ).filter(Boolean);
+                                
+                                const hasPresetItems = selectedItems.some(item => item?.isPreset || item?.canDelete === false);
+                                
+                                if (hasPresetItems) {
+                                  showNotification('Cannot delete preset files or folders', 'error');
+                                  return;
+                                }
+                                
                                 if (window.confirm(`Delete ${selectedFiles.size} selected items?`)) {
                                   selectedFiles.forEach(fileName => {
                                     const item = fileItems.find(f => f.name === fileName);
-                                    if (item) {
+                                    if (item && item.canDelete !== false && !item.isPreset) {
                                       if (item.type === 'file') {
                                         handleFileDelete(item.fullPath);
                                       } else {
@@ -946,20 +997,22 @@ const Genome: React.FC = () => {
                                       <FolderOpenIcon fontSize="small" />
                                     </IconButton>
                                   </Tooltip>
-                                  <Tooltip title="Delete folder">
-                                    <IconButton 
-                                      size="small"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (window.confirm(`Delete folder ${item.name}?`)) {
-                                          handleFolderDelete(item.fullPath);
-                                        }
-                                      }}
-                                      sx={{ color: 'error.main' }}
-                                    >
-                                      <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
+                                  {item.canDelete !== false && (
+                                    <Tooltip title="Delete folder">
+                                      <IconButton 
+                                        size="small"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (window.confirm(`Delete folder ${item.name}?`)) {
+                                            handleFolderDelete(item.fullPath);
+                                          }
+                                        }}
+                                        sx={{ color: 'error.main' }}
+                                      >
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
                                 </>
                               )}
                             </Box>
@@ -1088,7 +1141,7 @@ const Genome: React.FC = () => {
                             <ListItemText>Download</ListItemText>
                           </MenuItem>
                         )}
-                        {contextMenu.item.canDelete !== false && (
+                        {contextMenu.item.canDelete !== false && !contextMenu.item.isPreset && (
                           <MenuItem key="delete" onClick={() => {
                             const item = contextMenu.item!;
                             if (window.confirm(`Delete ${item.name}?`)) {
