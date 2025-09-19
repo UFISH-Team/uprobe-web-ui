@@ -25,23 +25,28 @@ import {
   CheckCircle as CheckCircleIcon,
   Schedule as ScheduleIcon,
   Replay as ReplayIcon,
+  Visibility as VisibilityIcon,
 } from '@mui/icons-material';
 import type { Task } from '../../types';
 import YAML from 'yaml';
 
 const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
-  marginTop: theme.spacing(1),
-  boxShadow: theme.shadows[2],
-  borderRadius: theme.spacing(1),
+  marginTop: theme.spacing(2),
   backgroundColor: theme.palette.background.paper,
-  overflow: 'hidden',
+  borderRadius: theme.spacing(1),
+  border: `1px solid ${theme.palette.divider}`,
   '& .MuiTableCell-head': {
-    fontWeight: 'bold',
+    fontWeight: 500,
     backgroundColor: theme.palette.background.default,
-    borderBottom: `2px solid ${theme.palette.divider}`,
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    fontSize: '0.875rem',
   },
   '& .MuiTableRow-hover:hover': {
     backgroundColor: theme.palette.action.hover,
+  },
+  '& .MuiTableCell-root': {
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    padding: theme.spacing(1, 2),
   },
 }));
 
@@ -57,6 +62,7 @@ interface TaskTableProps {
   onRerunTask: (taskId: string) => void;
   onDownloadResult: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
+  onViewReport: (task: Task) => void;
 }
 
 const getStatusColor = (status: string): "success" | "info" | "warning" | "error" | "default" => {
@@ -86,18 +92,12 @@ const statusIcons = {
 // Helper function to get probe name from task
 const getTaskProbeName = (task: Task): string => {
   try {
-    // First try to get the probe type name from description
-    // The description format is: "Protocol for designing {probeName} probes from species {species}"
     const match = task.description.match(/Protocol for designing (.+?) probes from species/);
     if (match && match[1]) {
       return match[1];
     }
-    
-    // Fallback: check yaml_content for probe configurations
     if (task.yaml_content) {
       const yamlData = YAML.parse(task.yaml_content);
-      
-      // Look for probe configurations (probe_1, probe_2, etc.)
       if (yamlData.probes) {
         const probeKeys = Object.keys(yamlData.probes).filter(key => key.startsWith('probe_'));
         if (probeKeys.length > 0) {
@@ -105,16 +105,12 @@ const getTaskProbeName = (task: Task): string => {
         }
       }
     }
-    
-    // Check parameters for probe configurations
     if (task.parameters?.probes) {
       const probeKeys = Object.keys(task.parameters.probes).filter(key => key.startsWith('probe_'));
       if (probeKeys.length > 0) {
         return `Custom (${probeKeys.length} probes)`;
       }
     }
-    
-    // Default fallback
     return 'Custom Probe';
   } catch (error) {
     console.warn('Error determining probe name for task:', task.id, error);
@@ -125,20 +121,15 @@ const getTaskProbeName = (task: Task): string => {
 // Helper function to get probe type (source) from task
 const getTaskSource = (task: Task): string => {
   try {
-    // Check yaml_content for extracts.target_region.source
     if (task.yaml_content) {
       const yamlData = YAML.parse(task.yaml_content);
       if (yamlData.extracts?.target_region?.source) {
         return yamlData.extracts.target_region.source;
       }
     }
-    
-    // Check parameters for extracts.target_region.source
     if (task.parameters?.extracts?.target_region?.source) {
       return task.parameters.extracts.target_region.source;
     }
-    
-    // Default fallback
     return 'exon';
   } catch (error) {
     console.warn('Error determining source for task:', task.id, error);
@@ -155,6 +146,9 @@ const getTaskProbeType = (task: Task): 'DNA' | 'RNA' => {
   return 'RNA';
 };
 
+
+
+
 const TaskTable: React.FC<TaskTableProps> = ({
   tasks,
   page,
@@ -167,21 +161,22 @@ const TaskTable: React.FC<TaskTableProps> = ({
   onDownloadResult,
   onDeleteTask,
   onRerunTask,
+  onViewReport,
 }) => {
   return (
     <StyledTableContainer>
       <Table sx={{ minWidth: 800 }}>
         <TableHead>
           <TableRow>
-            <TableCell sx={{ width: '20%' }}>Task</TableCell>
-            <TableCell sx={{ width: '20%' }}>Description</TableCell>
+            <TableCell>Task</TableCell>
+            <TableCell>Description</TableCell>
             <TableCell>Genome</TableCell>
             <TableCell>Probe Name</TableCell>
-            <TableCell>Probe Type</TableCell>
+            <TableCell>Type</TableCell>
             <TableCell>Source</TableCell>
             <TableCell>Status</TableCell>
-            <TableCell sx={{ width: '15%' }}>Progress</TableCell>
-            <TableCell>Created At</TableCell>
+            <TableCell>Progress</TableCell>
+            <TableCell>Created</TableCell>
             <TableCell align="right">Actions</TableCell>
           </TableRow>
         </TableHead>
@@ -192,10 +187,10 @@ const TaskTable: React.FC<TaskTableProps> = ({
               <TableRow key={task.id} hover>
                 <TableCell>
                   <Box>
-                    <Typography variant="subtitle2" component="div" sx={{ fontWeight: 500 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 0.5 }}>
                       {task.name}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
                       {task.id}
                     </Typography>
                   </Box>
@@ -206,7 +201,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
                       variant="body2"
                       color="text.secondary"
                       sx={{
-                        maxWidth: 200,
+                        maxWidth: 300,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
@@ -223,15 +218,16 @@ const TaskTable: React.FC<TaskTableProps> = ({
                   <Typography variant="body2">{getTaskProbeName(task)}</Typography>
                 </TableCell>
                 <TableCell>
-                  <Chip 
-                    label={getTaskProbeType(task)} 
-                    size="small" 
-                    color={getTaskProbeType(task) === 'DNA' ? 'primary' : 'secondary'}
-                    sx={{
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
                       fontWeight: 500,
-                      borderRadius: '6px',
+                      color: getTaskProbeType(task) === 'DNA' ? 'primary.main' : 'secondary.main',
+                      fontSize: '0.875rem'
                     }}
-                  />
+                  >
+                    {getTaskProbeType(task)}
+                  </Typography>
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" color="text.secondary">{getTaskSource(task)}</Typography>
@@ -264,68 +260,60 @@ const TaskTable: React.FC<TaskTableProps> = ({
                   </Box>
                 </TableCell>
                 <TableCell>
-                  {new Date(task.created_at).toLocaleString()}
+                  <Typography variant="body2" color="text.secondary">
+                    {new Date(task.created_at).toLocaleDateString()}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    {new Date(task.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                  <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                     {task.status === "pending" && (
                       <Tooltip title="Run Task">
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => onRunTask(task.id)}
-                        >
-                          <PlayArrowIcon />
+                        <IconButton size="small" onClick={() => onRunTask(task.id)}>
+                          <PlayArrowIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
                     {task.status === "running" && (
                       <Tooltip title="Pause Task">
-                        <IconButton
-                          size="small"
-                          onClick={() => onPauseTask(task.id)}
-                          color="warning"
-                        >
-                          <PauseIcon />
+                        <IconButton size="small" onClick={() => onPauseTask(task.id)}>
+                          <PauseIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
                     {task.status === "paused" && (
                       <Tooltip title="Resume Task">
-                        <IconButton
-                          size="small"
-                          onClick={() => onResumeTask(task.id)}
-                          color="primary"
-                        >
-                          <PlayIcon />
+                        <IconButton size="small" onClick={() => onResumeTask(task.id)}>
+                          <PlayIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
                     {(task.status === 'failed' || task.status === 'completed') && (
                       <Tooltip title="Rerun Task">
-                        <IconButton onClick={() => onRerunTask(task.id)} color="primary">
-                          <ReplayIcon />
+                        <IconButton size="small" onClick={() => onRerunTask(task.id)}>
+                          <ReplayIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
                     {task.status === "completed" && task.result_url && (
-                      <Tooltip title="Download Results">
-                        <IconButton
-                          size="small"
-                          onClick={() => onDownloadResult(task.id)}
-                          color="success"
-                        >
-                          <DownloadIcon />
-                        </IconButton>
-                      </Tooltip>
+                      <>
+                        <Tooltip title="View Report">
+                          <IconButton size="small" onClick={() => onViewReport(task)}>
+                            <VisibilityIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Download Results">
+                          <IconButton size="small" onClick={() => onDownloadResult(task.id)}>
+                            <DownloadIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </>
                     )}
                     <Tooltip title="Delete Task">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => onDeleteTask(task.id)}
-                      >
-                        <DeleteIcon />
+                      <IconButton size="small" onClick={() => onDeleteTask(task.id)} sx={{ color: 'error.main' }}>
+                        <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   </Stack>
