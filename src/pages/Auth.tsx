@@ -25,6 +25,9 @@ import {
   Stepper,
   Step,
   StepLabel,
+  Autocomplete,
+  Chip,
+  LinearProgress,
 } from '@mui/material';
 import { 
   Visibility, 
@@ -42,50 +45,85 @@ const Auth = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { login, register } = useAuth();
+  const { login, registerWithCode, sendVerificationCode } = useAuth();
   
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [formData, setFormData] = useState({
     emailOrUsername: '',
     password: '',
     full_name: '',
-    email: ''  // 仅用于注册
+    email: '',  // For registration only
+    password_confirm: '',  // Password confirmation
+    verification_code: ''  // Email verification code
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
-  const [forgotPasswordStep, setForgotPasswordStep] = useState(0); // 0: 输入邮箱, 1: 输入代码和新密码
+  const [forgotPasswordStep, setForgotPasswordStep] = useState(0); // 0: Enter email, 1: Enter code and new password
   const [forgotPasswordData, setForgotPasswordData] = useState({
     email: '',
     resetCode: '',
     newPassword: ''
   });
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
+  const [registrationStep, setRegistrationStep] = useState(0); // 0: Enter basic info, 1: Verify email
+  const [, setVerificationCodeSent] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  
+  // Common email suffixes list
+  const emailSuffixes = [
+    'gmail.com',
+    'outlook.com',
+    'hotmail.com',
+    'yahoo.com',
+    '163.com',
+    '126.com',
+    'qq.com',
+    'sina.com',
+    'sohu.com',
+    'edu.cn',
+    'pku.edu.cn',
+    'tsinghua.edu.cn',
+    'fudan.edu.cn',
+    'sjtu.edu.cn',
+    'zju.edu.cn',
+    'nju.edu.cn',
+    'ustc.edu.cn',
+    'bit.edu.cn',
+    'buaa.edu.cn',
+    'hit.edu.cn'
+  ];
+  
+  const [emailSuggestions, setEmailSuggestions] = useState<string[]>([]);
+  const [emailSupportInfo, setEmailSupportInfo] = useState<any>(null);
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
-  // 邮箱格式验证
+  // Email format validation - supports all email formats
   const validateEmail = (email: string): boolean => {
-    const emailPattern = /^[a-zA-Z0-9._%+-]+@(163\.com|gmail\.com)$/i;
+    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
     return emailPattern.test(email);
   };
   
-  // 检查是否为邮箱格式
+  // Check if input is email format
   const isEmailFormat = (input: string): boolean => {
     return input.includes('@');
   };
 
-  // 页面加载动画
+  // Page loading animation
   React.useEffect(() => {
     const timer = setTimeout(() => setShowForm(true), 100);
     return () => clearTimeout(timer);
   }, []);
 
-  // 键盘快捷键支持
+  // Keyboard shortcut support
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // ESC键清除错误信息
+      // ESC key to clear error messages
       if (event.key === 'Escape' && error) {
         setError(null);
       }
@@ -95,14 +133,102 @@ const Auth = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [error]);
 
+  // Countdown functionality
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (countdown > 0) {
+      interval = setInterval(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [countdown]);
+
+  // Email auto-completion logic
+  const generateEmailSuggestions = (inputValue: string) => {
+    if (!inputValue || inputValue.includes('@')) {
+      setEmailSuggestions([]);
+      return;
+    }
+    
+    const suggestions = emailSuffixes.map(suffix => `${inputValue}@${suffix}`);
+    setEmailSuggestions(suggestions.slice(0, 5)); // Only show first 5 suggestions
+  };
+
+  // Check email support status
+  const checkEmailSupport = async (email: string) => {
+    if (!validateEmail(email)) {
+      setEmailSupportInfo(null);
+      return;
+    }
+
+    setCheckingEmail(true);
+    try {
+      const supportInfo = await ApiService.checkEmailSupport(email);
+      setEmailSupportInfo(supportInfo);
+    } catch (err: any) {
+      console.error('Failed to check email support:', err);
+      setEmailSupportInfo(null);
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
+    
+    // Generate email suggestions and check support status
+    if (name === 'email' && !isLoginMode && registrationStep === 0) {
+      const emailPrefix = value.split('@')[0];
+      generateEmailSuggestions(emailPrefix);
+      
+      // If it's a complete email address, check support status
+      if (validateEmail(value)) {
+        checkEmailSupport(value);
+      } else {
+        setEmailSupportInfo(null);
+      }
+    }
+    
     // Clear error when user starts typing
     if (error) setError(null);
+  };
+
+  const handleSendVerificationCode = async () => {
+    if (!formData.email) {
+      setError('Please enter email address');
+      return;
+    }
+    if (!validateEmail(formData.email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    setSendingCode(true);
+    try {
+      const response = await sendVerificationCode(formData.email);
+      setVerificationCodeSent(true);
+      setRegistrationStep(1);
+      
+      // Use countdown time returned from server
+      const resendAfter = (response as any)?.can_resend_after || 60;
+      setCountdown(resendAfter);
+      setError(null);
+    } catch (err: any) {
+      // Handle different types of errors
+      if (err.response?.status === 429) {
+        setError(err.response.data.detail || 'Sending too frequently, please try again later');
+      } else if (err.response?.status === 400) {
+        setError(err.response.data.detail || 'Invalid email address or already registered');
+      } else {
+        setError('Failed to send verification code, please check network and try again');
+      }
+    } finally {
+      setSendingCode(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -112,34 +238,48 @@ const Auth = () => {
 
     try {
       if (isLoginMode) {
-        // 登录模式验证
+        // Login mode validation
         if (!formData.emailOrUsername || !formData.password) {
           throw new Error('Please fill in all fields');
         }
         
-        // 如果是邮箱格式，需要验证邮箱格式
+        // If email format, validate email format
         if (isEmailFormat(formData.emailOrUsername) && !validateEmail(formData.emailOrUsername)) {
-          throw new Error('Only 163.com and Gmail addresses are allowed');
+          throw new Error('Please enter a valid email address');
         }
         
         await login(formData.emailOrUsername, formData.password, rememberMe);
       } else {
-        // 注册模式验证
-        if (!formData.email || !formData.password || !formData.full_name) {
+        // Registration mode validation
+        if (registrationStep === 0) {
+          // First step: Validate basic info and send verification code
+          if (!formData.full_name || !formData.email || !formData.password || !formData.password_confirm) {
           throw new Error('Please fill in all fields');
         }
-        
-        // 邮箱格式验证
         if (!validateEmail(formData.email)) {
-          throw new Error('Only 163.com and Gmail addresses are allowed');
-        }
-        
-        // 密码验证
+            throw new Error('Please enter a valid email address');
+          }
+          if (formData.password.length < 6) {
+            throw new Error('Password must be at least 6 characters');
+          }
+          if (formData.password !== formData.password_confirm) {
+            throw new Error('Passwords do not match');
+          }
+          await handleSendVerificationCode();
+          return; // Don't continue execution
+        } else {
+          // Second step: Verification code registration
+          if (!formData.email || !formData.verification_code || !formData.password || !formData.full_name) {
+            throw new Error('Please fill in all fields');
+          }
+          
+          // Password validation
         if (formData.password.length < 6) {
-          throw new Error('Password must be at least 6 characters long');
+            throw new Error('Password must be at least 6 characters');
         }
         
-        await register(formData.email, formData.password, formData.full_name);
+          await registerWithCode(formData.email, formData.verification_code, formData.password, formData.full_name);
+        }
       }
       
       navigate('/home');
@@ -162,8 +302,13 @@ const Auth = () => {
       emailOrUsername: '',
       password: '',
       full_name: '',
-      email: ''
+      email: '',
+      password_confirm: '',
+      verification_code: ''
     });
+    setRegistrationStep(0);
+    setVerificationCodeSent(false);
+    setCountdown(0);
   };
 
   const handleForgotPassword = () => {
@@ -180,24 +325,28 @@ const Auth = () => {
     setForgotPasswordLoading(true);
     try {
       if (forgotPasswordStep === 0) {
-        // 第一步：发送重置代码
+        // First step: Send reset code
         if (!forgotPasswordData.email) {
-          throw new Error('请输入邮箱地址');
+          throw new Error('Please enter email address');
         }
         if (!validateEmail(forgotPasswordData.email)) {
-          throw new Error('只支持163.com和Gmail邮箱');
+          throw new Error('Please enter a valid email address');
         }
         
-        await ApiService.forgotPassword(forgotPasswordData.email);
+        const response = await ApiService.forgotPassword(forgotPasswordData.email);
         setForgotPasswordStep(1);
         setError(null);
+        
+        // Set countdown (for resend button)
+        const resendAfter = (response as any)?.can_resend_after || 60;
+        setCountdown(resendAfter);
       } else {
-        // 第二步：重置密码
+        // Second step: Reset password
         if (!forgotPasswordData.resetCode || !forgotPasswordData.newPassword) {
-          throw new Error('请填写所有字段');
+          throw new Error('Please fill in all fields');
         }
         if (forgotPasswordData.newPassword.length < 6) {
-          throw new Error('密码至少需要6位字符');
+          throw new Error('Password must be at least 6 characters');
         }
         
         await ApiService.resetPassword(
@@ -208,15 +357,24 @@ const Auth = () => {
         
         setForgotPasswordOpen(false);
         setError(null);
-        // 显示成功消息
-        alert('密码重置成功！请使用新密码登录。');
+        setCountdown(0);
+        
+        // Show success message
+        alert('Password reset successful! Please login with your new password.');
       }
     } catch (err: any) {
-      setError(
-        err.response?.data?.detail || 
-        err.message || 
-        '操作失败，请重试'
-      );
+      // Handle different types of errors
+      if (err.response?.status === 429) {
+        setError(err.response.data.detail || 'Sending too frequently, please try again later');
+      } else if (err.response?.status === 400) {
+        if (forgotPasswordStep === 1) {
+          setError('Verification code is incorrect or expired, please get a new one');
+        } else {
+          setError(err.response.data.detail || 'Invalid email address');
+        }
+      } else {
+        setError(forgotPasswordStep === 0 ? 'Failed to send reset code, please try again' : 'Password reset failed, please try again');
+      }
     } finally {
       setForgotPasswordLoading(false);
     }
@@ -319,7 +477,9 @@ const Auth = () => {
                 >
                   {isLoginMode 
                     ? 'Please sign in to your account to continue' 
-                    : 'Join U-Probe platform to start your research journey'
+                    : registrationStep === 0 
+                      ? 'Enter your basic information to get started' 
+                      : 'Enter the verification code sent to your email'
                   }
                 </Typography>
               </Box>
@@ -342,8 +502,90 @@ const Auth = () => {
                 </Fade>
               )}
 
-              <Box component="form" onSubmit={handleSubmit}>
+              {/* 注册步骤指示器 */}
                 {!isLoginMode && (
+                <Box sx={{ mb: 4 }}>
+                  <Stepper 
+                    activeStep={registrationStep} 
+                    sx={{ 
+                      mb: 2,
+                      '& .MuiStepLabel-root .Mui-completed': {
+                        color: theme.palette.success.main,
+                      },
+                      '& .MuiStepLabel-root .Mui-active': {
+                        color: theme.palette.primary.main,
+                      },
+                      '& .MuiStepConnector-line': {
+                        borderColor: registrationStep > 0 ? theme.palette.success.main : theme.palette.divider,
+                      }
+                    }}
+                  >
+                    <Step>
+                      <StepLabel 
+                        StepIconComponent={({ completed, active }) => (
+                          <Box sx={{ 
+                            width: 32, 
+                            height: 32, 
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: completed 
+                              ? theme.palette.success.main 
+                              : active 
+                                ? theme.palette.primary.main 
+                                : theme.palette.grey[300],
+                            color: 'white',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            transition: 'all 0.3s ease'
+                          }}>
+                            {completed ? '✓' : '1'}
+                          </Box>
+                        )}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: registrationStep >= 0 ? 600 : 400 }}>
+                          Enter Basic Info
+                        </Typography>
+                      </StepLabel>
+                    </Step>
+                    <Step>
+                      <StepLabel
+                        StepIconComponent={({ completed, active }) => (
+                          <Box sx={{ 
+                            width: 32, 
+                            height: 32, 
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: completed 
+                              ? theme.palette.success.main 
+                              : active 
+                                ? theme.palette.primary.main 
+                                : theme.palette.grey[300],
+                            color: 'white',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            transition: 'all 0.3s ease'
+                          }}>
+                            {completed ? '✓' : '2'}
+                          </Box>
+                        )}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: registrationStep >= 1 ? 600 : 400 }}>
+                          Verify Email
+                        </Typography>
+                      </StepLabel>
+                    </Step>
+                  </Stepper>
+                </Box>
+              )}
+
+              <Box component="form" onSubmit={handleSubmit}>
+                {!isLoginMode && registrationStep === 0 && (
+                  <Fade in={true} timeout={600}>
+                    <Box>
                   <TextField
                     margin="normal"
                     required
@@ -354,9 +596,23 @@ const Auth = () => {
                     autoComplete="name"
                     value={formData.full_name}
                     onChange={handleChange}
-                    disabled={loading}
+                        disabled={loading || sendingCode}
                     error={Boolean(error)}
-                    sx={{ mb: 2 }}
+                        sx={{ 
+                          mb: 3,
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: theme.palette.primary.main,
+                              }
+                            },
+                            '&.Mui-focused': {
+                              boxShadow: `0 0 0 2px ${theme.palette.primary.main}20`,
+                            }
+                          }
+                        }}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -365,8 +621,458 @@ const Auth = () => {
                       ),
                     }}
                   />
+                      <Autocomplete
+                        freeSolo
+                        options={emailSuggestions}
+                        value={formData.email}
+                        onInputChange={(_, newInputValue) => {
+                          setFormData(prev => ({ ...prev, email: newInputValue }));
+                          const emailPrefix = newInputValue.split('@')[0];
+                          generateEmailSuggestions(emailPrefix);
+                          
+                          // 检查邮箱支持情况
+                          if (validateEmail(newInputValue)) {
+                            checkEmailSupport(newInputValue);
+                          } else {
+                            setEmailSupportInfo(null);
+                          }
+                          
+                          if (error) setError(null);
+                        }}
+                        renderInput={(params) => (
+                  <TextField
+                            {...params}
+                    margin="normal"
+                    required
+                    fullWidth
+                            id="email"
+                            label="Email Address"
+                            name="email"
+                            type="email"
+                            autoComplete="email"
+                    autoFocus={!isMobile}
+                            disabled={loading || sendingCode}
+                    error={Boolean(error)}
+                            helperText="Start typing to see email suggestions"
+                            sx={{ 
+                              mb: 3,
+                              '& .MuiOutlinedInput-root': {
+                                borderRadius: 2,
+                                transition: 'all 0.3s ease',
+                                '&:hover': {
+                                  '& .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: theme.palette.primary.main,
+                                  }
+                                },
+                                '&.Mui-focused': {
+                                  boxShadow: `0 0 0 2px ${theme.palette.primary.main}20`,
+                                }
+                              }
+                            }}
+                    InputProps={{
+                              ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Email sx={{ color: theme.palette.text.secondary }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                        )}
+                        renderOption={(props, option) => {
+                          const [localPart, domain] = option.split('@');
+                          const isPopularDomain = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com'].includes(domain);
+                          
+                          return (
+                            <Box 
+                              component="li" 
+                              {...props} 
+                              sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                py: 2,
+                                px: 3,
+                                '&:hover': {
+                                  backgroundColor: theme.palette.action.hover,
+                                }
+                              }}
+                            >
+                              <Typography 
+                                variant="body1" 
+                                sx={{ 
+                                  flex: 1,
+                                  fontSize: '0.95rem',
+                                  fontWeight: 400,
+                                  letterSpacing: '0.01em'
+                                }}
+                              >
+                                <span style={{ color: theme.palette.text.primary }}>{localPart}</span>
+                                <span style={{ color: theme.palette.text.secondary }}>@{domain}</span>
+                              </Typography>
+                              {isPopularDomain && (
+                                <Box sx={{ 
+                                  width: 6, 
+                                  height: 6, 
+                                  borderRadius: '50%', 
+                                  backgroundColor: theme.palette.primary.main,
+                                  ml: 2
+                                }} />
+                              )}
+                            </Box>
+                          );
+                        }}
+                        PaperComponent={(props) => (
+                          <Box
+                            {...props}
+                            sx={{
+                              borderRadius: 2,
+                              boxShadow: theme.shadows[4],
+                              border: `1px solid ${theme.palette.divider}`,
+                              mt: 1,
+                              backgroundColor: theme.palette.background.paper,
+                              '& .MuiAutocomplete-listbox': {
+                                padding: 0,
+                                maxHeight: '200px'
+                              }
+                            }}
+                          />
+                        )}
+                        sx={{ mb: 2 }}
+                      />
+
+                      {/* 邮箱支持信息显示 */}
+                      {formData.email && validateEmail(formData.email) && (
+                        <Box sx={{ mb: 2 }}>
+                          {checkingEmail ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1 }}>
+                              <CircularProgress size={16} />
+                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                Checking email support...
+                              </Typography>
+                            </Box>
+                          ) : emailSupportInfo && (
+                            <Box sx={{ 
+                              p: 2, 
+                              borderRadius: 2, 
+                              backgroundColor: emailSupportInfo.smtp_info?.supported 
+                                ? theme.palette.success.main + '10'
+                                : theme.palette.warning.main + '10',
+                              border: `1px solid ${
+                                emailSupportInfo.smtp_info?.supported 
+                                  ? theme.palette.success.main + '30'
+                                  : theme.palette.warning.main + '30'
+                              }`
+                            }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                {emailSupportInfo.smtp_info?.supported ? (
+                                  <Box sx={{ 
+                                    width: 16, 
+                                    height: 16, 
+                                    borderRadius: '50%', 
+                                    backgroundColor: theme.palette.success.main,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}>
+                                    <Typography sx={{ color: 'white', fontSize: '10px', fontWeight: 'bold' }}>✓</Typography>
+                                  </Box>
+                                ) : (
+                                  <Box sx={{ 
+                                    width: 16, 
+                                    height: 16, 
+                                    borderRadius: '50%', 
+                                    backgroundColor: theme.palette.warning.main,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}>
+                                    <Typography sx={{ color: 'white', fontSize: '10px', fontWeight: 'bold' }}>!</Typography>
+                                  </Box>
+                                )}
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    fontWeight: 600,
+                                    color: emailSupportInfo.smtp_info?.supported 
+                                      ? theme.palette.success.dark 
+                                      : theme.palette.warning.dark
+                                  }}
+                                >
+                                  {emailSupportInfo.smtp_info?.supported 
+                                    ? `Supported by ${emailSupportInfo.smtp_info.provider}` 
+                                    : 'Email provider not supported'
+                                  }
+                                </Typography>
+                              </Box>
+                              <Typography variant="caption" sx={{ 
+                                color: theme.palette.text.secondary,
+                                display: 'block'
+                              }}>
+                                {emailSupportInfo.smtp_info?.message || emailSupportInfo.send_capability?.message}
+                              </Typography>
+                              {emailSupportInfo.send_capability?.mode === 'no_config' && (
+                                <Typography variant="caption" sx={{ 
+                                  color: theme.palette.info.main,
+                                  display: 'block',
+                                  mt: 0.5,
+                                  backgroundColor: theme.palette.info.main + '10',
+                                  padding: 1,
+                                  borderRadius: 1,
+                                  border: `1px solid ${theme.palette.info.main}30`
+                                }}>
+                                  🔧 开发模式：验证码将显示在服务器控制台中，请查看服务器日志获取验证码
+                                </Typography>
+                              )}
+                            </Box>
+                          )}
+                        </Box>
+                      )}
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                        name="password"
+                        label="Password"
+                        type={showPassword ? 'text' : 'password'}
+                        id="password"
+                        autoComplete="new-password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        disabled={loading || sendingCode}
+                        error={Boolean(error)}
+                        helperText="Password must be at least 6 characters"
+                        sx={{ 
+                          mb: 3,
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: theme.palette.primary.main,
+                              }
+                            },
+                            '&.Mui-focused': {
+                              boxShadow: `0 0 0 2px ${theme.palette.primary.main}20`,
+                            }
+                          }
+                        }}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Lock sx={{ color: theme.palette.text.secondary }} />
+                            </InputAdornment>
+                          ),
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                aria-label="toggle password visibility"
+                                onClick={() => setShowPassword(!showPassword)}
+                                edge="end"
+                                disabled={loading || sendingCode}
+                                sx={{
+                                  transition: 'transform 0.2s ease',
+                                  '&:hover': {
+                                    transform: 'scale(1.1)'
+                                  }
+                                }}
+                              >
+                                {showPassword ? <VisibilityOff /> : <Visibility />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                      <TextField
+                        margin="normal"
+                        required
+                        fullWidth
+                        name="password_confirm"
+                        label="Confirm Password"
+                        type={showPasswordConfirm ? 'text' : 'password'}
+                        id="password_confirm"
+                        autoComplete="new-password"
+                        value={formData.password_confirm}
+                        onChange={handleChange}
+                        disabled={loading || sendingCode}
+                        error={Boolean(error && formData.password !== formData.password_confirm)}
+                        helperText="Please confirm your password"
+                        sx={{ 
+                          mb: 3,
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: theme.palette.primary.main,
+                              }
+                            },
+                            '&.Mui-focused': {
+                              boxShadow: `0 0 0 2px ${theme.palette.primary.main}20`,
+                            }
+                          }
+                        }}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Lock sx={{ color: theme.palette.text.secondary }} />
+                            </InputAdornment>
+                          ),
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                aria-label="toggle password visibility"
+                                onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                                edge="end"
+                                disabled={loading || sendingCode}
+                                sx={{
+                                  transition: 'transform 0.2s ease',
+                                  '&:hover': {
+                                    transform: 'scale(1.1)'
+                                  }
+                                }}
+                              >
+                                {showPasswordConfirm ? <VisibilityOff /> : <Visibility />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Box>
+                  </Fade>
                 )}
-                {isLoginMode ? (
+
+                {!isLoginMode && registrationStep === 1 && (
+                  <Fade in={true} timeout={600}>
+                    <Box>
+                      {/* Email confirmation info */}
+                      <Box sx={{ 
+                        mb: 3, 
+                        p: 3, 
+                        borderRadius: 3, 
+                        backgroundColor: theme.palette.primary.main + '08',
+                        border: `1px solid ${theme.palette.primary.main}20`,
+                        position: 'relative',
+                        overflow: 'hidden',
+                        '&::before': {
+                          content: '""',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: '3px',
+                          background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                        }
+                      }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Email sx={{ color: theme.palette.primary.main, fontSize: 20 }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
+                          Verification code sent to
+                        </Typography>
+                      </Box>
+                      <Typography variant="body1" sx={{ fontWeight: 500, wordBreak: 'break-all' }}>
+                        {formData.email}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 1, display: 'block' }}>
+                        Please check your email (including spam folder)
+                      </Typography>
+                    </Box>
+
+                    {/* Verification code input */}
+                    <TextField
+                      margin="normal"
+                      required
+                      fullWidth
+                      id="verification_code"
+                      label="Verification Code"
+                      name="verification_code"
+                      value={formData.verification_code}
+                      onChange={handleChange}
+                      disabled={loading}
+                      error={Boolean(error)}
+                      sx={{ 
+                        mb: 2,
+                        '& .MuiOutlinedInput-root': {
+                          fontSize: '1.2rem',
+                          letterSpacing: '0.3em',
+                          textAlign: 'center',
+                          fontFamily: 'monospace'
+                        }
+                      }}
+                      inputProps={{ 
+                        maxLength: 6,
+                        style: { textAlign: 'center', fontSize: '1.2rem', letterSpacing: '0.3em' }
+                      }}
+                      helperText="Please enter 6-digit verification code"
+                      placeholder="000000"
+                    />
+
+                    {/* Countdown progress bar */}
+                    {countdown > 0 && (
+                      <Box sx={{ mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                            Resend verification code
+                          </Typography>
+                          <Chip 
+                            label={`Resend in ${countdown}s`} 
+                            size="small" 
+                            color="primary" 
+                            variant="outlined"
+                          />
+                        </Box>
+                        <LinearProgress 
+                          variant="determinate" 
+                          value={((60 - countdown) / 60) * 100}
+                          sx={{ 
+                            height: 6, 
+                            borderRadius: 3,
+                            backgroundColor: theme.palette.primary.main + '20',
+                            '& .MuiLinearProgress-bar': {
+                              borderRadius: 3
+                            }
+                          }}
+                        />
+                      </Box>
+                    )}
+
+                    {/* Action buttons */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setRegistrationStep(0);
+                          setCountdown(0);
+                        }}
+                        disabled={loading}
+                        sx={{ borderRadius: 2 }}
+                      >
+                        Back to Edit Email
+                      </Button>
+                      <Button
+                        variant={countdown > 0 ? "outlined" : "contained"}
+                        onClick={handleSendVerificationCode}
+                        disabled={loading || sendingCode || countdown > 0}
+                        sx={{ 
+                          borderRadius: 2,
+                          minWidth: 120
+                        }}
+                      >
+                        {sendingCode ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <CircularProgress size={16} />
+                            <span>Sending...</span>
+                          </Box>
+                        ) : countdown > 0 ? (
+                          `Resend in ${countdown}s`
+                        ) : (
+                          'Resend'
+                        )}
+                      </Button>
+                      </Box>
+                    </Box>
+                  </Fade>
+                )}
+                {isLoginMode && (
                   <TextField
                     margin="normal"
                     required
@@ -390,33 +1096,9 @@ const Auth = () => {
                       ),
                     }}
                   />
-                ) : (
-                  <TextField
-                    margin="normal"
-                    required
-                    fullWidth
-                    id="email"
-                    label="Email Address"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    autoFocus={!isMobile}
-                    value={formData.email}
-                    onChange={handleChange}
-                    disabled={loading}
-                    error={Boolean(error)}
-                    helperText="Only 163.com and Gmail addresses are supported"
-                    sx={{ mb: 2 }}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <Email sx={{ color: theme.palette.text.secondary }} />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
                 )}
 
+                {isLoginMode && (
                 <TextField
                   margin="normal"
                   required
@@ -451,7 +1133,9 @@ const Auth = () => {
                     ),
                   }}
                 />
+                )}
 
+                {isLoginMode && (
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                   <FormControlLabel
                     control={
@@ -485,13 +1169,14 @@ const Auth = () => {
                     Forgot password?
                   </Link>
                 </Box>
+                )}
 
                 <Button
                   type="submit"
                   fullWidth
                   variant="contained"
                   size="large"
-                  disabled={loading}
+                  disabled={loading || sendingCode}
                   sx={{
                     py: 1.5,
                     mb: 2,
@@ -509,15 +1194,26 @@ const Auth = () => {
                     },
                   }}
                 >
-                  {loading ? (
+                  {loading || sendingCode ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <CircularProgress size={20} color="inherit" />
                       <Typography variant="button">
-                        {isLoginMode ? 'Signing In...' : 'Creating Account...'}
+                        {isLoginMode 
+                          ? 'Signing In...' 
+                          : sendingCode 
+                            ? 'Sending Code...'
+                            : registrationStep === 0 
+                              ? 'Sending Code...' 
+                              : 'Creating Account...'
+                        }
                       </Typography>
                     </Box>
                   ) : (
-                    isLoginMode ? 'Sign In' : 'Create Account'
+                    isLoginMode 
+                      ? 'Sign In' 
+                      : registrationStep === 0 
+                        ? 'Send Verification Code' 
+                        : 'Complete Registration'
                   )}
                 </Button>
 
@@ -632,24 +1328,96 @@ const Auth = () => {
                 onChange={(e) => handleForgotPasswordChange('email', e.target.value)}
                 disabled={forgotPasswordLoading}
                 sx={{ mb: 2 }}
-                helperText="Only 163.com and Gmail addresses are supported"
+                helperText="All email formats are supported"
               />
             </Box>
           ) : (
             <Box>
-              <Typography variant="body2" sx={{ mb: 2, color: theme.palette.text.secondary }}>
-                Enter the 6-digit code sent to your email and your new password.
+              {/* 邮箱确认信息 */}
+              <Box sx={{ 
+                mb: 3, 
+                p: 2, 
+                borderRadius: 2, 
+                backgroundColor: theme.palette.info.main + '10',
+                border: `1px solid ${theme.palette.info.main}30`
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Email sx={{ color: theme.palette.info.main, fontSize: 20 }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.info.main }}>
+                    Reset code sent to
               </Typography>
+                </Box>
+                <Typography variant="body1" sx={{ fontWeight: 500, wordBreak: 'break-all' }}>
+                  {forgotPasswordData.email}
+                </Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 1, display: 'block' }}>
+                  Please check your email (including spam folder)
+                </Typography>
+              </Box>
+
               <TextField
                 fullWidth
                 label="Reset Code"
                 value={forgotPasswordData.resetCode}
                 onChange={(e) => handleForgotPasswordChange('resetCode', e.target.value)}
                 disabled={forgotPasswordLoading}
-                sx={{ mb: 2 }}
-                inputProps={{ maxLength: 6 }}
-                helperText="Check your email for the 6-digit reset code"
+                sx={{ 
+                  mb: 2,
+                  '& .MuiOutlinedInput-root': {
+                    fontSize: '1.1rem',
+                    letterSpacing: '0.2em',
+                    textAlign: 'center',
+                    fontFamily: 'monospace'
+                  }
+                }}
+                inputProps={{ 
+                  maxLength: 6,
+                  style: { textAlign: 'center', fontSize: '1.1rem', letterSpacing: '0.2em' }
+                }}
+                placeholder="000000"
+                helperText="Please enter 6-digit reset code"
               />
+
+              {/* Countdown and resend button */}
+              {countdown > 0 && (
+                <Box sx={{ mb: 2, textAlign: 'center' }}>
+                  <Chip 
+                    label={`Resend in ${countdown}s`} 
+                    size="small" 
+                    color="info" 
+                    variant="outlined"
+                  />
+                </Box>
+              )}
+
+              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                <Button
+                  variant={countdown > 0 ? "outlined" : "text"}
+                  onClick={async () => {
+                    // Resend reset code
+                    setForgotPasswordLoading(true);
+                    try {
+                      const response = await ApiService.forgotPassword(forgotPasswordData.email);
+                      setError(null);
+                      const resendAfter = (response as any)?.can_resend_after || 60;
+                      setCountdown(resendAfter);
+                    } catch (err: any) {
+                      if (err.response?.status === 429) {
+                        setError(err.response.data.detail || 'Sending too frequently, please try again later');
+                      } else {
+                        setError('Failed to send reset code, please try again');
+                      }
+                    } finally {
+                      setForgotPasswordLoading(false);
+                    }
+                  }}
+                  disabled={forgotPasswordLoading || countdown > 0}
+                  size="small"
+                >
+                  {countdown > 0 ? `Resend in ${countdown}s` : 'Resend Reset Code'}
+                </Button>
+              </Box>
+
               <TextField
                 fullWidth
                 label="New Password"
@@ -657,7 +1425,7 @@ const Auth = () => {
                 value={forgotPasswordData.newPassword}
                 onChange={(e) => handleForgotPasswordChange('newPassword', e.target.value)}
                 disabled={forgotPasswordLoading}
-                helperText="At least 6 characters required"
+                helperText="Password must be at least 6 characters"
               />
             </Box>
           )}
