@@ -274,6 +274,38 @@ class ApiService {
     });
   }
 
+  static async checkEmailSupport(email: string): Promise<any> {
+    return api.post('/auth/check-email-support', { email });
+  }
+
+  static async sendVerificationCode(email: string): Promise<any> {
+    return api.post('/auth/send-verification-code', { email });
+  }
+
+  static async registerWithCode(email: string, verification_code: string, password: string, full_name: string): Promise<{ access_token: string; token_type: string }> {
+    const response = await api.post('/auth/register-with-code', { 
+      email, 
+      verification_code,
+      password, 
+      full_name 
+    }) as { token: string; token_type: string; user_info: any };
+    
+    const mappedResponse = {
+      access_token: response.token,
+      token_type: response.token_type,
+      user_info: response.user_info
+    };
+
+    if (response.token) {
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('isAuthenticated', 'true');
+      // Set login timestamp with configurable expiry duration
+      const expirationTime = Date.now() + AUTH_CONFIG.TOKEN_EXPIRY_DURATION;
+      localStorage.setItem('tokenExpiration', expirationTime.toString());
+    }
+    return mappedResponse;
+  }
+
   static async uploadAvatar(file: File): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
@@ -421,6 +453,16 @@ class ApiService {
         Authorization: `Bearer ${getToken()}`
       },
       responseType: 'blob'
+    });
+    return response.data;
+  }
+
+  static async getTaskReportContent(taskId: string, filename: string): Promise<string> {
+    const response = await axios.get(`${API_BASE_URL}/task/${taskId}/file/${filename}`, {
+      headers: {
+        Authorization: `Bearer ${getToken()}`
+      },
+      responseType: 'text'
     });
     return response.data;
   }
