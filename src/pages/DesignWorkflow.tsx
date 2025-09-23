@@ -40,7 +40,8 @@ import {
   Switch,
   FormControlLabel,
   Paper,
-  Stack
+  Stack,
+  Container
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -54,7 +55,7 @@ import useDesignStore from '../store/designStore';
 import ApiService from '../api';
 import { CustomProbeType, extractParametersFromYaml } from '../types';
 
-import { Container } from '../style';
+//import { Container } from '../style';
 import YAML from 'yaml';
 
 
