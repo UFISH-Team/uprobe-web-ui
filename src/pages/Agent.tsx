@@ -15,6 +15,12 @@ import {
   CircularProgress,
   Fade,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import {
   Send,
@@ -30,7 +36,10 @@ import {
   Add,
   History,
   Delete,
+  Settings,
+  VpnKey,
 } from '@mui/icons-material';
+import { API_BASE_URL } from '../api';
 
 interface Message {
   id: string;
@@ -65,9 +74,37 @@ const Agent: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLDivElement>(null);
+  
+  // WebSocket and API key management
+  const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [tempApiKey, setTempApiKey] = useState('');
+  const [model, setModel] = useState('gpt-4');
+  const [proxy, setProxy] = useState('');
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' as 'success' | 'error' | 'info' | 'warning' });
+  
+  // Track the current assistant message being accumulated
+  const currentAssistantMessageRef = useRef<string>('');
 
-  // Load conversations from localStorage on component mount
+  // Load API key and conversations from localStorage on component mount
   useEffect(() => {
+    const savedApiKey = localStorage.getItem('uprobe-agent-api-key');
+    const savedModel = localStorage.getItem('uprobe-agent-model');
+    const savedProxy = localStorage.getItem('uprobe-agent-proxy');
+    
+    if (savedApiKey) {
+      setApiKey(savedApiKey);
+      setTempApiKey(savedApiKey);
+    }
+    if (savedModel) {
+      setModel(savedModel);
+    }
+    if (savedProxy) {
+      setProxy(savedProxy);
+    }
+    
     const savedConversations = localStorage.getItem('agent-conversations');
     if (savedConversations) {
       const parsed = JSON.parse(savedConversations);
@@ -133,6 +170,128 @@ const Agent: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
+  // WebSocket connection management
+  const connectWebSocket = () => {
+    if (!apiKey) {
+      setSnackbar({ open: true, message: 'Please set API Key first', severity: 'error' });
+      setShowApiKeyDialog(true);
+      return;
+    }
+
+    try {
+      const wsUrl = API_BASE_URL.replace('http', 'ws') + '/agent/ws';
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log('WebSocket connection established');
+        // Send configuration as first message
+        ws.send(JSON.stringify({
+          api_key: apiKey,
+          model: model,
+          proxy: proxy || undefined
+        }));
+        setIsConnected(true);
+        setSnackbar({ open: true, message: 'Agent connected', severity: 'success' });
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'status') {
+            setSnackbar({ open: true, message: data.message, severity: 'info' });
+          } else if (data.type === 'message') {
+            const content = data.content;
+            const isComplete = data.complete !== false; // Default to true if not specified
+            
+            if (isComplete) {
+              // This is a complete message, add it as a new message bubble
+              if (currentAssistantMessageRef.current) {
+                // If there was accumulated content, append to it
+                const fullContent = currentAssistantMessageRef.current + '\n' + content;
+                currentAssistantMessageRef.current = '';
+                
+                const assistantMessage: Message = {
+                  id: Date.now().toString(),
+                  content: fullContent,
+                  sender: 'assistant',
+                  timestamp: new Date(),
+                  type: 'text'
+                };
+                
+                setConversations(prev => prev.map(conv => {
+                  if (conv.id === currentConversationId) {
+                    return { ...conv, messages: [...conv.messages, assistantMessage], updatedAt: new Date() };
+                  }
+                  return conv;
+                }));
+              } else {
+                // Create new message with just this content
+                const assistantMessage: Message = {
+                  id: Date.now().toString(),
+                  content: content,
+                  sender: 'assistant',
+                  timestamp: new Date(),
+                  type: 'text'
+                };
+                
+                setConversations(prev => prev.map(conv => {
+                  if (conv.id === currentConversationId) {
+                    return { ...conv, messages: [...conv.messages, assistantMessage], updatedAt: new Date() };
+                  }
+                  return conv;
+                }));
+              }
+              setIsLoading(false);
+            } else {
+              // Accumulate the message
+              if (currentAssistantMessageRef.current) {
+                currentAssistantMessageRef.current += '\n' + content;
+              } else {
+                currentAssistantMessageRef.current = content;
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setSnackbar({ open: true, message: 'WebSocket connection error', severity: 'error' });
+        setIsConnected(false);
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket connection closed');
+        setIsConnected(false);
+        setSnackbar({ open: true, message: 'Agent disconnected', severity: 'info' });
+      };
+
+      setWsConnection(ws);
+    } catch (error) {
+      console.error('Failed to connect WebSocket:', error);
+      setSnackbar({ open: true, message: 'Connection failed', severity: 'error' });
+    }
+  };
+
+  const disconnectWebSocket = () => {
+    if (wsConnection) {
+      wsConnection.close();
+      setWsConnection(null);
+      setIsConnected(false);
+      currentAssistantMessageRef.current = ''; // Clear any accumulated messages
+    }
+  };
+
+  // Cleanup WebSocket on unmount
+  useEffect(() => {
+    return () => {
+      disconnectWebSocket();
+    };
+  }, []);
+
   const createNewConversation = () => {
     const newConversation: Conversation = {
       id: Date.now().toString(),
@@ -155,6 +314,12 @@ const Agent: React.FC = () => {
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
+
+    // Check if connected
+    if (!isConnected || !wsConnection) {
+      setSnackbar({ open: true, message: 'Please connect Agent first', severity: 'warning' });
+      return;
+    }
 
     // Create new conversation if none exists
     let conversationId = currentConversationId;
@@ -180,50 +345,32 @@ const Agent: React.FC = () => {
     };
 
     // Update conversation with new message
-    setConversations(prev => prev.map(conv => 
-      conv.id === conversationId 
-        ? { ...conv, messages: [...conv.messages, userMessage], updatedAt: new Date() }
-        : conv
-    ));
+    setConversations(prev => prev.map(conv => {
+      if (conv.id === conversationId) {
+        const updatedMessages = [...conv.messages, userMessage];
+        // Update title if this is the first user message
+        const title = conv.messages.length === 0 ? 
+          userMessage.content.slice(0, 50) + (userMessage.content.length > 50 ? '...' : '') :
+          conv.title;
+        return { ...conv, messages: updatedMessages, title, updatedAt: new Date() };
+      }
+      return conv;
+    }));
 
     setInputValue('');
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: `Based on your question: "${userMessage.content}", I'll help you analyze the probe design strategy.
-
-For probe design, I recommend the following steps:
-
-1. **Sequence Analysis**: First analyze the characteristics of target sequences
-2. **Parameter Settings**:
-   - Tm range: 60-65°C
-   - GC content: 40-60%
-   - Probe length: 18-25 nt
-3. **Specificity Check**: Ensure probe-specific binding to targets
-4. **Experimental Validation**: Recommend small-scale testing
-
-You can use our Design Workflow feature to implement this design process. Would you like me to explain any specific step in detail?`,
-        sender: 'assistant',
-        timestamp: new Date(),
-        type: 'text'
-      };
-
-      setConversations(prev => prev.map(conv => {
-        if (conv.id === conversationId) {
-          const updatedMessages = [...conv.messages, assistantMessage];
-          // Update title if this is the first exchange
-          const title = conv.messages.length === 1 ? 
-            conv.messages[0].content.slice(0, 50) + (conv.messages[0].content.length > 50 ? '...' : '') :
-            conv.title;
-          return { ...conv, messages: updatedMessages, title, updatedAt: new Date() };
-        }
-        return conv;
+    // Send message via WebSocket
+    try {
+      wsConnection.send(JSON.stringify({
+        type: 'message',
+        content: userMessage.content
       }));
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setSnackbar({ open: true, message: 'Failed to send message', severity: 'error' });
       setIsLoading(false);
-    }, 2000);
+    }
   };
 
   const handleKeyPress = (event: React.KeyboardEvent) => {
@@ -245,6 +392,30 @@ You can use our Design Workflow feature to implement this design process. Would 
           ? { ...conv, messages: [], updatedAt: new Date() }
           : conv
       ));
+    }
+  };
+
+  const handleSaveApiKey = () => {
+    if (!tempApiKey.trim()) {
+      setSnackbar({ open: true, message: 'Please enter API Key', severity: 'error' });
+      return;
+    }
+
+    setApiKey(tempApiKey);
+    localStorage.setItem('uprobe-agent-api-key', tempApiKey);
+    localStorage.setItem('uprobe-agent-model', model);
+    if (proxy) {
+      localStorage.setItem('uprobe-agent-proxy', proxy);
+    } else {
+      localStorage.removeItem('uprobe-agent-proxy');
+    }
+    
+    setShowApiKeyDialog(false);
+    setSnackbar({ open: true, message: 'API configuration saved', severity: 'success' });
+
+    // Disconnect existing connection if any
+    if (isConnected) {
+      disconnectWebSocket();
     }
   };
 
@@ -309,13 +480,23 @@ You can use our Design Workflow feature to implement this design process. Would 
           >
             <Typography
               variant="body1"
+              component="div"
               sx={{
                 lineHeight: 1.6,
-                whiteSpace: 'pre-line',
-                fontSize: '0.95rem'
+                whiteSpace: 'pre-wrap',
+                fontSize: '0.95rem',
+                fontFamily: message.sender === 'assistant' ? 'inherit' : 'inherit',
+                '& p': {
+                  margin: '0.5em 0'
+                }
               }}
             >
-              {message.content}
+              {message.content.split('\n').map((line, index) => (
+                <React.Fragment key={index}>
+                  {line}
+                  {index < message.content.split('\n').length - 1 && <br />}
+                </React.Fragment>
+              ))}
             </Typography>
             {!isUser && (
               <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
@@ -375,11 +556,43 @@ You can use our Design Workflow feature to implement this design process. Would 
                     onClick={createNewConversation}
                     sx={{
                       background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
-                      borderRadius: 2
+                      borderRadius: 2,
+                      mb: 1
                     }}
                   >
                     New Chat
                   </Button>
+
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    {isConnected ? (
+                      <Button
+                        variant="outlined"
+                        fullWidth
+                        startIcon={<VpnKey />}
+                        onClick={disconnectWebSocket}
+                        color="error"
+                        sx={{ borderRadius: 2 }}
+                      >
+                        Disconnect
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outlined"
+                        fullWidth
+                        startIcon={<VpnKey />}
+                        onClick={connectWebSocket}
+                        sx={{ borderRadius: 2 }}
+                      >
+                        Connect Agent
+                      </Button>
+                    )}
+                    <IconButton
+                      onClick={() => setShowApiKeyDialog(true)}
+                      sx={{ border: '1px solid rgba(226, 232, 240, 0.6)' }}
+                    >
+                      <Settings />
+                    </IconButton>
+                  </Box>
                 </Box>
 
                 {/* Conversation List */}
@@ -687,6 +900,81 @@ You can use our Design Workflow feature to implement this design process. Would 
               </Box>
           </Box>
       </Box>
+
+      {/* API Key Configuration Dialog */}
+      <Dialog
+        open={showApiKeyDialog}
+        onClose={() => setShowApiKeyDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Settings />
+            <Typography variant="h6">Agent Configuration</Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="OpenAI API Key"
+              type="password"
+              fullWidth
+              value={tempApiKey}
+              onChange={(e) => setTempApiKey(e.target.value)}
+              placeholder="sk-..."
+              helperText="Your API Key will be securely stored in your local browser"
+            />
+            <TextField
+              label="Model"
+              fullWidth
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="gpt-4"
+              helperText="Select the OpenAI model to use"
+            />
+            <TextField
+              label="Proxy (Optional)"
+              fullWidth
+              value={proxy}
+              onChange={(e) => setProxy(e.target.value)}
+              placeholder="http://localhost:7890"
+              helperText="Enter proxy address if needed"
+            />
+            <Alert severity="info">
+              API Key will only be stored locally in your browser and will not be uploaded to the server. This configuration will be used each time you connect to the Agent.
+            </Alert>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowApiKeyDialog(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveApiKey}
+            sx={{
+              background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)'
+            }}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

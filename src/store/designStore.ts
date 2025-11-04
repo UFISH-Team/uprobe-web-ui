@@ -5,7 +5,8 @@ import { CustomProbeType} from '../types';
 
 interface Target {
   target: string;
-  [key: string]: string | number;  // Allow dynamic barcode fields
+  sequence?: string;  // Optional sequence field
+  [key: string]: string | number | undefined;  // Allow dynamic barcode fields
 }
 
 interface DesignState {
@@ -61,7 +62,7 @@ const useDesignStore = create<DesignState>((set, get) => ({
   taskName: '',
   probeType: '',
   species: '',
-  targetList: [{ target: '' }],
+  targetList: [{ target: '', sequence: '' }],
   minLength: 40,
   overlap: 20,
   selectedCustomType: null,
@@ -82,7 +83,7 @@ const useDesignStore = create<DesignState>((set, get) => ({
   // Unified target setters
   setTargetList: (list) => set({ targetList: list }),
   addTarget: () => set((state) => ({
-    targetList: [...state.targetList, { target: '' }],
+    targetList: [...state.targetList, { target: '', sequence: '' }],
   })),
   removeTarget: (index) => set((state) => ({
     targetList: state.targetList.filter((_, i) => i !== index),

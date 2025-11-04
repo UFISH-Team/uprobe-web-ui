@@ -55,11 +55,7 @@ import useDesignStore from '../store/designStore';
 import ApiService from '../api';
 import { CustomProbeType, extractParametersFromYaml } from '../types';
 
-//import { Container } from '../style';
 import YAML from 'yaml';
-
-
-
 
 
 interface AttributeValue {
@@ -91,7 +87,8 @@ interface SortCategory {
 
 interface Target {
   target: string;
-  [key: string]: string | number;  // Allow dynamic barcode fields
+  sequence?: string;  // Optional sequence field
+  [key: string]: string | number | undefined;  // Allow dynamic barcode fields
 }
 
 // Helper function to get probe type (DNA/RNA)
@@ -654,7 +651,7 @@ const DesignWorkflow: React.FC = () => {
   }, [selectedCustomType]);
 
   const handleResetTargetList = () => {
-    setTargetList([{ target: '' }]);
+    setTargetList([{ target: '', sequence: '' }]);
     setBarcodeFromFile({});
     setBarcodeModes({});
     setGeneratingBarcodes({});
@@ -701,6 +698,11 @@ const DesignWorkflow: React.FC = () => {
 
               // Create the target object with target name
               const targetObj: any = { target: row['target'] };
+              
+              // Add sequence field if exists
+              if (row['sequence']) {
+                targetObj.sequence = row['sequence'];
+              }
               
               // Add barcode fields
               if (selectedCustomType?.barcodeCount) {
@@ -1403,7 +1405,17 @@ const DesignWorkflow: React.FC = () => {
       name: finalTaskName.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_'),
       description: `Protocol for designing ${probeName} probes from species ${species}`,
       genome: species,
-      targets: targetList.map(item => item.target).filter(target => target.trim() !== '')
+      targets: targetList
+        .filter(item => item.target.trim() !== '')
+        .map(item => {
+          if (item.sequence && typeof item.sequence === 'string' && item.sequence.trim() !== '') {
+            // Return as object with sequence: {targetName: 'sequence'}
+            return { [item.target]: item.sequence.trim() };
+          } else {
+            // Return as simple string
+            return item.target;
+          }
+        })
     };
 
     // 编码配置 (条码映射)
@@ -2293,9 +2305,9 @@ const DesignWorkflow: React.FC = () => {
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
               {selectedCustomType?.barcodeCount ? 
-                `CSV/TXT format: target${Array.from({ length: selectedCustomType.barcodeCount }, (_, i) => `,barcode${i + 1}`).join('')} (one line per target)` :
-                'CSV/TXT format: target (one line per target)'}<br />
-              Barcode options: Builtin selection | Auto-generate based on config | Manual input | Upload from file
+                `CSV/TXT format: target,sequence${Array.from({ length: selectedCustomType.barcodeCount }, (_, i) => `,barcode${i + 1}`).join('')} (one line per target)` :
+                'CSV/TXT format: target,sequence (one line per target)'}<br />
+              Sequence is optional. Barcode options: Builtin selection | Auto-generate based on config | Manual input | Upload from file
             </Typography>
 
             {/* Global Barcode Configuration */}
@@ -2355,7 +2367,7 @@ const DesignWorkflow: React.FC = () => {
 
             {targetList.map((item, index) => (
                   <Grid container spacing={2} key={index} alignItems="center" sx={{ mb: 1 }}>
-                    <Grid item xs={selectedCustomType?.barcodeCount ? 6 : 10}>
+                    <Grid item xs={selectedCustomType?.barcodeCount ? 3 : 5}>
                       <TextField
                         fullWidth
                         label="Target"
@@ -2363,12 +2375,24 @@ const DesignWorkflow: React.FC = () => {
                         onChange={(e) => updateTarget(index, 'target', e.target.value)}
                       />
                     </Grid>
+                    <Grid item xs={selectedCustomType?.barcodeCount ? 3 : 5}>
+                      <TextField
+                        fullWidth
+                        label="Sequence (Optional)"
+                        value={item.sequence || ''}
+                        onChange={(e) => updateTarget(index, 'sequence', e.target.value)}
+                        placeholder="ATCGATCGATCG..."
+                        inputProps={{ 
+                          style: { fontFamily: 'monospace', fontSize: '0.875rem' } 
+                        }}
+                      />
+                    </Grid>
 
                     {selectedCustomType?.barcodeCount ? (
                       Array.from({ length: selectedCustomType.barcodeCount }).map((_, barcodeIndex) => {
                         const barcodeKey = `barcode${barcodeIndex + 1}`;
                         const currentMode = barcodeModes[barcodeKey] || 'builtin';
-                        const barcodeGridSize = Math.floor(4 / selectedCustomType.barcodeCount);
+                        const barcodeGridSize = Math.floor(4 / selectedCustomType.barcodeCount); // 4 columns for barcodes
                         return (
                           <Grid item xs={barcodeGridSize} key={barcodeIndex}>
                             {/* Simplified Barcode Input Field */}
