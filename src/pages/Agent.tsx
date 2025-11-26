@@ -47,6 +47,7 @@ interface Message {
   sender: 'user' | 'assistant';
   timestamp: Date;
   type?: 'text' | 'code' | 'result';
+  thinking?: string[];
 }
 
 interface Conversation {
@@ -55,6 +56,8 @@ interface Conversation {
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+  sessionId?: string;
+  attachments?: { id: string; filename: string; url: string; mime_type: string; size: number }[];
 }
 
 interface SuggestedPrompt {
@@ -75,18 +78,16 @@ const Agent: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLDivElement>(null);
   
-  // WebSocket and API key management
-  const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  // Session and API key management (HTTP-based)
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [tempApiKey, setTempApiKey] = useState('');
   const [model, setModel] = useState('gpt-4');
   const [proxy, setProxy] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' as 'success' | 'error' | 'info' | 'warning' });
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   
-  // Track the current assistant message being accumulated
-  const currentAssistantMessageRef = useRef<string>('');
 
   // Load API key and conversations from localStorage on component mount
   useEffect(() => {
@@ -115,7 +116,8 @@ const Agent: React.FC = () => {
         messages: conv.messages.map((msg: any) => ({
           ...msg,
           timestamp: new Date(msg.timestamp)
-        }))
+        })),
+        attachments: conv.attachments || []
       })));
     }
   }, []);
@@ -130,10 +132,15 @@ const Agent: React.FC = () => {
     if (currentConversationId) {
       const conversation = conversations.find(c => c.id === currentConversationId);
       setMessages(conversation?.messages || []);
+      setSessionId(conversation?.sessionId || null);
     } else {
       setMessages([]);
+      setSessionId(null);
     }
   }, [currentConversationId, conversations]);
+
+  // Get current conversation attachments
+  const currentAttachments = conversations.find(c => c.id === currentConversationId)?.attachments || [];
 
   const suggestedPrompts: SuggestedPrompt[] = [
     {
@@ -170,8 +177,8 @@ const Agent: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // WebSocket connection management
-  const connectWebSocket = () => {
+  // Session management
+  const startSession = async () => {
     if (!apiKey) {
       setSnackbar({ open: true, message: 'Please set API Key first', severity: 'error' });
       setShowApiKeyDialog(true);
@@ -179,118 +186,43 @@ const Agent: React.FC = () => {
     }
 
     try {
-      const wsUrl = API_BASE_URL.replace('http', 'ws') + '/agent/ws';
-      const ws = new WebSocket(wsUrl);
+      const res = await fetch(`${API_BASE_URL}/agent/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: apiKey, model, proxy: proxy || undefined })
+      });
+      if (!res.ok) throw new Error('Failed to start session');
+      const data = await res.json();
+      setSessionId(data.session_id);
 
-      ws.onopen = () => {
-        console.log('WebSocket connection established');
-        // Send configuration as first message
-        ws.send(JSON.stringify({
-          api_key: apiKey,
-          model: model,
-          proxy: proxy || undefined
-        }));
-        setIsConnected(true);
-        setSnackbar({ open: true, message: 'Agent connected', severity: 'success' });
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          if (data.type === 'status') {
-            setSnackbar({ open: true, message: data.message, severity: 'info' });
-          } else if (data.type === 'message') {
-            const content = data.content;
-            const isComplete = data.complete !== false; // Default to true if not specified
-            
-            if (isComplete) {
-              // This is a complete message, add it as a new message bubble
-              if (currentAssistantMessageRef.current) {
-                // If there was accumulated content, append to it
-                const fullContent = currentAssistantMessageRef.current + '\n' + content;
-                currentAssistantMessageRef.current = '';
-                
-                const assistantMessage: Message = {
-                  id: Date.now().toString(),
-                  content: fullContent,
-                  sender: 'assistant',
-                  timestamp: new Date(),
-                  type: 'text'
-                };
-                
-                setConversations(prev => prev.map(conv => {
-                  if (conv.id === currentConversationId) {
-                    return { ...conv, messages: [...conv.messages, assistantMessage], updatedAt: new Date() };
-                  }
-                  return conv;
-                }));
-              } else {
-                // Create new message with just this content
-                const assistantMessage: Message = {
-                  id: Date.now().toString(),
-                  content: content,
-                  sender: 'assistant',
-                  timestamp: new Date(),
-                  type: 'text'
-                };
-                
-                setConversations(prev => prev.map(conv => {
-                  if (conv.id === currentConversationId) {
-                    return { ...conv, messages: [...conv.messages, assistantMessage], updatedAt: new Date() };
-                  }
-                  return conv;
-                }));
-              }
-              setIsLoading(false);
-            } else {
-              // Accumulate the message
-              if (currentAssistantMessageRef.current) {
-                currentAssistantMessageRef.current += '\n' + content;
-              } else {
-                currentAssistantMessageRef.current = content;
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setSnackbar({ open: true, message: 'WebSocket connection error', severity: 'error' });
-        setIsConnected(false);
-      };
-
-      ws.onclose = () => {
-        console.log('WebSocket connection closed');
-        setIsConnected(false);
-        setSnackbar({ open: true, message: 'Agent disconnected', severity: 'info' });
-      };
-
-      setWsConnection(ws);
-    } catch (error) {
-      console.error('Failed to connect WebSocket:', error);
-      setSnackbar({ open: true, message: 'Connection failed', severity: 'error' });
+      // Attach sessionId to current conversation
+      if (currentConversationId) {
+        setConversations(prev => prev.map(conv => conv.id === currentConversationId ? { ...conv, sessionId: data.session_id } : conv));
+      }
+      setSnackbar({ open: true, message: 'Agent session started', severity: 'success' });
+    } catch (e) {
+      console.error(e);
+      setSnackbar({ open: true, message: 'Failed to start session', severity: 'error' });
     }
   };
 
-  const disconnectWebSocket = () => {
-    if (wsConnection) {
-      wsConnection.close();
-      setWsConnection(null);
-      setIsConnected(false);
-      currentAssistantMessageRef.current = ''; // Clear any accumulated messages
+  const stopSession = async () => {
+    if (!sessionId) return;
+    try {
+      await fetch(`${API_BASE_URL}/agent/stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId })
+      });
+    } catch (e) {
+      // ignore
     }
+    setSessionId(null);
+    if (currentConversationId) {
+      setConversations(prev => prev.map(conv => conv.id === currentConversationId ? { ...conv, sessionId: undefined } : conv));
+    }
+    setSnackbar({ open: true, message: 'Agent session stopped', severity: 'info' });
   };
-
-  // Cleanup WebSocket on unmount
-  useEffect(() => {
-    return () => {
-      disconnectWebSocket();
-    };
-  }, []);
 
   const createNewConversation = () => {
     const newConversation: Conversation = {
@@ -298,7 +230,9 @@ const Agent: React.FC = () => {
       title: 'New Conversation',
       messages: [],
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      sessionId: undefined,
+      attachments: []
     };
     setConversations(prev => [newConversation, ...prev]);
     setCurrentConversationId(newConversation.id);
@@ -315,9 +249,10 @@ const Agent: React.FC = () => {
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
 
-    // Check if connected
-    if (!isConnected || !wsConnection) {
-      setSnackbar({ open: true, message: 'Please connect Agent first', severity: 'warning' });
+    // Check session
+    const activeSessionId = sessionId || (currentConversationId ? conversations.find(c => c.id === currentConversationId)?.sessionId : null);
+    if (!activeSessionId) {
+      setSnackbar({ open: true, message: 'Please start agent session first', severity: 'warning' });
       return;
     }
 
@@ -329,7 +264,9 @@ const Agent: React.FC = () => {
         title: 'New Conversation',
         messages: [],
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        sessionId: activeSessionId,
+        attachments: []
       };
       setConversations(prev => [newConversation, ...prev]);
       conversationId = newConversation.id;
@@ -344,10 +281,18 @@ const Agent: React.FC = () => {
       type: 'text'
     };
 
+    // Show attachment info in user message if any attachments exist
+    let displayContent = userMessage.content;
+    if (currentAttachments.length > 0) {
+      const attachInfo = currentAttachments.map(att => `📎 ${att.filename}`).join(', ');
+      displayContent = `${userMessage.content}\n\n[Attachments: ${attachInfo}]`;
+    }
+    const displayMessage = { ...userMessage, content: displayContent };
+
     // Update conversation with new message
     setConversations(prev => prev.map(conv => {
       if (conv.id === conversationId) {
-        const updatedMessages = [...conv.messages, userMessage];
+        const updatedMessages = [...conv.messages, displayMessage];
         // Update title if this is the first user message
         const title = conv.messages.length === 0 ? 
           userMessage.content.slice(0, 50) + (userMessage.content.length > 50 ? '...' : '') :
@@ -359,17 +304,130 @@ const Agent: React.FC = () => {
 
     setInputValue('');
     setIsLoading(true);
+    
+    // Collect attachment ids for this conversation
+    const conv = conversations.find(c => c.id === conversationId);
+    const attachmentIds = (conv?.attachments || []).map(a => a.id);
 
-    // Send message via WebSocket
+    // Send message via HTTP
     try {
-      wsConnection.send(JSON.stringify({
-        type: 'message',
-        content: userMessage.content
+      const res = await fetch(`${API_BASE_URL}/agent/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: activeSessionId, content: userMessage.content, attachment_ids: attachmentIds })
+      });
+      if (!res.ok) throw new Error('Request failed');
+      const data = await res.json();
+      // Expecting { thinking: string[], message: string }
+      const assistantMessage: Message = {
+        id: `${Date.now().toString()}-${Math.random()}`,
+        content: data.message || '',
+        thinking: Array.isArray(data.thinking) ? data.thinking : [],
+        sender: 'assistant',
+        timestamp: new Date(),
+        type: 'text'
+      };
+
+      setConversations(prev => prev.map(conv => {
+        if (conv.id === conversationId) {
+          return { ...conv, messages: [...conv.messages, assistantMessage], updatedAt: new Date() };
+        }
+        return conv;
       }));
     } catch (error) {
       console.error('Failed to send message:', error);
       setSnackbar({ open: true, message: 'Failed to send message', severity: 'error' });
+    } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleChooseFiles = () => {
+    if (!sessionId) {
+      setSnackbar({ open: true, message: 'Please start agent session first', severity: 'warning' });
+      return;
+    }
+    // Ensure a conversation exists before selecting files
+    if (!currentConversationId) {
+      const newConversation: Conversation = {
+        id: Date.now().toString(),
+        title: 'New Conversation',
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        sessionId: sessionId || undefined,
+        attachments: []
+      };
+      setConversations(prev => [newConversation, ...prev]);
+      setCurrentConversationId(newConversation.id);
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !sessionId) return;
+    // Ensure conversation id
+    let convId = currentConversationId;
+    if (!convId) {
+      const newConversation: Conversation = {
+        id: Date.now().toString(),
+        title: 'New Conversation',
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        sessionId: sessionId || undefined,
+        attachments: []
+      };
+      setConversations(prev => [newConversation, ...prev]);
+      setCurrentConversationId(newConversation.id);
+      convId = newConversation.id;
+    }
+    for (const file of Array.from(files)) {
+      const form = new FormData();
+      form.append('session_id', sessionId);
+      form.append('file', file);
+      try {
+        const res = await fetch(`${API_BASE_URL}/agent/upload`, {
+          method: 'POST',
+          body: form
+        });
+        if (!res.ok) throw new Error('Upload failed');
+        const data = await res.json();
+        const targetId = convId;
+        setConversations(prev => prev.map(conv => {
+          if (conv.id === targetId) {
+            const atts = conv.attachments || [];
+            return { ...conv, attachments: [...atts, data], updatedAt: new Date() };
+          }
+          return conv;
+        }));
+        setSnackbar({ open: true, message: `Uploaded ${file.name}`, severity: 'success' });
+      } catch (err) {
+        setSnackbar({ open: true, message: `Failed to upload ${file.name}`, severity: 'error' });
+      }
+    }
+    // reset input
+    e.target.value = '';
+  };
+
+  const handleRemoveAttachment = async (attachmentId: string) => {
+    if (!sessionId || !currentConversationId) return;
+    try {
+      const url = new URL(`${API_BASE_URL}/agent/upload/${attachmentId}`);
+      url.searchParams.set('session_id', sessionId);
+      const res = await fetch(url.toString(), { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      const convId = currentConversationId;
+      setConversations(prev => prev.map(conv => {
+        if (conv.id === convId) {
+          const atts = (conv.attachments || []).filter(a => a.id !== attachmentId);
+          return { ...conv, attachments: atts, updatedAt: new Date() };
+        }
+        return conv;
+      }));
+    } catch (e) {
+      setSnackbar({ open: true, message: 'Failed to delete attachment', severity: 'error' });
     }
   };
 
@@ -413,14 +471,89 @@ const Agent: React.FC = () => {
     setShowApiKeyDialog(false);
     setSnackbar({ open: true, message: 'API configuration saved', severity: 'success' });
 
-    // Disconnect existing connection if any
-    if (isConnected) {
-      disconnectWebSocket();
+    // Stop existing session if any
+    if (sessionId) {
+      stopSession();
     }
   };
 
   const renderMessage = (message: Message) => {
     const isUser = message.sender === 'user';
+
+    const renderContentWithCodeBlocks = (content: string) => {
+      // Simple parser for triple backtick code blocks
+      const parts: React.ReactNode[] = [];
+      const regex = /```(\w+)?\n([\s\S]*?)```/g;
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+      const linkify = (text: string) => {
+        const nodes: React.ReactNode[] = [];
+        const urlRe = /((https?:\/\/[^\s]+)|((?:\/)agent\/(?:files|uploads)\/[^\s]+))/g;
+        let idx = 0;
+        let m: RegExpExecArray | null;
+        while ((m = urlRe.exec(text)) !== null) {
+          if (m.index > idx) {
+            nodes.push(<span key={`lt-${idx}`}>{text.slice(idx, m.index)}</span>);
+          }
+          const url = m[0];
+          nodes.push(
+            <a key={`a-${m.index}`} href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>
+              {url}
+            </a>
+          );
+          idx = urlRe.lastIndex;
+        }
+        if (idx < text.length) nodes.push(<span key={`lt-end`}>{text.slice(idx)}</span>);
+        return nodes;
+      };
+      while ((match = regex.exec(content)) !== null) {
+        if (match.index > lastIndex) {
+          const text = content.slice(lastIndex, match.index);
+          parts.push(<span key={`t-${lastIndex}`}>{linkify(text)}</span>);
+        }
+        const lang = (match[1] || '').toLowerCase();
+        const code = match[2];
+        parts.push(
+          <Box key={`c-${match.index}`} sx={{ mt: 1, mb: 1 }}>
+            <Paper variant="outlined" sx={{ p: 1.5, backgroundColor: '#0b1020', color: '#eaeefb', overflowX: 'auto' }}>
+              <Typography variant="caption" sx={{ color: '#9fb3ff' }}>{lang || 'code'}</Typography>
+              <pre style={{ margin: 0 }}><code>{code}</code></pre>
+            </Paper>
+          </Box>
+        );
+        lastIndex = regex.lastIndex;
+      }
+      if (lastIndex < content.length) {
+        const text = content.slice(lastIndex);
+        parts.push(<span key={`t-end`}>{linkify(text)}</span>);
+      }
+      return parts;
+    };
+    const normalizeText = (text: string) => {
+      if (!text) return '';
+      return text
+        .replace(/\r\n/g, '\n')
+        .replace(/\\n/g, '\n')
+        .trim();
+    };
+    const primaryThinking = normalizeText((message.thinking && message.thinking.length > 0) ? message.thinking.join('\n') : '');
+    const finalMessage = normalizeText(message.content || '');
+    let combinedContent = '';
+    if (primaryThinking && finalMessage) {
+      if (
+        primaryThinking === finalMessage ||
+        primaryThinking.includes(finalMessage) ||
+        finalMessage.includes(primaryThinking)
+      ) {
+        combinedContent = primaryThinking; // 优先展示思考（前一个）
+      } else {
+        combinedContent = `${primaryThinking}\n\n${finalMessage}`;
+      }
+    } else if (primaryThinking) {
+      combinedContent = primaryThinking;
+    } else {
+      combinedContent = finalMessage;
+    }
     return (
       <Fade in={true} timeout={300} key={message.id}>
         <Box
@@ -446,10 +579,14 @@ const Agent: React.FC = () => {
             sx={{
               maxWidth: '70%',
               p: 2.5,
-              backgroundColor: isUser ? theme.palette.primary.main : '#ffffff',
+              ...(isUser
+                ? { backgroundColor: theme.palette.primary.main }
+                : { background: 'linear-gradient(180deg, #f5f7ff 0%, #eef2ff 100%)' }
+              ),
               color: isUser ? 'white' : 'text.primary',
               borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-              border: isUser ? 'none' : '1px solid rgba(226, 232, 240, 0.6)',
+              border: isUser ? 'none' : '1px solid rgba(99, 102, 241, 0.25)',
+              boxShadow: isUser ? 'none' : '0 4px 12px rgba(37, 99, 235, 0.08)',
               position: 'relative',
               '&::before': isUser ? {
                 content: '""',
@@ -491,12 +628,7 @@ const Agent: React.FC = () => {
                 }
               }}
             >
-              {message.content.split('\n').map((line, index) => (
-                <React.Fragment key={index}>
-                  {line}
-                  {index < message.content.split('\n').length - 1 && <br />}
-                </React.Fragment>
-              ))}
+              {renderContentWithCodeBlocks(combinedContent)}
             </Typography>
             {!isUser && (
               <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
@@ -504,7 +636,7 @@ const Agent: React.FC = () => {
                   <IconButton
                     size="small"
                     sx={{ color: 'text.secondary' }}
-                    onClick={() => navigator.clipboard.writeText(message.content)}
+                    onClick={() => navigator.clipboard.writeText(combinedContent)}
                   >
                     <ContentCopy fontSize="small" />
                   </IconButton>
@@ -564,26 +696,26 @@ const Agent: React.FC = () => {
                   </Button>
 
                   <Box sx={{ display: 'flex', gap: 1 }}>
-                    {isConnected ? (
+                    {sessionId ? (
                       <Button
                         variant="outlined"
                         fullWidth
                         startIcon={<VpnKey />}
-                        onClick={disconnectWebSocket}
+                        onClick={stopSession}
                         color="error"
                         sx={{ borderRadius: 2 }}
                       >
-                        Disconnect
+                        End Session
                       </Button>
                     ) : (
                       <Button
                         variant="outlined"
                         fullWidth
                         startIcon={<VpnKey />}
-                        onClick={connectWebSocket}
+                        onClick={startSession}
                         sx={{ borderRadius: 2 }}
                       >
-                        Connect Agent
+                        Start Session
                       </Button>
                     )}
                     <IconButton
@@ -869,18 +1001,22 @@ const Agent: React.FC = () => {
                   />
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                     <Tooltip title="Attachment">
-                      <IconButton
-                        size="medium"
-                        sx={{
-                          border: '1px solid rgba(226, 232, 240, 0.6)',
-                          '&:hover': {
-                            backgroundColor: theme.palette.primary.main,
-                            color: 'white'
-                          }
-                        }}
-                      >
-                        <Attachment />
-                      </IconButton>
+                      <span>
+                        <IconButton
+                          size="medium"
+                          sx={{
+                            border: '1px solid rgba(226, 232, 240, 0.6)',
+                            '&:hover': {
+                              backgroundColor: theme.palette.primary.main,
+                              color: 'white'
+                            }
+                          }}
+                          onClick={handleChooseFiles}
+                        >
+                          <Attachment />
+                        </IconButton>
+                        <input ref={fileInputRef} type="file" style={{ display: 'none' }} multiple onChange={handleFilesSelected} />
+                      </span>
                     </Tooltip>
                     <Button
                       variant="contained"
@@ -900,7 +1036,31 @@ const Agent: React.FC = () => {
               </Box>
           </Box>
       </Box>
-
+              {currentAttachments.length > 0 && (
+                <Box sx={{ mt: 1.5, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  <Typography variant="caption" sx={{ width: '100%', color: 'text.secondary', mb: 1 }}>
+                    Attachments ({currentAttachments.length}):
+                  </Typography>
+                  {currentAttachments.map(att => (
+                    <Chip
+                      key={att.id}
+                      label={att.filename}
+                      onDelete={() => handleRemoveAttachment(att.id)}
+                      onClick={() => window.open(att.url, '_blank')}
+                      sx={{
+                        borderColor: theme.palette.primary.main,
+                        borderWidth: 1,
+                        borderStyle: 'solid',
+                        '&:hover': {
+                          backgroundColor: 'rgba(37, 99, 235, 0.08)'
+                        }
+                      }}
+                      variant="outlined"
+                      size="small"
+                    />
+                  ))}
+                </Box>
+              )}
       {/* API Key Configuration Dialog */}
       <Dialog
         open={showApiKeyDialog}
