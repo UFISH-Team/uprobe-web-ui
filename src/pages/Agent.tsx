@@ -323,9 +323,14 @@ const Agent: React.FC = () => {
       setSnackbar({ open: true, message: 'Content cannot be empty', severity: 'warning' });
       return;
     }
-    const activeSessionId = sessionId || (currentConversationId ? conversations.find(c => c.id === currentConversationId)?.sessionId : null);
-    if (!activeSessionId || !currentConversationId) {
-      setSnackbar({ open: true, message: 'Please start a session first', severity: 'warning' });
+    if (!currentConversationId) {
+      setSnackbar({ open: true, message: 'No conversation selected', severity: 'warning' });
+      return;
+    }
+    
+    // Ensure session exists (auto-start if needed)
+    const activeSessionId = await ensureSession(currentConversationId);
+    if (!activeSessionId) {
       return;
     }
     const userTurnIndex = getUserTurnIndex(message.id);
@@ -333,6 +338,10 @@ const Agent: React.FC = () => {
       setSnackbar({ open: true, message: 'Cannot locate this message', severity: 'error' });
       return;
     }
+    // Close edit mode immediately
+    setEditingMessageId(null);
+    setEditValue('');
+    
     setIsLoading(true);
     setIsReplaying(true);
     const attachmentIds = (message.attachments || []).map(a => a.id);
@@ -390,8 +399,6 @@ const Agent: React.FC = () => {
         }
         return conv;
       }));
-      setEditingMessageId(null);
-      setEditValue('');
     } catch (error) {
       const isAborted = error instanceof DOMException && error.name === 'AbortError';
       if (isAborted) {
@@ -739,9 +746,15 @@ const Agent: React.FC = () => {
     if (messageIndex === -1 || messageIndex === 0) return;
     const previousMessage = messages[messageIndex - 1];
     if (previousMessage.sender !== 'user') return;
-    const activeSessionId = sessionId || (currentConversationId ? conversations.find(c => c.id === currentConversationId)?.sessionId : null);
-    if (!activeSessionId || !currentConversationId) {
-      setSnackbar({ open: true, message: 'Please start a session first', severity: 'warning' });
+    
+    if (!currentConversationId) {
+      setSnackbar({ open: true, message: 'No conversation selected', severity: 'warning' });
+      return;
+    }
+    
+    // Ensure session exists (auto-start if needed)
+    const activeSessionId = await ensureSession(currentConversationId);
+    if (!activeSessionId) {
       return;
     }
     const userTurnIndex = getUserTurnIndex(previousMessage.id);
@@ -1216,13 +1229,6 @@ const Agent: React.FC = () => {
           >
             {isUser ? <Person sx={{ fontSize: 16 }} /> : <SmartToy sx={{ fontSize: 16 }} />}
           </Avatar>
-          <Box
-            sx={{
-              maxWidth: isEditing ? '85%' : '75%',
-              width: isEditing ? '100%' : 'fit-content',
-              display: 'inline-block'
-            }}
-          >
           <Paper
             elevation={0}
             sx={{
@@ -1240,7 +1246,9 @@ const Agent: React.FC = () => {
               ),
               color: '#1e293b',
               borderRadius: 2,
-              border: '1px solid #e2e8f0'
+              border: '1px solid #e2e8f0',
+              maxWidth: isEditing ? '85%' : '75%',
+              width: isEditing ? '100%' : 'fit-content',
             }}
           >
             {isEditing ? (
@@ -1386,72 +1394,96 @@ const Agent: React.FC = () => {
               </Box>
             )}
           </Paper>
-          {/* Action buttons outside bubble */}
+          
+          {/* Action buttons beside bubble */}
           {!isUser && !isEditing && (
             <Box 
               className="message-actions"
               sx={{ 
-                mt: 0.5, 
-                display: 'flex', 
+                ml: 0.5,
+                display: 'flex',
+                flexDirection: 'column',
                 gap: 0.25, 
-                opacity: 0, 
+                opacity: message.id.startsWith('pending-') && isLoading ? 1 : 0,
                 transition: 'opacity 0.2s ease'
               }}
             >
-              <Tooltip title="Copy">
-                <IconButton
-                  size="small"
-                  sx={{ 
-                    width: 24,
-                    height: 24,
-                    color: '#94a3b8',
-                    '&:hover': { 
-                      color: '#1e293b', 
-                      backgroundColor: 'rgba(148, 163, 184, 0.08)' 
-                    }
-                  }}
-                  onClick={() => {
-                    navigator.clipboard.writeText(combinedContent);
-                    setSnackbar({ open: true, message: 'Copied', severity: 'success' });
-                  }}
-                >
-                  <ContentCopy sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Retry">
-                <IconButton
-                  size="small"
-                  sx={{ 
-                    width: 24,
-                    height: 24,
-                    color: '#94a3b8',
-                    '&:hover': { 
-                      color: '#1e293b', 
-                      backgroundColor: 'rgba(148, 163, 184, 0.08)' 
-                    },
-                    '&:disabled': { color: '#cbd5e1' }
-                  }}
-                  onClick={() => handleRegenerateMessage(message.id)}
-                  disabled={isLoading}
-                >
-                  <Refresh sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
+              {message.id.startsWith('pending-') && isLoading ? (
+                <Tooltip title="Cancel" placement="right">
+                  <IconButton
+                    size="small"
+                    sx={{ 
+                      width: 24,
+                      height: 24,
+                      color: '#ef4444',
+                      '&:hover': { 
+                        color: '#dc2626', 
+                        backgroundColor: 'rgba(239, 68, 68, 0.08)' 
+                      }
+                    }}
+                    onClick={handleCancelRequest}
+                  >
+                    <Close sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </Tooltip>
+              ) : (
+                <>
+                  <Tooltip title="Copy" placement="right">
+                    <IconButton
+                      size="small"
+                      sx={{ 
+                        width: 24,
+                        height: 24,
+                        color: '#94a3b8',
+                        '&:hover': { 
+                          color: '#1e293b', 
+                          backgroundColor: 'rgba(148, 163, 184, 0.08)' 
+                        }
+                      }}
+                      onClick={() => {
+                        navigator.clipboard.writeText(combinedContent);
+                        setSnackbar({ open: true, message: 'Copied', severity: 'success' });
+                      }}
+                    >
+                      <ContentCopy sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Retry" placement="right">
+                    <IconButton
+                      size="small"
+                      sx={{ 
+                        width: 24,
+                        height: 24,
+                        color: '#94a3b8',
+                        '&:hover': { 
+                          color: '#1e293b', 
+                          backgroundColor: 'rgba(148, 163, 184, 0.08)' 
+                        },
+                        '&:disabled': { color: '#cbd5e1' }
+                      }}
+                      onClick={() => handleRegenerateMessage(message.id)}
+                      disabled={isLoading}
+                    >
+                      <Refresh sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
             </Box>
           )}
           {isUser && !isEditing && (
             <Box 
               className="message-actions"
               sx={{ 
-                mt: 0.5, 
-                display: 'flex', 
-                justifyContent: 'flex-end', 
+                mr: 0.5,
+                display: 'flex',
+                flexDirection: 'column',
                 gap: 0.25, 
                 opacity: 0, 
                 transition: 'opacity 0.2s ease'
               }}
             >
-              <Tooltip title="Edit">
+              <Tooltip title="Edit" placement="left">
                 <IconButton
                   size="small"
                   sx={{ 
@@ -1471,7 +1503,6 @@ const Agent: React.FC = () => {
             </Box>
           )}
         </Box>
-      </Box>
       </Fade>
     );
   };
@@ -1805,41 +1836,51 @@ const Agent: React.FC = () => {
                         >
                           <SmartToy sx={{ fontSize: 16 }} />
                         </Avatar>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                          <Paper
-                            elevation={0}
-                            sx={{
-                              py: 1.25,
-                              px: 1.75,
-                              backgroundColor: '#f8fafc',
-                              borderRadius: 2,
-                              border: '1px solid #e2e8f0',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 1.5
-                            }}
-                          >
-                            <CircularProgress size={14} thickness={4} sx={{ color: '#64748b' }} />
-                            <Typography variant="body2" sx={{ color: '#64748b', fontSize: '0.875rem' }}>
-                              Thinking...
-                            </Typography>
-                          </Paper>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            onClick={handleCancelRequest}
-                            sx={{
-                              fontSize: '0.75rem',
-                              py: 0.5,
-                              px: 1.5,
-                              textTransform: 'none',
-                              borderRadius: 1.5,
-                              alignSelf: 'flex-start'
-                            }}
-                          >
-                            Cancel
-                          </Button>
+                        <Paper
+                          elevation={0}
+                          sx={{
+                            py: 1.25,
+                            px: 1.75,
+                            backgroundColor: '#f8fafc',
+                            borderRadius: 2,
+                            border: '1px solid #e2e8f0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1.5
+                          }}
+                        >
+                          <CircularProgress size={14} thickness={4} sx={{ color: '#64748b' }} />
+                          <Typography variant="body2" sx={{ color: '#64748b', fontSize: '0.875rem' }}>
+                            Thinking...
+                          </Typography>
+                        </Paper>
+                        <Box 
+                          sx={{ 
+                            ml: 0.5,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 0.25,
+                            opacity: 1,
+                            transition: 'opacity 0.2s ease'
+                          }}
+                        >
+                          <Tooltip title="Cancel" placement="right">
+                            <IconButton
+                              size="small"
+                              sx={{ 
+                                width: 24,
+                                height: 24,
+                                color: '#ef4444',
+                                '&:hover': { 
+                                  color: '#dc2626', 
+                                  backgroundColor: 'rgba(239, 68, 68, 0.08)' 
+                                }
+                              }}
+                              onClick={handleCancelRequest}
+                            >
+                              <Close sx={{ fontSize: 14 }} />
+                            </IconButton>
+                          </Tooltip>
                         </Box>
                       </Box>
                     )}
