@@ -93,12 +93,12 @@ function App() {
             }}
             selected={isActive}
             sx={{
-              borderRadius: 2,
-              mb: 1,
-              py: 1.5,
+              borderRadius: 1.5,
+              mb: 0.75,
+              py: 1.25,
               backgroundColor: isActive ? 'primary.main' : 'transparent',
               color: isActive ? 'white' : 'text.primary',
-              transition: 'all 0.2s',
+              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
               '&:hover': {
                 backgroundColor: isActive ? 'primary.dark' : 'rgba(37, 99, 235, 0.08)',
                 transform: 'translateX(4px)',
@@ -109,14 +109,18 @@ function App() {
                 '&:hover': {
                   backgroundColor: 'primary.dark',
                 },
+              },
+              '&:active': {
+                transform: 'scale(0.98)',
               }
             }}
           >
-            <ListItemIcon sx={{ minWidth: 40 }}>
+            <ListItemIcon sx={{ minWidth: 36 }}>
               <Icon 
                 sx={{ 
                   color: isActive ? 'white' : 'primary.main',
-                  fontSize: '1.3rem'
+                  fontSize: '1.2rem',
+                  transition: 'all 0.2s'
                 }} 
               />
             </ListItemIcon>
@@ -124,7 +128,7 @@ function App() {
               primary={item.text} 
               primaryTypographyProps={{
                 fontWeight: isActive ? 600 : 500,
-                fontSize: '0.95rem'
+                fontSize: '0.9rem'
               }}
             />
           </ListItemButton>
@@ -136,7 +140,7 @@ function App() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="fixed" elevation={0}>
-        <Toolbar sx={{ minHeight: { xs: 64, sm: 72 } }}>
+        <Toolbar sx={{ minHeight: { xs: 56, sm: 60 }, height: { xs: 56, sm: 60 }, py: 0 }}>
           {isMobile && (
             <IconButton
               color="inherit"
@@ -154,50 +158,36 @@ function App() {
             </IconButton>
           )}
           
-          <Box sx={{ display: 'flex', alignItems: 'center', mr: 4 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mr: 3 }}>
             <Box
               sx={{
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 borderRadius: '50%',
-                mr: 2,
-                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.2)',
+                mr: 1.5,
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.15)',
                 overflow: 'hidden',
                 position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
+                backgroundColor: '#ffffff',
+                border: '2px solid rgba(37, 99, 235, 0.1)',
               }}
             >
               <Box
                 component="img"
-                src="/uprobe_logo.webp" 
+                src="/uprobe_logo.svg" 
                 alt="U-Probe Logo"
                 sx={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  zIndex: 1,
+                  width: '75%',
+                  height: '75%',
+                  objectFit: 'contain',
                 }}
                 onError={(e) => {
                   (e.target as HTMLElement).style.display = 'none';
                 }}
               />
-              <Typography 
-                sx={{ 
-                  color: 'white', 
-                  fontWeight: 'bold', 
-                  fontSize: '1.2rem',
-                  position: 'relative',
-                  zIndex: 0
-                }}
-              >
-                U
-              </Typography>
             </Box>
             <Typography 
               variant="h6" 
@@ -206,7 +196,7 @@ function App() {
                 flexGrow: 0,
                 fontWeight: 700,
                 color: '#0f172a',
-                fontSize: { xs: '1.2rem', sm: '1.5rem' }
+                fontSize: { xs: '1.1rem', sm: '1.25rem' }
               }}
             >
               U-Probe
@@ -214,34 +204,48 @@ function App() {
           </Box>
 
           {!isMobile && (
-            <Box sx={{ flexGrow: 1, display: 'flex', gap: 1 }}>
+            <Box sx={{ flexGrow: 1, display: 'flex', gap: 0.5, ml: 2 }}>
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname.startsWith(item.path);
                 return (
                   <Button
                     key={item.text}
-                    startIcon={<Icon sx={{ fontSize: '1.1rem', color: isActive ? '#2563eb' : '#64748b' }} />}
+                    startIcon={<Icon sx={{ fontSize: '1rem', color: 'inherit', transition: 'all 0.2s' }} />}
                     onClick={() => navigate(item.path)}
                     sx={{
-                      borderRadius: 2,
-                      px: 2.5,
-                      py: 1,
-                      fontWeight: 600,
-                      fontSize: '0.875rem',
+                      borderRadius: 1.5,
+                      px: 2,
+                      py: 0.5,
+                      minHeight: 36,
+                      fontWeight: isActive ? 600 : 500,
+                      fontSize: '0.8125rem',
                       textTransform: 'none',
                       color: isActive ? '#2563eb' : '#64748b',
-                      backgroundColor: isActive ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
-                      border: isActive ? '1px solid rgba(37, 99, 235, 0.2)' : '1px solid transparent',
-                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      backgroundColor: isActive ? 'rgba(37, 99, 235, 0.1)' : 'transparent',
+                      position: 'relative',
+                      transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                      '&::after': {
+                        content: '""',
+                        position: 'absolute',
+                        bottom: 0,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: isActive ? '70%' : '0%',
+                        height: '2px',
+                        backgroundColor: '#2563eb',
+                        borderRadius: '2px 2px 0 0',
+                        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      },
                       '&:hover': {
                         backgroundColor: 'rgba(37, 99, 235, 0.08)',
                         color: '#2563eb',
-                        transform: 'translateY(-1px)',
-                        border: '1px solid rgba(37, 99, 235, 0.15)',
+                        '&::after': {
+                          width: '70%',
+                        }
                       },
                       '&:active': {
-                        transform: 'translateY(0)',
+                        transform: 'scale(0.98)',
                       }
                     }}
                   >
@@ -289,37 +293,24 @@ function App() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
+                  backgroundColor: '#ffffff',
+                  border: '2px solid rgba(37, 99, 235, 0.1)',
+                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.15)',
                 }}
               >
                 <Box
                   component="img"
-                  src="/uprobe_logo.webp"
+                  src="/uprobe_logo.svg"
                   alt="U-Probe Logo"
                   sx={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    zIndex: 1,
+                    width: '75%',
+                    height: '75%',
+                    objectFit: 'contain',
                   }}
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
                   }}
                 />
-                <Typography 
-                  sx={{ 
-                    color: 'white', 
-                    fontWeight: 'bold', 
-                    fontSize: '1.3rem',
-                    position: 'relative',
-                    zIndex: 0
-                  }}
-                >
-                  U
-                </Typography>
               </Box>
               <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
                 U-Probe
@@ -337,7 +328,7 @@ function App() {
         component="main"
         sx={{
           flexGrow: 1,
-          pt: '64px',
+          pt: { xs: '56px', sm: '60px' },
         }}
       >
         <Routes>

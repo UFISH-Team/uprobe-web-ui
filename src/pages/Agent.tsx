@@ -7,9 +7,6 @@ import {
   Paper,
   Avatar,
   IconButton,
-  Card,
-  CardContent,
-  Chip,
   useTheme,
   useMediaQuery,
   CircularProgress,
@@ -35,18 +32,14 @@ import {
   Code,
   ContentCopy,
   Add,
-  History,
   Delete,
   Settings,
-  VpnKey,
   InsertDriveFile,
   Close,
   Download,
   Edit,
   Refresh,
   Search,
-  Bookmark,
-  BookmarkBorder,
   FileDownload,
   MenuOpen,
   ChevronLeft,
@@ -61,7 +54,6 @@ interface Message {
   type?: 'text' | 'code' | 'result';
   thinking?: string[];
   attachments?: { id: string; filename: string; url: string; mime_type: string; size: number }[];
-  bookmarked?: boolean;
 }
 
 interface Conversation {
@@ -73,7 +65,6 @@ interface Conversation {
   sessionId?: string;
   attachments?: { id: string; filename: string; url: string; mime_type: string; size: number }[];
   tags?: string[];
-  bookmarked?: boolean;
 }
 
 interface SuggestedPrompt {
@@ -112,6 +103,7 @@ const Agent: React.FC = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   
 
   // Load API key and conversations from localStorage on component mount
@@ -141,8 +133,7 @@ const Agent: React.FC = () => {
           timestamp: new Date(msg.timestamp)
         })),
         attachments: conv.attachments || [],
-        tags: conv.tags || [],
-        bookmarked: conv.bookmarked || false
+        tags: conv.tags || []
       })));
     }
   }, []);
@@ -203,11 +194,26 @@ const Agent: React.FC = () => {
   }, [messages]);
 
   // Session management
-  const startSession = async () => {
+  const ensureSession = async (conversationId?: string | null) => {
+    const existingSessionId =
+      sessionId ||
+      (conversationId
+        ? (conversations.find(c => c.id === conversationId)?.sessionId || null)
+        : null);
+
+    if (existingSessionId) {
+      if (!sessionId) setSessionId(existingSessionId);
+      return existingSessionId;
+    }
+
     if (!apiKey) {
-      setSnackbar({ open: true, message: 'Please set API Key first', severity: 'error' });
+      setSnackbar({
+        open: true,
+        message: '请先在 Settings 里填写 API Key',
+        severity: 'error'
+      });
       setShowApiKeyDialog(true);
-      return;
+      return null;
     }
 
     try {
@@ -220,14 +226,21 @@ const Agent: React.FC = () => {
       const data = await res.json();
       setSessionId(data.session_id);
 
-      // Attach sessionId to current conversation
-      if (currentConversationId) {
-        setConversations(prev => prev.map(conv => conv.id === currentConversationId ? { ...conv, sessionId: data.session_id } : conv));
+      if (conversationId) {
+        setConversations(prev =>
+          prev.map(conv =>
+            conv.id === conversationId
+              ? { ...conv, sessionId: data.session_id }
+              : conv
+          )
+        );
       }
-      setSnackbar({ open: true, message: 'Agent session started', severity: 'success' });
+
+      return data.session_id as string;
     } catch (e) {
       console.error(e);
       setSnackbar({ open: true, message: 'Failed to start session', severity: 'error' });
+      return null;
     }
   };
 
@@ -323,12 +336,39 @@ const Agent: React.FC = () => {
     setIsLoading(true);
     setIsReplaying(true);
     const attachmentIds = (message.attachments || []).map(a => a.id);
+    const pendingAssistantId = `pending-${Date.now().toString()}-${Math.random()}`;
+    const pendingAssistantMessage: Message = {
+      id: pendingAssistantId,
+      content: 'Thinking...',
+      thinking: [],
+      sender: 'assistant',
+      timestamp: new Date(),
+      type: 'text'
+    };
     try {
+      // Optimistically truncate history after the edited user message
+      setConversations(prev => prev.map(conv => {
+        if (conv.id === currentConversationId) {
+          const msgIndex = conv.messages.findIndex(m => m.id === message.id);
+          if (msgIndex === -1) return conv;
+          const updatedUser = { ...conv.messages[msgIndex], content: newContent };
+          const truncated = [...conv.messages.slice(0, msgIndex), updatedUser];
+          return { ...conv, messages: [...truncated, pendingAssistantMessage], updatedAt: new Date() };
+        }
+        return conv;
+      }));
+
+      // Create and store AbortController
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       const res = await fetch(`${API_BASE_URL}/agent/rewind`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: activeSessionId, user_turn_index: userTurnIndex, content: newContent, attachment_ids: attachmentIds })
+        body: JSON.stringify({ session_id: activeSessionId, user_turn_index: userTurnIndex, content: newContent, attachment_ids: attachmentIds }),
+        signal: controller.signal
       });
+      abortControllerRef.current = null;
       if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       const assistantMessage: Message = {
@@ -339,22 +379,45 @@ const Agent: React.FC = () => {
         timestamp: new Date(),
         type: 'text'
       };
+      // Replace pending assistant message with the real response
       setConversations(prev => prev.map(conv => {
         if (conv.id === currentConversationId) {
-          const msgIndex = conv.messages.findIndex(m => m.id === message.id);
-          if (msgIndex === -1) return conv;
-          const updatedUser = { ...conv.messages[msgIndex], content: newContent };
-          const truncated = [...conv.messages.slice(0, msgIndex), updatedUser];
-          return { ...conv, messages: [...truncated, assistantMessage], updatedAt: new Date() };
+          return {
+            ...conv,
+            messages: conv.messages.map(m => (m.id === pendingAssistantId ? assistantMessage : m)),
+            updatedAt: new Date()
+          };
         }
         return conv;
       }));
       setEditingMessageId(null);
       setEditValue('');
     } catch (error) {
-      console.error('Failed to rewind message:', error);
-      setSnackbar({ open: true, message: 'Failed to re-execute', severity: 'error' });
+      const isAborted = error instanceof DOMException && error.name === 'AbortError';
+      if (isAborted) {
+        setSnackbar({ open: true, message: 'Request cancelled', severity: 'warning' });
+        // Don't remove the pending message if cancelled, maybe allow retry? 
+        // For now let's just leave it or remove it based on preference. 
+        // Removing pending message on cancel:
+        setConversations(prev => prev.map(conv => {
+          if (conv.id === currentConversationId) {
+            return { ...conv, messages: conv.messages.filter(m => m.id !== pendingAssistantId), updatedAt: new Date() };
+          }
+          return conv;
+        }));
+      } else {
+        console.error('Failed to rewind message:', error);
+        setSnackbar({ open: true, message: 'Failed to re-execute', severity: 'error' });
+        // Remove pending message on failure
+        setConversations(prev => prev.map(conv => {
+          if (conv.id === currentConversationId) {
+            return { ...conv, messages: conv.messages.filter(m => m.id !== pendingAssistantId), updatedAt: new Date() };
+          }
+          return conv;
+        }));
+      }
     } finally {
+      abortControllerRef.current = null;
       setIsLoading(false);
       setIsReplaying(false);
     }
@@ -362,13 +425,6 @@ const Agent: React.FC = () => {
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
-
-    // Check session
-    const activeSessionId = sessionId || (currentConversationId ? conversations.find(c => c.id === currentConversationId)?.sessionId : null);
-    if (!activeSessionId) {
-      setSnackbar({ open: true, message: 'Please start agent session first', severity: 'warning' });
-      return;
-    }
 
     // Create new conversation if none exists
     let conversationId = currentConversationId;
@@ -379,13 +435,17 @@ const Agent: React.FC = () => {
         messages: [],
         createdAt: new Date(),
         updatedAt: new Date(),
-        sessionId: activeSessionId,
+        sessionId: undefined,
         attachments: []
       };
       setConversations(prev => [newConversation, ...prev]);
       conversationId = newConversation.id;
       setCurrentConversationId(conversationId);
     }
+
+    // Ensure session (auto-start)
+    const activeSessionId = await ensureSession(conversationId);
+    if (!activeSessionId) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -418,7 +478,9 @@ const Agent: React.FC = () => {
 
     // Send message via HTTP
     try {
+      // Create and store AbortController for cancellation
       const controller = new AbortController();
+      abortControllerRef.current = controller;
       const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
       const res = await fetch(`${API_BASE_URL}/agent/message`, {
         method: 'POST',
@@ -427,6 +489,7 @@ const Agent: React.FC = () => {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
+      abortControllerRef.current = null;
       if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       // Expecting { thinking: string[], message: string }
@@ -446,9 +509,9 @@ const Agent: React.FC = () => {
         return conv;
       }));
     } catch (error) {
-      const isTimeout = error instanceof DOMException && error.name === 'AbortError';
-      if (isTimeout) {
-        setSnackbar({ open: true, message: 'Request timed out', severity: 'warning' });
+      const isAborted = error instanceof DOMException && error.name === 'AbortError';
+      if (isAborted) {
+        setSnackbar({ open: true, message: 'Request cancelled', severity: 'warning' });
         try {
           await fetch(`${API_BASE_URL}/agent/stop`, {
             method: 'POST',
@@ -463,35 +526,40 @@ const Agent: React.FC = () => {
         setSnackbar({ open: true, message: 'Failed to send message', severity: 'error' });
       }
     } finally {
+      abortControllerRef.current = null;
       setIsLoading(false);
     }
   };
 
   const handleChooseFiles = () => {
-    if (!sessionId) {
-      setSnackbar({ open: true, message: 'Please start agent session first', severity: 'warning' });
-      return;
-    }
+    if (isLoading) return;
+
     // Ensure a conversation exists before selecting files
-    if (!currentConversationId) {
+    let convId = currentConversationId;
+    if (!convId) {
       const newConversation: Conversation = {
         id: Date.now().toString(),
         title: 'New Conversation',
         messages: [],
         createdAt: new Date(),
         updatedAt: new Date(),
-        sessionId: sessionId || undefined,
+        sessionId: undefined,
         attachments: []
       };
       setConversations(prev => [newConversation, ...prev]);
       setCurrentConversationId(newConversation.id);
+      convId = newConversation.id;
     }
-    fileInputRef.current?.click();
+
+    void ensureSession(convId).then((sid) => {
+      if (!sid) return;
+      fileInputRef.current?.click();
+    });
   };
 
   const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || !sessionId) return;
+    if (!files) return;
     // Ensure conversation id
     let convId = currentConversationId;
     if (!convId) {
@@ -508,11 +576,15 @@ const Agent: React.FC = () => {
       setCurrentConversationId(newConversation.id);
       convId = newConversation.id;
     }
+
+    const activeSessionId = await ensureSession(convId);
+    if (!activeSessionId) return;
+
     for (const file of Array.from(files)) {
       const fileId = `${Date.now()}-${Math.random()}`;
       setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
       const form = new FormData();
-      form.append('session_id', sessionId);
+      form.append('session_id', activeSessionId);
       form.append('file', file);
       try {
         setUploadProgress(prev => ({ ...prev, [fileId]: 50 }));
@@ -584,14 +656,83 @@ const Agent: React.FC = () => {
     inputRef.current?.focus();
   };
 
-  const handleClearChat = () => {
-    if (currentConversationId) {
-      setConversations(prev => prev.map(conv => 
-        conv.id === currentConversationId 
-          ? { ...conv, messages: [], updatedAt: new Date() }
-          : conv
-      ));
+  const handleCancelRequest = async () => {
+    if (!abortControllerRef.current) return;
+    
+    // Abort the ongoing request
+    abortControllerRef.current.abort();
+    abortControllerRef.current = null;
+    setIsLoading(false);
+    setIsReplaying(false);
+    
+    setSnackbar({ open: true, message: 'Request cancelled', severity: 'info' });
+
+    // Also stop the backend session to ensure agent stops processing
+    const activeSessionId = sessionId || conversations.find(c => c.id === currentConversationId)?.sessionId;
+    if (activeSessionId) {
+      try {
+        await fetch(`${API_BASE_URL}/agent/stop`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: activeSessionId })
+        });
+        // We don't clear the session ID here to allow the user to continue chatting
+        // But we might need to "restart" the session internally on next message if the server truly killed it.
+        // For now, assume "stop" just kills the current run but keeps history if supported, 
+        // OR we might need to re-initialize on next message. 
+        // Based on backend implementation, /agent/stop deletes the chat.
+        // So we should probably clear the session ID.
+        setSessionId(null);
+        setConversations(prev => prev.map(conv => 
+          conv.id === currentConversationId 
+            ? { ...conv, sessionId: undefined } 
+            : conv
+        ));
+      } catch (e) {
+        console.error('Failed to stop session on cancel:', e);
+      }
     }
+  };
+
+  const handleClearChat = async () => {
+    if (!currentConversationId) return;
+    
+    // Cancel ongoing request if any
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
+    // Stop backend session
+    const activeSessionId = sessionId || conversations.find(c => c.id === currentConversationId)?.sessionId;
+    if (activeSessionId) {
+      try {
+        await fetch(`${API_BASE_URL}/agent/stop`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: activeSessionId })
+        });
+        // Clear session reference
+        setSessionId(null);
+        setConversations(prev => prev.map(conv => 
+          conv.id === currentConversationId 
+            ? { ...conv, sessionId: undefined } 
+            : conv
+        ));
+      } catch (e) {
+        console.error('Failed to stop session:', e);
+      }
+    }
+    
+    // Clear frontend messages
+    setConversations(prev => prev.map(conv => 
+      conv.id === currentConversationId 
+        ? { ...conv, messages: [], updatedAt: new Date() }
+        : conv
+    ));
+    
+    setIsLoading(false);
+    setSnackbar({ open: true, message: 'Chat cleared and session stopped', severity: 'info' });
   };
   const handleRegenerateMessage = async (messageId: string) => {
     const messageIndex = messages.findIndex(m => m.id === messageId);
@@ -608,12 +749,36 @@ const Agent: React.FC = () => {
     setIsLoading(true);
     setIsReplaying(true);
     const attachmentIds = (previousMessage.attachments || []).map(a => a.id);
+    const pendingAssistantId = `pending-${Date.now().toString()}-${Math.random()}`;
+    const pendingAssistantMessage: Message = {
+      id: pendingAssistantId,
+      content: 'Thinking...',
+      thinking: [],
+      sender: 'assistant',
+      timestamp: new Date(),
+      type: 'text'
+    };
     try {
+      // Optimistically truncate from the assistant message being regenerated and append a pending placeholder
+      setConversations(prev => prev.map(conv => {
+        if (conv.id === currentConversationId) {
+          const truncated = conv.messages.slice(0, messageIndex);
+          return { ...conv, messages: [...truncated, pendingAssistantMessage], updatedAt: new Date() };
+        }
+        return conv;
+      }));
+
+      // Create and store AbortController
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       const res = await fetch(`${API_BASE_URL}/agent/rewind`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: activeSessionId, user_turn_index: userTurnIndex, content: previousMessage.content, attachment_ids: attachmentIds })
+        body: JSON.stringify({ session_id: activeSessionId, user_turn_index: userTurnIndex, content: previousMessage.content, attachment_ids: attachmentIds }),
+        signal: controller.signal
       });
+      abortControllerRef.current = null;
       if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       const newAssistantMessage: Message = {
@@ -626,38 +791,33 @@ const Agent: React.FC = () => {
       };
       setConversations(prev => prev.map(conv => {
         if (conv.id === currentConversationId) {
-          const truncated = conv.messages.slice(0, messageIndex);
-          return { ...conv, messages: [...truncated, newAssistantMessage], updatedAt: new Date() };
+          return {
+            ...conv,
+            messages: conv.messages.map(m => (m.id === pendingAssistantId ? newAssistantMessage : m)),
+            updatedAt: new Date()
+          };
         }
         return conv;
       }));
     } catch (error) {
-      console.error('Failed to regenerate:', error);
-      setSnackbar({ open: true, message: 'Failed to regenerate', severity: 'error' });
+      const isAborted = error instanceof DOMException && error.name === 'AbortError';
+      if (isAborted) {
+        setSnackbar({ open: true, message: 'Request cancelled', severity: 'warning' });
+      } else {
+        console.error('Failed to regenerate:', error);
+        setSnackbar({ open: true, message: 'Failed to regenerate', severity: 'error' });
+      }
+      setConversations(prev => prev.map(conv => {
+        if (conv.id === currentConversationId) {
+          return { ...conv, messages: conv.messages.filter(m => m.id !== pendingAssistantId), updatedAt: new Date() };
+        }
+        return conv;
+      }));
     } finally {
+      abortControllerRef.current = null;
       setIsLoading(false);
       setIsReplaying(false);
     }
-  };
-  const toggleBookmarkMessage = (messageId: string) => {
-    if (!currentConversationId) return;
-    setConversations(prev => prev.map(conv => {
-      if (conv.id === currentConversationId) {
-        return {
-          ...conv,
-          messages: conv.messages.map(msg => 
-            msg.id === messageId ? { ...msg, bookmarked: !msg.bookmarked } : msg
-          ),
-          updatedAt: new Date()
-        };
-      }
-      return conv;
-    }));
-  };
-  const toggleBookmarkConversation = (conversationId: string) => {
-    setConversations(prev => prev.map(conv => 
-      conv.id === conversationId ? { ...conv, bookmarked: !conv.bookmarked } : conv
-    ));
   };
   const exportConversation = () => {
     if (!currentConversationId) return;
@@ -709,34 +869,31 @@ const Agent: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    if (!sessionId) {
-      setSnackbar({ open: true, message: 'Please start a session first', severity: 'warning' });
-      return;
-    }
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
     let convId = currentConversationId;
     if (!convId) {
       const newConversation: Conversation = {
         id: Date.now().toString(),
-        title: 'New Conversation',
+        title: 'New Chat',
         messages: [],
         createdAt: new Date(),
         updatedAt: new Date(),
         sessionId: sessionId || undefined,
         attachments: [],
-        tags: [],
-        bookmarked: false
+        tags: []
       };
       setConversations(prev => [newConversation, ...prev]);
       setCurrentConversationId(newConversation.id);
       convId = newConversation.id;
     }
+    const activeSessionId = await ensureSession(convId);
+    if (!activeSessionId) return;
     for (const file of files) {
       const fileId = `${Date.now()}-${Math.random()}`;
       setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
       const form = new FormData();
-      form.append('session_id', sessionId);
+      form.append('session_id', activeSessionId);
       form.append('file', file);
       try {
         setUploadProgress(prev => ({ ...prev, [fileId]: 50 }));
@@ -771,7 +928,7 @@ const Agent: React.FC = () => {
         setSnackbar({ open: true, message: `Failed to upload ${file.name}`, severity: 'error' });
       }
     }
-  }, [sessionId, currentConversationId, conversations]);
+  }, [sessionId, currentConversationId, conversations, apiKey, model, proxy]);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -813,6 +970,9 @@ const Agent: React.FC = () => {
     if (sessionId) {
       stopSession();
     }
+
+    // Auto-start session after saving config
+    void ensureSession(currentConversationId);
   };
 
   const renderMessage = (message: Message) => {
@@ -820,51 +980,191 @@ const Agent: React.FC = () => {
     const isEditing = isUser && editingMessageId === message.id;
 
     const renderContentWithCodeBlocks = (content: string) => {
-      // Simple parser for triple backtick code blocks
+      // Enhanced Markdown parser with code blocks, formatting, lists, headings
       const parts: React.ReactNode[] = [];
-      const regex = /```(\w+)?\n([\s\S]*?)```/g;
+      const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
       let lastIndex = 0;
       let match: RegExpExecArray | null;
-      const linkify = (text: string) => {
-        const nodes: React.ReactNode[] = [];
-        const urlRe = /((https?:\/\/[^\s]+)|((?:\/)agent\/(?:files|uploads)\/[^\s]+))/g;
-        let idx = 0;
-        let m: RegExpExecArray | null;
-        while ((m = urlRe.exec(text)) !== null) {
-          if (m.index > idx) {
-            nodes.push(<span key={`lt-${idx}`}>{text.slice(idx, m.index)}</span>);
+      
+      // Enhanced text formatter with Markdown support
+      const formatText = (text: string): React.ReactNode[] => {
+        const lines = text.split('\n');
+        const elements: React.ReactNode[] = [];
+        
+        lines.forEach((line, lineIdx) => {
+          // Check for headings (### or ## or #)
+          const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+          if (headingMatch) {
+            const level = headingMatch[1].length;
+            const headingText = headingMatch[2];
+            const fontSize = level === 1 ? '1.25rem' : level === 2 ? '1.1rem' : '1rem';
+            const fontWeight = level === 1 ? 700 : 600;
+            elements.push(
+              <Typography 
+                key={`heading-${lineIdx}`} 
+                sx={{ 
+                  fontSize, 
+                  fontWeight, 
+                  color: '#0f172a', 
+                  mt: lineIdx > 0 ? 2 : 0, 
+                  mb: 1,
+                  lineHeight: 1.4
+                }}
+              >
+                {formatInlineMarkdown(headingText, `h-${lineIdx}`)}
+              </Typography>
+            );
+            return;
           }
-          const url = m[0];
-          nodes.push(
-            <a key={`a-${m.index}`} href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>
-              {url}
-            </a>
-          );
-          idx = urlRe.lastIndex;
-        }
-        if (idx < text.length) nodes.push(<span key={`lt-end`}>{text.slice(idx)}</span>);
-        return nodes;
+          
+          // Check for list items (- or *)
+          const listMatch = line.match(/^[\s]*[-*]\s+(.+)$/);
+          if (listMatch) {
+            elements.push(
+              <Box key={`list-${lineIdx}`} sx={{ display: 'flex', gap: 1, mb: 0.5, pl: 2 }}>
+                <Typography sx={{ color: '#64748b', minWidth: '20px' }}>•</Typography>
+                <Typography sx={{ flex: 1, color: '#1e293b' }}>
+                  {formatInlineMarkdown(listMatch[1], `li-${lineIdx}`)}
+                </Typography>
+              </Box>
+            );
+            return;
+          }
+          
+          // Regular paragraph
+          if (line.trim()) {
+            elements.push(
+              <Typography 
+                key={`p-${lineIdx}`} 
+                component="div"
+                sx={{ color: '#1e293b', mb: 0.75, lineHeight: 1.65 }}
+              >
+                {formatInlineMarkdown(line, `p-${lineIdx}`)}
+              </Typography>
+            );
+          } else if (lineIdx < lines.length - 1) {
+            // Empty line - add spacing
+            elements.push(<Box key={`space-${lineIdx}`} sx={{ height: '0.5rem' }} />);
+          }
+        });
+        
+        return elements;
       };
-      while ((match = regex.exec(content)) !== null) {
+      
+      // Format inline markdown (bold, italic, links, inline code)
+      const formatInlineMarkdown = (text: string, keyPrefix: string): React.ReactNode[] => {
+        const nodes: React.ReactNode[] = [];
+        let remaining = text;
+        let nodeIndex = 0;
+        
+        // Combined regex for bold, links, inline code
+        const inlineRegex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(https?:\/\/[^\s]+)|(\/agent\/(?:files|uploads)\/[^\s]+)|(`([^`]+)`)/g;
+        let lastIdx = 0;
+        let m: RegExpExecArray | null;
+        
+        while ((m = inlineRegex.exec(remaining)) !== null) {
+          // Add text before match
+          if (m.index > lastIdx) {
+            nodes.push(<span key={`${keyPrefix}-t-${nodeIndex++}`}>{remaining.slice(lastIdx, m.index)}</span>);
+          }
+          
+          if (m[1]) {
+            // Bold **text**
+            nodes.push(<strong key={`${keyPrefix}-b-${nodeIndex++}`} style={{ fontWeight: 600, color: '#0f172a' }}>{m[2]}</strong>);
+          } else if (m[3]) {
+            // Italic *text*
+            nodes.push(<em key={`${keyPrefix}-i-${nodeIndex++}`} style={{ fontStyle: 'italic' }}>{m[4]}</em>);
+          } else if (m[5] || m[6]) {
+            // Link
+            const url = m[5] || m[6];
+            nodes.push(
+              <a 
+                key={`${keyPrefix}-a-${nodeIndex++}`} 
+                href={url} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 500 }}
+              >
+                {url}
+              </a>
+            );
+          } else if (m[7]) {
+            // Inline code `text`
+            nodes.push(
+              <code 
+                key={`${keyPrefix}-c-${nodeIndex++}`}
+                style={{ 
+                  backgroundColor: '#f1f5f9', 
+                  color: '#dc2626', 
+                  padding: '2px 6px', 
+                  borderRadius: '4px', 
+                  fontSize: '0.875em',
+                  fontFamily: 'monospace'
+                }}
+              >
+                {m[8]}
+              </code>
+            );
+          }
+          
+          lastIdx = inlineRegex.lastIndex;
+        }
+        
+        // Add remaining text
+        if (lastIdx < remaining.length) {
+          nodes.push(<span key={`${keyPrefix}-end`}>{remaining.slice(lastIdx)}</span>);
+        }
+        
+        return nodes.length > 0 ? nodes : [<span key={`${keyPrefix}-fallback`}>{text}</span>];
+      };
+      
+      // Process code blocks
+      while ((match = codeBlockRegex.exec(content)) !== null) {
         if (match.index > lastIndex) {
           const text = content.slice(lastIndex, match.index);
-          parts.push(<span key={`t-${lastIndex}`}>{linkify(text)}</span>);
+          parts.push(<Box key={`t-${lastIndex}`}>{formatText(text)}</Box>);
         }
         const lang = (match[1] || '').toLowerCase();
         const code = match[2];
         parts.push(
-          <Box key={`c-${match.index}`} sx={{ mt: 1, mb: 1 }}>
-            <Paper variant="outlined" sx={{ p: 1.5, backgroundColor: '#0b1020', color: '#eaeefb', overflowX: 'auto' }}>
-              <Typography variant="caption" sx={{ color: '#9fb3ff' }}>{lang || 'code'}</Typography>
-              <pre style={{ margin: 0 }}><code>{code}</code></pre>
+          <Box key={`c-${match.index}`} sx={{ my: 1.5 }}>
+            <Paper 
+              variant="outlined" 
+              sx={{ 
+                backgroundColor: '#0f172a', 
+                color: '#e2e8f0', 
+                overflowX: 'auto',
+                border: '1px solid #1e293b',
+                borderRadius: 1.5,
+                overflow: 'hidden'
+              }}
+            >
+              <Box sx={{ 
+                px: 1.75, 
+                py: 0.75, 
+                backgroundColor: '#1e293b', 
+                borderBottom: '1px solid #334155',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, fontSize: '0.6875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {lang || 'code'}
+                </Typography>
+              </Box>
+              <Box sx={{ px: 1.75, py: 1.5 }}>
+                <pre style={{ margin: 0, fontFamily: '"JetBrains Mono", Monaco, Menlo, Consolas, monospace', fontSize: '0.8125rem', lineHeight: 1.5 }}>
+                  <code>{code}</code>
+                </pre>
+              </Box>
             </Paper>
           </Box>
         );
-        lastIndex = regex.lastIndex;
+        lastIndex = codeBlockRegex.lastIndex;
       }
       if (lastIndex < content.length) {
         const text = content.slice(lastIndex);
-        parts.push(<span key={`t-end`}>{linkify(text)}</span>);
+        parts.push(<Box key={`t-end`}>{formatText(text)}</Box>);
       }
       return parts;
     };
@@ -898,112 +1198,116 @@ const Agent: React.FC = () => {
         <Box
           sx={{
             display: 'flex',
-            mb: 3,
+            mb: 2,
             flexDirection: isUser ? 'row-reverse' : 'row',
-            alignItems: 'flex-start'
+            alignItems: 'flex-start',
+            '&:hover .message-actions': {
+              opacity: 1
+            }
           }}
         >
           <Avatar
             sx={{
               bgcolor: isUser ? theme.palette.primary.main : theme.palette.secondary.main,
-              mx: 2,
-              width: 36,
-              height: 36
+              mx: 1,
+              width: 28,
+              height: 28
             }}
           >
-            {isUser ? <Person /> : <SmartToy />}
+            {isUser ? <Person sx={{ fontSize: 16 }} /> : <SmartToy sx={{ fontSize: 16 }} />}
           </Avatar>
+          <Box
+            sx={{
+              maxWidth: isEditing ? '85%' : '75%',
+              width: isEditing ? '100%' : 'fit-content',
+              display: 'inline-block'
+            }}
+          >
           <Paper
             elevation={0}
             sx={{
-              maxWidth: '70%',
-              p: 2.5,
+              py: 1.25,
+              px: 1.75,
               ...(isUser
                 ? { 
-                    background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
-                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
+                    backgroundColor: '#f1f5f9',
+                    boxShadow: 'none'
                   }
                 : { 
-                    background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                    boxShadow: '0 2px 12px rgba(148, 163, 184, 0.1)'
+                    backgroundColor: '#f8fafc',
+                    boxShadow: 'none'
                   }
               ),
-              color: isUser ? 'white' : 'text.primary',
-              borderRadius: isUser ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
-              border: isUser ? 'none' : '1px solid rgba(226, 232, 240, 0.8)',
-              position: 'relative',
-              '&::before': isUser ? {
-                content: '""',
-                position: 'absolute',
-                bottom: 0,
-                right: -8,
-                width: 0,
-                height: 0,
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-                borderTop: `8px solid ${theme.palette.primary.main}`,
-                transform: 'rotate(45deg)',
-                transformOrigin: 'center'
-              } : {
-                content: '""',
-                position: 'absolute',
-                bottom: 0,
-                left: -8,
-                width: 0,
-                height: 0,
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-                borderTop: '8px solid #ffffff',
-                transform: 'rotate(-45deg)',
-                transformOrigin: 'center'
-              }
+              color: '#1e293b',
+              borderRadius: 2,
+              border: '1px solid #e2e8f0'
             }}
           >
             {isEditing ? (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                 <TextField
                   value={editValue}
                   onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleEditSave(message);
+                    }
+                  }}
                   multiline
-                  minRows={2}
-                  maxRows={6}
+                  minRows={1}
+                  maxRows={8}
+                  fullWidth
                   variant="outlined"
+                  autoFocus
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                      color: 'white',
-                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
-                      '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.6)' },
-                      '&.Mui-focused fieldset': { borderColor: 'rgba(255, 255, 255, 0.8)' }
+                      backgroundColor: '#ffffff',
+                      color: '#1e293b',
+                      fontSize: '0.9375rem',
+                      lineHeight: 1.65,
+                      paddingY: 0.75,
+                      '& fieldset': { borderColor: '#cbd5e1' },
+                      '&:hover fieldset': { borderColor: '#94a3b8' },
+                      '&.Mui-focused fieldset': { 
+                        borderColor: theme.palette.primary.main, 
+                        borderWidth: 1.5,
+                        boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.1)'
+                      }
                     }
                   }}
                 />
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={handleEditCancel}
-                    sx={{
-                      color: 'white',
-                      borderColor: 'rgba(255, 255, 255, 0.4)',
-                      '&:hover': { borderColor: 'white', backgroundColor: 'rgba(255, 255, 255, 0.1)' }
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    onClick={() => handleEditSave(message)}
-                    disabled={isLoading || isReplaying}
-                    sx={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                      color: theme.palette.primary.main,
-                      '&:hover': { backgroundColor: 'white' }
-                    }}
-                  >
-                    Save & Run
-                  </Button>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 0.5 }}>
+                  <Tooltip title="Cancel (Esc)">
+                    <IconButton
+                      size="small"
+                      onClick={handleEditCancel}
+                      sx={{
+                        width: 26,
+                        height: 26,
+                        color: '#94a3b8',
+                        '&:hover': { color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.08)' }
+                      }}
+                    >
+                      <Close sx={{ fontSize: 15 }} />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Save & Run (Enter)">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleEditSave(message)}
+                      disabled={isLoading || isReplaying}
+                      sx={{
+                        width: 26,
+                        height: 26,
+                        color: '#94a3b8',
+                        '&:hover': { color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.08)' },
+                        '&:disabled': { color: '#cbd5e1' }
+                      }}
+                    >
+                      <Send sx={{ fontSize: 13 }} />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
               </Box>
             ) : (
@@ -1011,79 +1315,29 @@ const Agent: React.FC = () => {
                 variant="body1"
                 component="div"
                 sx={{
-                  lineHeight: 1.6,
+                  lineHeight: 1.65,
                   whiteSpace: 'pre-wrap',
-                  fontSize: '0.95rem',
-                  fontFamily: message.sender === 'assistant' ? 'inherit' : 'inherit',
+                  fontSize: '0.9375rem',
+                  color: '#1e293b',
                   '& p': {
                     margin: '0.5em 0'
+                  },
+                  '& a': {
+                    color: theme.palette.primary.main,
+                    textDecoration: 'none',
+                    '&:hover': {
+                      textDecoration: 'underline'
+                    }
                   }
                 }}
               >
                 {renderContentWithCodeBlocks(combinedContent)}
               </Typography>
             )}
-            {!isUser && (
-              <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                <Tooltip title="Copy Content">
-                  <IconButton
-                    size="small"
-                    sx={{ color: 'text.secondary' }}
-                    onClick={() => {
-                      navigator.clipboard.writeText(combinedContent);
-                      setSnackbar({ open: true, message: 'Copied to clipboard', severity: 'success' });
-                    }}
-                  >
-                    <ContentCopy fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Regenerate">
-                  <IconButton
-                    size="small"
-                    sx={{ color: 'text.secondary' }}
-                    onClick={() => handleRegenerateMessage(message.id)}
-                    disabled={isLoading}
-                  >
-                    <Refresh fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={message.bookmarked ? "Unbookmark" : "Bookmark"}>
-                  <IconButton
-                    size="small"
-                    sx={{ color: 'text.secondary' }}
-                    onClick={() => toggleBookmarkMessage(message.id)}
-                  >
-                    {message.bookmarked ? <Bookmark fontSize="small" /> : <BookmarkBorder fontSize="small" />}
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            )}
-            {isUser && !isEditing && (
-              <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                <Tooltip title="Edit Message">
-                  <IconButton
-                    size="small"
-                    sx={{ color: 'rgba(255, 255, 255, 0.9)' }}
-                    onClick={() => handleEditStart(message)}
-                  >
-                    <Edit fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={message.bookmarked ? "Unbookmark" : "Bookmark"}>
-                  <IconButton
-                    size="small"
-                    sx={{ color: 'rgba(255, 255, 255, 0.9)' }}
-                    onClick={() => toggleBookmarkMessage(message.id)}
-                  >
-                    {message.bookmarked ? <Bookmark fontSize="small" /> : <BookmarkBorder fontSize="small" />}
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            )}
             {/* Attachments in message bubble */}
             {isUser && message.attachments && message.attachments.length > 0 && (
-              <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(255, 255, 255, 0.2)' }}>
-                <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)', mb: 1, display: 'block', fontWeight: 600 }}>
+              <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid #e2e8f0' }}>
+                <Typography variant="caption" sx={{ color: '#64748b', mb: 1, display: 'block', fontWeight: 600 }}>
                   Attached Files
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
@@ -1095,21 +1349,23 @@ const Agent: React.FC = () => {
                         alignItems: 'center',
                         p: 1,
                         borderRadius: 1.5,
-                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #e2e8f0',
                         transition: 'all 0.2s',
                         cursor: 'pointer',
                         '&:hover': {
-                          backgroundColor: 'rgba(255, 255, 255, 0.25)'
+                          backgroundColor: '#f8fafc',
+                          borderColor: theme.palette.primary.main
                         }
                       }}
                       onClick={() => window.open(att.url, '_blank')}
                     >
-                      <InsertDriveFile sx={{ fontSize: 16, color: 'white', mr: 1, opacity: 0.9 }} />
+                      <InsertDriveFile sx={{ fontSize: 16, color: theme.palette.primary.main, mr: 1 }} />
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography 
                           variant="caption" 
                           sx={{ 
-                            color: 'white',
+                            color: '#1e293b',
                             fontWeight: 500,
                             display: 'block',
                             overflow: 'hidden',
@@ -1119,66 +1375,172 @@ const Agent: React.FC = () => {
                         >
                           {att.filename}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.7rem' }}>
+                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.7rem' }}>
                           {(att.size / 1024).toFixed(1)} KB
                         </Typography>
                       </Box>
-                      <Download sx={{ fontSize: 16, color: 'white', opacity: 0.8 }} />
+                      <Download sx={{ fontSize: 16, color: '#64748b' }} />
                     </Box>
                   ))}
                 </Box>
               </Box>
             )}
           </Paper>
+          {/* Action buttons outside bubble */}
+          {!isUser && !isEditing && (
+            <Box 
+              className="message-actions"
+              sx={{ 
+                mt: 0.5, 
+                display: 'flex', 
+                gap: 0.25, 
+                opacity: 0, 
+                transition: 'opacity 0.2s ease'
+              }}
+            >
+              <Tooltip title="Copy">
+                <IconButton
+                  size="small"
+                  sx={{ 
+                    width: 24,
+                    height: 24,
+                    color: '#94a3b8',
+                    '&:hover': { 
+                      color: '#1e293b', 
+                      backgroundColor: 'rgba(148, 163, 184, 0.08)' 
+                    }
+                  }}
+                  onClick={() => {
+                    navigator.clipboard.writeText(combinedContent);
+                    setSnackbar({ open: true, message: 'Copied', severity: 'success' });
+                  }}
+                >
+                  <ContentCopy sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Retry">
+                <IconButton
+                  size="small"
+                  sx={{ 
+                    width: 24,
+                    height: 24,
+                    color: '#94a3b8',
+                    '&:hover': { 
+                      color: '#1e293b', 
+                      backgroundColor: 'rgba(148, 163, 184, 0.08)' 
+                    },
+                    '&:disabled': { color: '#cbd5e1' }
+                  }}
+                  onClick={() => handleRegenerateMessage(message.id)}
+                  disabled={isLoading}
+                >
+                  <Refresh sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
+          {isUser && !isEditing && (
+            <Box 
+              className="message-actions"
+              sx={{ 
+                mt: 0.5, 
+                display: 'flex', 
+                justifyContent: 'flex-end', 
+                gap: 0.25, 
+                opacity: 0, 
+                transition: 'opacity 0.2s ease'
+              }}
+            >
+              <Tooltip title="Edit">
+                <IconButton
+                  size="small"
+                  sx={{ 
+                    width: 24,
+                    height: 24,
+                    color: '#94a3b8',
+                    '&:hover': { 
+                      color: '#1e293b', 
+                      backgroundColor: 'rgba(148, 163, 184, 0.08)' 
+                    }
+                  }}
+                  onClick={() => handleEditStart(message)}
+                >
+                  <Edit sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
         </Box>
+      </Box>
       </Fade>
     );
   };
 
   return (
     <Box sx={{
-      minHeight: 'calc(100vh - 64px)',
+      height: 'calc(100vh - 64px)',
       display: 'flex',
-      backgroundColor: '#ffffff',
-      pt: 2,
-      pb: 2
+      backgroundColor: '#ffffff'
     }}>
-      <Box sx={{ width: '100%', display: 'flex', maxWidth: '1400px', mx: 'auto', height: 'calc(100vh - 96px)' }}>
+      <Box sx={{ width: '100%', display: 'flex', height: '100%' }}>
           {/* Left Sidebar - Conversation History */}
           {!isMobile && !sidebarCollapsed && (
             <Box
               sx={{
-                width: '320px',
+                width: '280px',
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                borderRight: '1px solid rgba(226, 232, 240, 0.6)',
-                backgroundColor: '#f8fafc'
+                borderRight: '1px solid #e2e8f0',
+                backgroundColor: '#fafbfc'
               }}
             >
                 {/* Header */}
-                <Box sx={{ p: 3, borderBottom: '1px solid rgba(226, 232, 240, 0.6)', backgroundColor: '#ffffff' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '64px' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <History sx={{ mr: 1, color: theme.palette.primary.main }} />
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                        Conversations
+                      <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.125rem', color: '#1e293b' }}>
+                      Chat
                       </Typography>
                     </Box>
-                    <Tooltip title="Collapse Sidebar">
-                      <IconButton size="small" onClick={() => setSidebarCollapsed(true)}>
-                        <ChevronLeft />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                  {showSearch && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Tooltip title="New Chat (Ctrl+N)">
+                        <IconButton size="small" onClick={createNewConversation}>
+                          <Add fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Search (Ctrl+K)">
+                        <IconButton
+                          size="small"
+                          onClick={() => setShowSearch(prev => !prev)}
+                          sx={{ color: showSearch ? theme.palette.primary.main : 'inherit' }}
+                        >
+                          <Search fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Settings">
+                        <IconButton
+                          size="small"
+                          onClick={() => setShowApiKeyDialog(true)}
+                        >
+                          <Settings fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Collapse Sidebar">
+                        <IconButton size="small" onClick={() => setSidebarCollapsed(true)}>
+                          <ChevronLeft fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                </Box>
+                {showSearch && (
+                  <Box sx={{ px: 3, pb: 1.5 }}>
                     <TextField
                       fullWidth
                       size="small"
                       placeholder="Search conversations... (Ctrl+K)"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      sx={{ mb: 2 }}
+                      sx={{ mt: 1.25 }}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -1194,184 +1556,112 @@ const Agent: React.FC = () => {
                         )
                       }}
                     />
-                  )}
-                  
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    startIcon={<Add />}
-                    onClick={createNewConversation}
-                    sx={{
-                      background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
-                      borderRadius: 2,
-                      mb: 1,
-                      boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
-                      '&:hover': {
-                        boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35)'
-                      }
-                    }}
-                  >
-                    New Chat
-                  </Button>
-                  <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                    {sessionId ? (
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        startIcon={<VpnKey />}
-                        onClick={stopSession}
-                        color="error"
-                        sx={{ borderRadius: 2 }}
-                      >
-                        End Session
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        startIcon={<VpnKey />}
-                        onClick={startSession}
-                        sx={{ borderRadius: 2 }}
-                      >
-                        Start Session
-                      </Button>
-                    )}
-                    <Tooltip title="Settings">
-                      <IconButton
-                        onClick={() => setShowApiKeyDialog(true)}
-                        sx={{ border: '1px solid rgba(226, 232, 240, 0.6)' }}
-                      >
-                        <Settings />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Search (Ctrl+K)">
-                      <IconButton
-                        onClick={() => setShowSearch(prev => !prev)}
-                        sx={{ 
-                          border: '1px solid rgba(226, 232, 240, 0.6)',
-                          color: showSearch ? theme.palette.primary.main : 'inherit'
-                        }}
-                      >
-                        <Search />
-                      </IconButton>
-                    </Tooltip>
                   </Box>
-                </Box>
+                )}
 
                 {/* Conversation List */}
-                <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
+                <Box sx={{ flex: 1, overflowY: 'auto', px: 1.5, py: 1 }}>
                   {filteredConversations.length === 0 ? (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <Typography variant="body2" color="text.secondary">
+                    <Box sx={{ textAlign: 'center', py: 6 }}>
+                      <Typography variant="body2" sx={{ color: '#94a3b8', fontSize: '0.875rem' }}>
                         {searchQuery ? 'No matching conversations' : 'No conversations yet'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {searchQuery ? 'Try different keywords' : 'Start a new conversation'}
                       </Typography>
                     </Box>
                   ) : (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                       {filteredConversations.map((conversation) => (
-                        <Card
+                        <Box
                           key={conversation.id}
-                          elevation={0}
+                          onClick={() => setCurrentConversationId(conversation.id)}
                           sx={{
+                            position: 'relative',
                             cursor: 'pointer',
-                            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                            border: currentConversationId === conversation.id ? 
-                              `2px solid ${theme.palette.primary.main}` : 
-                              '1px solid rgba(226, 232, 240, 0.5)',
-                            backgroundColor: currentConversationId === conversation.id ?
-                              'linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(8, 145, 178, 0.05) 100%)' : '#ffffff',
-                            borderRadius: 2.5,
+                            py: 1,
+                            px: 1.5,
+                            borderRadius: 1.5,
+                            transition: 'background-color 0.15s ease',
+                            backgroundColor: currentConversationId === conversation.id ? 
+                              'rgba(37, 99, 235, 0.08)' : 
+                              'transparent',
                             '&:hover': {
-                              transform: 'translateY(-2px)',
-                              boxShadow: '0 4px 16px rgba(37, 99, 235, 0.15)',
-                              borderColor: theme.palette.primary.main
+                              backgroundColor: currentConversationId === conversation.id ? 
+                                'rgba(37, 99, 235, 0.12)' : 
+                                'rgba(148, 163, 184, 0.08)',
+                              '& .delete-icon': {
+                                opacity: 1
+                              }
                             }
                           }}
-                          onClick={() => setCurrentConversationId(conversation.id)}
                         >
-                          <CardContent sx={{ p: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                                  {conversation.bookmarked && (
-                                    <Bookmark sx={{ fontSize: 14, color: theme.palette.primary.main }} />
-                                  )}
-                                  <Typography 
-                                    variant="body2" 
-                                    sx={{ 
-                                      fontWeight: 600,
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                  >
-                                    {conversation.title}
-                                  </Typography>
-                                </Box>
-                                <Typography variant="caption" color="text.secondary">
-                                  {conversation.updatedAt.toLocaleDateString()} · {conversation.messages.length} messages
-                                </Typography>
-                              </Box>
-                              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                <Tooltip title={conversation.bookmarked ? "Unbookmark" : "Bookmark"}>
-                                  <IconButton
-                                    size="small"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleBookmarkConversation(conversation.id);
-                                    }}
-                                    sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}
-                                  >
-                                    {conversation.bookmarked ? <Bookmark fontSize="small" /> : <BookmarkBorder fontSize="small" />}
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Delete">
-                                  <IconButton
-                                    size="small"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      deleteConversation(conversation.id);
-                                    }}
-                                    sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}
-                                  >
-                                    <Delete fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
-                            </Box>
-                          </CardContent>
-                        </Card>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                            <Typography 
+                              variant="body2"
+                              noWrap
+                              sx={{ 
+                                flex: 1,
+                                fontSize: '0.875rem',
+                                fontWeight: currentConversationId === conversation.id ? 500 : 400,
+                                color: currentConversationId === conversation.id ? '#1e293b' : '#475569',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}
+                            >
+                              {conversation.title}
+                            </Typography>
+                            <IconButton
+                              className="delete-icon"
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteConversation(conversation.id);
+                              }}
+                              sx={{ 
+                                opacity: 0,
+                                transition: 'opacity 0.15s ease',
+                                width: 24,
+                                height: 24,
+                                color: '#64748b',
+                                '&:hover': { 
+                                  color: '#ef4444',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.1)'
+                                }
+                              }}
+                            >
+                              <Delete sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </Box>
+                        </Box>
                       ))}
                     </Box>
                   )}
                 </Box>
 
                 {/* Suggested Prompts */}
-                <Box sx={{ p: 2, borderTop: '1px solid rgba(226, 232, 240, 0.6)', backgroundColor: '#ffffff' }}>
-                  <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+                <Box sx={{ px: 3, py: 1.5, borderTop: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
+                  <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#64748b', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Quick Starts
                   </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                     {suggestedPrompts.slice(0, 2).map((prompt, index) => (
-                      <Chip
+                      <Box
                         key={index}
-                        label={prompt.title}
-                        variant="outlined"
-                        size="small"
-                        clickable
                         onClick={() => handleSuggestedPrompt(prompt.prompt)}
                         sx={{
-                          justifyContent: 'flex-start',
-                          borderColor: theme.palette.primary.main,
+                          py: 0.75,
+                          px: 1.25,
+                          borderRadius: 1.5,
+                          cursor: 'pointer',
+                          fontSize: '0.8125rem',
                           color: theme.palette.primary.main,
+                          fontWeight: 500,
+                          transition: 'background-color 0.15s ease',
                           '&:hover': {
                             backgroundColor: 'rgba(37, 99, 235, 0.08)'
                           }
                         }}
-                      />
+                      >
+                        {prompt.title}
+                      </Box>
                     ))}
                   </Box>
                 </Box>
@@ -1419,20 +1709,20 @@ const Agent: React.FC = () => {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                    border: `3px dashed ${theme.palette.primary.main}`,
-                    borderRadius: 2,
+                    backgroundColor: 'rgba(37, 99, 235, 0.04)',
+                    border: `2px dashed ${theme.palette.primary.main}`,
+                    borderRadius: 0,
                     zIndex: 1000,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backdropFilter: 'blur(4px)'
+                    backdropFilter: 'blur(2px)'
                   }}
                 >
                   <Box sx={{ textAlign: 'center' }}>
-                    <Attachment sx={{ fontSize: 64, color: theme.palette.primary.main, mb: 2 }} />
-                    <Typography variant="h6" sx={{ color: theme.palette.primary.main, fontWeight: 600 }}>
-                      Drop files here to upload
+                    <Attachment sx={{ fontSize: 48, color: theme.palette.primary.main, mb: 1.5, opacity: 0.8 }} />
+                    <Typography variant="body1" sx={{ color: theme.palette.primary.main, fontWeight: 500 }}>
+                      Drop files to upload
                     </Typography>
                   </Box>
                 </Box>
@@ -1440,56 +1730,43 @@ const Agent: React.FC = () => {
               {/* Chat Header */}
               <Box
                 sx={{
-                  p: 3,
-                  borderBottom: '1px solid rgba(226, 232, 240, 0.6)',
-                  backgroundColor: '#ffffff'
+                  px: 3,
+                  py: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderBottom: '1px solid #e2e8f0',
+                  backgroundColor: '#ffffff',
+                  minHeight: '64px'
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
-                      sx={{
-                        bgcolor: theme.palette.secondary.main,
-                        mr: 2,
-                        width: 40,
-                        height: 40
-                      }}
-                    >
-                      <SmartToy />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                        U-Probe Assistant
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        AI-powered intelligent probe design consultant
-                      </Typography>
-                    </Box>
-                  </Box>
+                  <Typography variant="h6" noWrap sx={{ fontWeight: 600, fontSize: '1.125rem', color: '#1e293b' }}>
+                   ✨ U-Probe Assistant
+                  </Typography>
                   {currentConversationId && (
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Tooltip title="Export Conversation">
-                        <IconButton onClick={exportConversation}>
-                          <FileDownload />
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      <Tooltip title="Export">
+                        <IconButton size="small" onClick={exportConversation} sx={{ color: '#64748b' }}>
+                          <FileDownload fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Clear Chat">
-                        <IconButton onClick={handleClearChat}>
-                          <RestartAlt />
+                      <Tooltip title="Clear">
+                        <IconButton size="small" onClick={handleClearChat} sx={{ color: '#64748b' }}>
+                          <RestartAlt fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     </Box>
                   )}
-                </Box>
               </Box>
 
                 {/* Message List */}
               <Box
                 sx={{
                   flex: 1,
-                  p: 3,
+                  px: 3,
+                  py: 2,
                   overflowY: 'auto',
-                  backgroundColor: '#f8fafc',
+                  backgroundColor: '#ffffff',
                   display: 'flex',
                   flexDirection: 'column'
                 }}
@@ -1504,72 +1781,66 @@ const Agent: React.FC = () => {
                       textAlign: 'center'
                     }}
                   >
-                    <Box>
-                      <Avatar
-                        sx={{
-                          width: 64,
-                          height: 64,
-                          bgcolor: theme.palette.primary.main,
-                          mx: 'auto',
-                          mb: 2
-                        }}
-                      >
-                        <SmartToy sx={{ fontSize: 32 }} />
-                      </Avatar>
-                      <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
-                        Hello! I'm your Probe Design Assistant
+                    <Box sx={{ maxWidth: 400 }}>
+                      <Typography variant="h5" sx={{ mb: 1.5, fontWeight: 600, color: '#1e293b' }}>
+                        U-Probe Assistant
                       </Typography>
-                      <Typography variant="body2" sx={{ mb: 3 }} color="text.secondary">
+                      <Typography variant="body2" sx={{ color: '#64748b', lineHeight: 1.6 }}>
                         I can help you design probes, optimize parameters, and answer questions
                       </Typography>
-                      {isMobile && (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
-                          {suggestedPrompts.slice(0, 2).map((prompt, index) => (
-                            <Chip
-                              key={index}
-                              label={prompt.title}
-                              variant="outlined"
-                              clickable
-                              onClick={() => handleSuggestedPrompt(prompt.prompt)}
-                              sx={{ borderColor: theme.palette.primary.main }}
-                            />
-                          ))}
-                        </Box>
-                      )}
                     </Box>
                   </Box>
                 ) : (
                   <>
                     {messages.map(renderMessage)}
-                    {isLoading && (
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 3 }}>
+                    {isLoading && !isReplaying && (
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2, alignItems: 'flex-start' }}>
                         <Avatar
                           sx={{
                             bgcolor: theme.palette.secondary.main,
-                            mx: 2,
-                            width: 36,
-                            height: 36
+                            mx: 1,
+                            width: 28,
+                            height: 28
                           }}
                         >
-                          <SmartToy />
+                          <SmartToy sx={{ fontSize: 16 }} />
                         </Avatar>
-                        <Paper
-                          elevation={1}
-                          sx={{
-                            p: 2.5,
-                            backgroundColor: '#ffffff',
-                            borderRadius: '18px 18px 18px 4px',
-                            border: '1px solid rgba(226, 232, 240, 0.6)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 2
-                          }}
-                        >
-                          <CircularProgress size={16} />
-                          <Typography variant="body2" color="text.secondary">
-                            Analyzing your question...
-                          </Typography>
-                        </Paper>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                          <Paper
+                            elevation={0}
+                            sx={{
+                              py: 1.25,
+                              px: 1.75,
+                              backgroundColor: '#f8fafc',
+                              borderRadius: 2,
+                              border: '1px solid #e2e8f0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1.5
+                            }}
+                          >
+                            <CircularProgress size={14} thickness={4} sx={{ color: '#64748b' }} />
+                            <Typography variant="body2" sx={{ color: '#64748b', fontSize: '0.875rem' }}>
+                              Thinking...
+                            </Typography>
+                          </Paper>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            onClick={handleCancelRequest}
+                            sx={{
+                              fontSize: '0.75rem',
+                              py: 0.5,
+                              px: 1.5,
+                              textTransform: 'none',
+                              borderRadius: 1.5,
+                              alignSelf: 'flex-start'
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </Box>
                       </Box>
                     )}
                     <div ref={messagesEndRef} />
@@ -1580,83 +1851,69 @@ const Agent: React.FC = () => {
               {/* Input Area */}
               <Box
                 sx={{
-                  p: 3,
-                  borderTop: '1px solid rgba(226, 232, 240, 0.6)',
-                  backgroundColor: '#ffffff'
+                  px: 3,
+                  py: 2,
+                  borderTop: '1px solid #e2e8f0',
+                  backgroundColor: '#f8fafc'
                 }}
               >
                 {/* Attachments Display - Modern Card Style */}
                 {currentAttachments.length > 0 && (
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', mb: 1, display: 'block', fontWeight: 600 }}>
-                      Attached Files ({currentAttachments.length})
+                  <Box sx={{ mb: 1.5 }}>
+                    <Typography variant="caption" sx={{ color: '#64748b', mb: 0.75, display: 'block', fontWeight: 600, fontSize: '0.75rem' }}>
+                      {currentAttachments.length} file{currentAttachments.length > 1 ? 's' : ''}
                     </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                       {currentAttachments.map(att => (
-                        <Card 
+                        <Box 
                           key={att.id}
-                          elevation={0}
                           sx={{ 
                             display: 'flex',
                             alignItems: 'center',
-                            p: 1.5,
-                            pr: 1,
-                            border: '1px solid rgba(37, 99, 235, 0.2)',
-                            borderRadius: 2,
-                            backgroundColor: 'rgba(37, 99, 235, 0.03)',
-                            transition: 'all 0.2s',
+                            py: 0.75,
+                            px: 1.25,
+                            border: '1px solid #cbd5e1',
+                            borderRadius: 1.5,
+                            backgroundColor: '#ffffff',
+                            transition: 'all 0.15s ease',
                             '&:hover': {
                               borderColor: theme.palette.primary.main,
-                              backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.15)'
+                              backgroundColor: 'rgba(37, 99, 235, 0.04)'
                             }
                           }}
                         >
-                          <InsertDriveFile sx={{ fontSize: 20, color: theme.palette.primary.main, mr: 1 }} />
-                          <Box sx={{ flex: 1, minWidth: 0, mr: 1 }}>
-                            <Typography 
-                              variant="body2" 
-                              sx={{ 
-                                fontWeight: 500,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                fontSize: '0.875rem'
-                              }}
-                            >
-                              {att.filename}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {(att.size / 1024).toFixed(1)} KB
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', gap: 0.5 }}>
-                            <Tooltip title="Download">
-                              <IconButton 
-                                size="small" 
-                                onClick={() => window.open(att.url, '_blank')}
-                                sx={{ 
-                                  color: 'text.secondary',
-                                  '&:hover': { color: theme.palette.primary.main }
-                                }}
-                              >
-                                <Download fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Remove">
-                              <IconButton 
-                                size="small" 
-                                onClick={() => handleRemoveAttachment(att.id)}
-                                sx={{ 
-                                  color: 'text.secondary',
-                                  '&:hover': { color: 'error.main' }
-                                }}
-                              >
-                                <Close fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </Card>
+                          <InsertDriveFile sx={{ fontSize: 16, color: theme.palette.primary.main, mr: 0.75 }} />
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              fontWeight: 500,
+                              fontSize: '0.8125rem',
+                              color: '#1e293b',
+                              maxWidth: 150,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {att.filename}
+                          </Typography>
+                          <IconButton 
+                            size="small" 
+                            onClick={() => handleRemoveAttachment(att.id)}
+                            sx={{ 
+                              ml: 0.5,
+                              width: 20,
+                              height: 20,
+                              color: '#64748b',
+                              '&:hover': { 
+                                color: '#ef4444',
+                                backgroundColor: 'rgba(239, 68, 68, 0.08)'
+                              }
+                            }}
+                          >
+                            <Close sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Box>
                       ))}
                     </Box>
                   </Box>
@@ -1676,50 +1933,69 @@ const Agent: React.FC = () => {
                   </Box>
                 )}
 
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
                   <TextField
                     ref={inputRef}
                     multiline
-                    maxRows={4}
+                    maxRows={6}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="Describe your probe design requirements..."
+                    placeholder="Message U-Probe Assistant..."
                     disabled={isLoading}
                     variant="outlined"
                     sx={{
                       flex: 1,
                       '& .MuiOutlinedInput-root': {
-                        borderRadius: 3,
-                        backgroundColor: 'rgba(248, 250, 252, 0.8)',
+                        borderRadius: 2,
+                        backgroundColor: '#ffffff',
+                        fontSize: '0.9375rem',
+                        paddingY: 0.75,
+                        transition: 'all 0.15s ease',
+                        '& fieldset': {
+                          borderColor: '#cbd5e1'
+                        },
                         '&:hover': {
-                          backgroundColor: '#ffffff',
+                          '& fieldset': {
+                            borderColor: '#94a3b8'
+                          }
                         },
                         '&.Mui-focused': {
-                          backgroundColor: '#ffffff',
+                          boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.1)',
+                          '& fieldset': {
+                            borderColor: theme.palette.primary.main,
+                            borderWidth: 1.5
+                          }
                         }
                       }
                     }}
                   />
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Tooltip title="Attach Files (drag & drop or click)">
+                  <Box sx={{ display: 'flex', gap: 0.75 }}>
+                    <Tooltip title="Attach">
                       <IconButton
-                        size="large"
+                        size="medium"
                         disabled={isLoading}
                         sx={{
-                          border: '2px solid rgba(226, 232, 240, 0.6)',
-                          borderRadius: 2,
-                          transition: 'all 0.2s',
+                          width: 40,
+                          height: 40,
+                          color: '#64748b',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 1.5,
+                          transition: 'all 0.15s ease',
                           '&:hover': {
-                            backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                            backgroundColor: 'rgba(37, 99, 235, 0.06)',
                             borderColor: theme.palette.primary.main,
-                            transform: 'translateY(-2px)',
-                            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)'
+                            color: theme.palette.primary.main
+                          },
+                          '&:disabled': {
+                            color: '#cbd5e1',
+                            backgroundColor: '#f8fafc'
                           }
                         }}
                         onClick={handleChooseFiles}
                       >
-                        <Attachment />
+                        <Attachment fontSize="small" />
                       </IconButton>
                     </Tooltip>
                     <input ref={fileInputRef} type="file" style={{ display: 'none' }} multiple onChange={handleFilesSelected} />
@@ -1728,22 +2004,23 @@ const Agent: React.FC = () => {
                       onClick={handleSendMessage}
                       disabled={!inputValue.trim() || isLoading}
                       sx={{
-                        minWidth: 56,
-                        height: 56,
-                        borderRadius: 2,
+                        minWidth: 40,
+                        width: 40,
+                        height: 40,
+                        borderRadius: 1.5,
                         background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
-                        boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
-                        transition: 'all 0.2s',
+                        boxShadow: 'none',
+                        transition: 'all 0.15s ease',
                         '&:hover': {
-                          transform: 'translateY(-2px)',
-                          boxShadow: '0 6px 16px rgba(37, 99, 235, 0.4)'
+                          boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
                         },
                         '&:disabled': {
-                          background: 'rgba(0, 0, 0, 0.12)'
+                          background: '#e2e8f0',
+                          color: '#94a3b8'
                         }
                       }}
                     >
-                      <Send />
+                      <Send fontSize="small" />
                     </Button>
                   </Box>
                 </Box>

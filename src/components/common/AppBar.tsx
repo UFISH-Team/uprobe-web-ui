@@ -145,7 +145,7 @@ export default function CustomAppBar(props: IProps) {
   return (
     <Box sx={{ flexGrow: 1 }}>
       <AppBar position="absolute" open={props.drawerOpen}>
-        <Toolbar>
+        <Toolbar sx={{ minHeight: 48, height: 48, py: 0 }}>
 
           <IconButton
             size="large"

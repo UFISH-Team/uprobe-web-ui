@@ -12,8 +12,6 @@ import {
   Card,
   CardContent,
   Divider,
-  FormControlLabel,
-  Checkbox,
   Link,
   Fade,
   useTheme,
@@ -27,7 +25,6 @@ import {
   StepLabel,
   Autocomplete,
   Chip,
-  LinearProgress,
 } from '@mui/material';
 import { 
   Visibility, 
@@ -58,7 +55,6 @@ const Auth = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -248,7 +244,7 @@ const Auth = () => {
           throw new Error('Please enter a valid email address');
         }
         
-        await login(formData.emailOrUsername, formData.password, rememberMe);
+        await login(formData.emailOrUsername, formData.password, false);
       } else {
         // Registration mode validation
         if (registrationStep === 0) {
@@ -395,7 +391,7 @@ const Auth = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        py: 4,
+        py: 2,
         px: 2,
       }}
     >
@@ -421,8 +417,8 @@ const Auth = () => {
               sx={{
                 background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                 color: 'white',
-                py: 4,
-                px: 4,
+                py: 3,
+                px: 3,
                 textAlign: 'center',
                 position: 'relative',
                 overflow: 'hidden',
@@ -440,30 +436,31 @@ const Auth = () => {
               }}
             >
               <Box sx={{ position: 'relative', zIndex: 1 }}>
-                <Science sx={{ fontSize: 48, mb: 2 }} />
+                <Science sx={{ fontSize: 40, mb: 1.5 }} />
                 <Typography 
                   variant={isMobile ? "h5" : "h4"} 
                   component="h1" 
                   fontWeight={700}
-                  sx={{ mb: 1 }}
+                  sx={{ mb: 0.5 }}
                 >
                   🔬 U-Probe
                 </Typography>
-                <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Universal Probe Design Platform
                 </Typography>
               </Box>
             </Box>
 
-            <CardContent sx={{ p: 4 }}>
-              <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ textAlign: 'center', mb: 2.5 }}>
                 <Typography 
                   variant="h6" 
                   component="h2" 
                   sx={{ 
                     color: theme.palette.text.primary,
                     fontWeight: 600,
-                    mb: 1 
+                    mb: 0.5,
+                    fontSize: '1.25rem'
                   }}
                 >
                   {isLoginMode ? 'Welcome Back! 👋' : 'Create Account 🚀'}
@@ -472,14 +469,14 @@ const Auth = () => {
                   variant="body2" 
                   sx={{ 
                     color: theme.palette.text.secondary,
-                    mb: 3 
+                    fontSize: '0.875rem'
                   }}
                 >
                   {isLoginMode 
-                    ? 'Please sign in to your account to continue' 
+                    ? 'Sign in to continue' 
                     : registrationStep === 0 
-                      ? 'Enter your basic information to get started' 
-                      : 'Enter the verification code sent to your email'
+                      ? 'Get started with your account' 
+                      : 'Verify your email'
                   }
                 </Typography>
               </Box>
@@ -502,85 +499,6 @@ const Auth = () => {
                 </Fade>
               )}
 
-              {/* 注册步骤指示器 */}
-                {!isLoginMode && (
-                <Box sx={{ mb: 4 }}>
-                  <Stepper 
-                    activeStep={registrationStep} 
-                    sx={{ 
-                      mb: 2,
-                      '& .MuiStepLabel-root .Mui-completed': {
-                        color: theme.palette.success.main,
-                      },
-                      '& .MuiStepLabel-root .Mui-active': {
-                        color: theme.palette.primary.main,
-                      },
-                      '& .MuiStepConnector-line': {
-                        borderColor: registrationStep > 0 ? theme.palette.success.main : theme.palette.divider,
-                      }
-                    }}
-                  >
-                    <Step>
-                      <StepLabel 
-                        StepIconComponent={({ completed, active }) => (
-                          <Box sx={{ 
-                            width: 32, 
-                            height: 32, 
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: completed 
-                              ? theme.palette.success.main 
-                              : active 
-                                ? theme.palette.primary.main 
-                                : theme.palette.grey[300],
-                            color: 'white',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            transition: 'all 0.3s ease'
-                          }}>
-                            {completed ? '✓' : '1'}
-                          </Box>
-                        )}
-                      >
-                        <Typography variant="body2" sx={{ fontWeight: registrationStep >= 0 ? 600 : 400 }}>
-                          Enter Basic Info
-                        </Typography>
-                      </StepLabel>
-                    </Step>
-                    <Step>
-                      <StepLabel
-                        StepIconComponent={({ completed, active }) => (
-                          <Box sx={{ 
-                            width: 32, 
-                            height: 32, 
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: completed 
-                              ? theme.palette.success.main 
-                              : active 
-                                ? theme.palette.primary.main 
-                                : theme.palette.grey[300],
-                            color: 'white',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            transition: 'all 0.3s ease'
-                          }}>
-                            {completed ? '✓' : '2'}
-                          </Box>
-                        )}
-                      >
-                        <Typography variant="body2" sx={{ fontWeight: registrationStep >= 1 ? 600 : 400 }}>
-                          Verify Email
-                        </Typography>
-                      </StepLabel>
-                    </Step>
-                  </Stepper>
-                </Box>
-              )}
 
               <Box component="form" onSubmit={handleSubmit}>
                 {!isLoginMode && registrationStep === 0 && (
@@ -599,7 +517,7 @@ const Auth = () => {
                         disabled={loading || sendingCode}
                     error={Boolean(error)}
                         sx={{ 
-                          mb: 3,
+                          mb: 2,
                           '& .MuiOutlinedInput-root': {
                             borderRadius: 2,
                             transition: 'all 0.3s ease',
@@ -653,9 +571,8 @@ const Auth = () => {
                     autoFocus={!isMobile}
                             disabled={loading || sendingCode}
                     error={Boolean(error)}
-                            helperText="Start typing to see email suggestions"
                             sx={{ 
-                              mb: 3,
+                              mb: 2,
                               '& .MuiOutlinedInput-root': {
                                 borderRadius: 2,
                                 transition: 'all 0.3s ease',
@@ -741,19 +658,11 @@ const Auth = () => {
                       />
 
                       {/* 邮箱支持信息显示 */}
-                      {formData.email && validateEmail(formData.email) && (
-                        <Box sx={{ mb: 2 }}>
-                          {checkingEmail ? (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1 }}>
-                              <CircularProgress size={16} />
-                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                                Checking email support...
-                              </Typography>
-                            </Box>
-                          ) : emailSupportInfo && (
+                      {formData.email && validateEmail(formData.email) && emailSupportInfo && !checkingEmail && (
+                        <Box sx={{ mb: 1.5 }}>
                             <Box sx={{ 
-                              p: 2, 
-                              borderRadius: 2, 
+                              p: 1.5, 
+                              borderRadius: 1.5, 
                               backgroundColor: emailSupportInfo.smtp_info?.supported 
                                 ? theme.palette.success.main + '10'
                                 : theme.palette.warning.main + '10',
@@ -763,68 +672,59 @@ const Auth = () => {
                                   : theme.palette.warning.main + '30'
                               }`
                             }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 {emailSupportInfo.smtp_info?.supported ? (
                                   <Box sx={{ 
-                                    width: 16, 
-                                    height: 16, 
+                                    width: 14, 
+                                    height: 14, 
                                     borderRadius: '50%', 
                                     backgroundColor: theme.palette.success.main,
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center'
                                   }}>
-                                    <Typography sx={{ color: 'white', fontSize: '10px', fontWeight: 'bold' }}>✓</Typography>
+                                    <Typography sx={{ color: 'white', fontSize: '9px', fontWeight: 'bold' }}>✓</Typography>
                                   </Box>
                                 ) : (
                                   <Box sx={{ 
-                                    width: 16, 
-                                    height: 16, 
+                                    width: 14, 
+                                    height: 14, 
                                     borderRadius: '50%', 
                                     backgroundColor: theme.palette.warning.main,
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center'
                                   }}>
-                                    <Typography sx={{ color: 'white', fontSize: '10px', fontWeight: 'bold' }}>!</Typography>
+                                    <Typography sx={{ color: 'white', fontSize: '9px', fontWeight: 'bold' }}>!</Typography>
                                   </Box>
                                 )}
                                 <Typography 
-                                  variant="body2" 
+                                  variant="caption" 
                                   sx={{ 
                                     fontWeight: 600,
+                                    fontSize: '0.8125rem',
                                     color: emailSupportInfo.smtp_info?.supported 
                                       ? theme.palette.success.dark 
                                       : theme.palette.warning.dark
                                   }}
                                 >
                                   {emailSupportInfo.smtp_info?.supported 
-                                    ? `Supported by ${emailSupportInfo.smtp_info.provider}` 
-                                    : 'Email provider not supported'
+                                    ? `${emailSupportInfo.smtp_info.provider}` 
+                                    : 'Not supported'
                                   }
                                 </Typography>
                               </Box>
-                              <Typography variant="caption" sx={{ 
-                                color: theme.palette.text.secondary,
-                                display: 'block'
-                              }}>
-                                {emailSupportInfo.smtp_info?.message || emailSupportInfo.send_capability?.message}
-                              </Typography>
                               {emailSupportInfo.send_capability?.mode === 'no_config' && (
                                 <Typography variant="caption" sx={{ 
                                   color: theme.palette.info.main,
                                   display: 'block',
                                   mt: 0.5,
-                                  backgroundColor: theme.palette.info.main + '10',
-                                  padding: 1,
-                                  borderRadius: 1,
-                                  border: `1px solid ${theme.palette.info.main}30`
+                                  fontSize: '0.75rem'
                                 }}>
-                                  🔧 开发模式：验证码将显示在服务器控制台中，请查看服务器日志获取验证码
+                                  Dev mode: Check server console
                                 </Typography>
                               )}
                             </Box>
-                          )}
                         </Box>
                       )}
                   <TextField
@@ -840,9 +740,8 @@ const Auth = () => {
                         onChange={handleChange}
                         disabled={loading || sendingCode}
                         error={Boolean(error)}
-                        helperText="Password must be at least 6 characters"
                         sx={{ 
-                          mb: 3,
+                          mb: 2,
                           '& .MuiOutlinedInput-root': {
                             borderRadius: 2,
                             transition: 'all 0.3s ease',
@@ -895,9 +794,8 @@ const Auth = () => {
                         onChange={handleChange}
                         disabled={loading || sendingCode}
                         error={Boolean(error && formData.password !== formData.password_confirm)}
-                        helperText="Please confirm your password"
                         sx={{ 
-                          mb: 3,
+                          mb: 2,
                           '& .MuiOutlinedInput-root': {
                             borderRadius: 2,
                             transition: 'all 0.3s ease',
@@ -946,34 +844,20 @@ const Auth = () => {
                     <Box>
                       {/* Email confirmation info */}
                       <Box sx={{ 
-                        mb: 3, 
-                        p: 3, 
-                        borderRadius: 3, 
+                        mb: 2, 
+                        p: 2, 
+                        borderRadius: 2, 
                         backgroundColor: theme.palette.primary.main + '08',
                         border: `1px solid ${theme.palette.primary.main}20`,
-                        position: 'relative',
-                        overflow: 'hidden',
-                        '&::before': {
-                          content: '""',
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: '3px',
-                          background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                        }
                       }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <Email sx={{ color: theme.palette.primary.main, fontSize: 20 }} />
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
-                          Verification code sent to
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                        <Email sx={{ color: theme.palette.primary.main, fontSize: 18 }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.primary.main, fontSize: '0.875rem' }}>
+                          Code sent to
                         </Typography>
                       </Box>
-                      <Typography variant="body1" sx={{ fontWeight: 500, wordBreak: 'break-all' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500, wordBreak: 'break-all', fontSize: '0.875rem' }}>
                         {formData.email}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 1, display: 'block' }}>
-                        Please check your email (including spam folder)
                       </Typography>
                     </Box>
 
@@ -990,9 +874,9 @@ const Auth = () => {
                       disabled={loading}
                       error={Boolean(error)}
                       sx={{ 
-                        mb: 2,
+                        mb: 1.5,
                         '& .MuiOutlinedInput-root': {
-                          fontSize: '1.2rem',
+                          fontSize: '1.1rem',
                           letterSpacing: '0.3em',
                           textAlign: 'center',
                           fontFamily: 'monospace'
@@ -1000,72 +884,45 @@ const Auth = () => {
                       }}
                       inputProps={{ 
                         maxLength: 6,
-                        style: { textAlign: 'center', fontSize: '1.2rem', letterSpacing: '0.3em' }
+                        style: { textAlign: 'center', fontSize: '1.1rem', letterSpacing: '0.3em' }
                       }}
-                      helperText="Please enter 6-digit verification code"
                       placeholder="000000"
                     />
 
-                    {/* Countdown progress bar */}
-                    {countdown > 0 && (
-                      <Box sx={{ mb: 2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                            Resend verification code
-                          </Typography>
-                          <Chip 
-                            label={`Resend in ${countdown}s`} 
-                            size="small" 
-                            color="primary" 
-                            variant="outlined"
-                          />
-                        </Box>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={((60 - countdown) / 60) * 100}
-                          sx={{ 
-                            height: 6, 
-                            borderRadius: 3,
-                            backgroundColor: theme.palette.primary.main + '20',
-                            '& .MuiLinearProgress-bar': {
-                              borderRadius: 3
-                            }
-                          }}
-                        />
-                      </Box>
-                    )}
-
                     {/* Action buttons */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, gap: 1 }}>
                       <Button
                         variant="outlined"
+                        size="small"
                         onClick={() => {
                           setRegistrationStep(0);
                           setCountdown(0);
                         }}
                         disabled={loading}
-                        sx={{ borderRadius: 2 }}
+                        sx={{ borderRadius: 1.5, fontSize: '0.8125rem', py: 0.75 }}
                       >
-                        Back to Edit Email
+                        Back
                       </Button>
                       <Button
-                        variant={countdown > 0 ? "outlined" : "contained"}
+                        variant="text"
+                        size="small"
                         onClick={handleSendVerificationCode}
                         disabled={loading || sendingCode || countdown > 0}
                         sx={{ 
-                          borderRadius: 2,
-                          minWidth: 120
+                          borderRadius: 1.5,
+                          fontSize: '0.8125rem',
+                          py: 0.75
                         }}
                       >
                         {sendingCode ? (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <CircularProgress size={16} />
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <CircularProgress size={14} />
                             <span>Sending...</span>
                           </Box>
                         ) : countdown > 0 ? (
-                          `Resend in ${countdown}s`
+                          `Resend (${countdown}s)`
                         ) : (
-                          'Resend'
+                          'Resend Code'
                         )}
                       </Button>
                       </Box>
@@ -1078,7 +935,7 @@ const Auth = () => {
                     required
                     fullWidth
                     id="emailOrUsername"
-                    label="Email or Username"
+                    label="Username"
                     name="emailOrUsername"
                     autoComplete="username"
                     autoFocus={!isMobile}
@@ -1086,7 +943,7 @@ const Auth = () => {
                     onChange={handleChange}
                     disabled={loading}
                     error={Boolean(error)}
-                    helperText="Enter your email address or admin username"
+                    //helperText="Enter your email address or admin username"
                     sx={{ mb: 2 }}
                     InputProps={{
                       startAdornment: (
@@ -1136,22 +993,7 @@ const Auth = () => {
                 )}
 
                 {isLoginMode && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        color="primary"
-                        disabled={loading}
-                      />
-                    }
-                    label={
-                      <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                        Remember me
-                      </Typography>
-                    }
-                  />
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
                   <Link
                     component="button"
                     variant="body2"
@@ -1160,6 +1002,7 @@ const Auth = () => {
                     sx={{
                       color: theme.palette.primary.main,
                       textDecoration: 'none',
+                      fontSize: '0.875rem',
                       '&:hover': {
                         textDecoration: 'underline',
                       },
@@ -1178,11 +1021,11 @@ const Auth = () => {
                   size="large"
                   disabled={loading || sendingCode}
                   sx={{
-                    py: 1.5,
+                    py: 1.25,
                     mb: 2,
                     borderRadius: 2,
                     fontWeight: 600,
-                    fontSize: '1rem',
+                    fontSize: '0.9375rem',
                     background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                     '&:hover': {
                       background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`,
@@ -1196,15 +1039,15 @@ const Auth = () => {
                 >
                   {loading || sendingCode ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <CircularProgress size={20} color="inherit" />
-                      <Typography variant="button">
+                      <CircularProgress size={18} color="inherit" />
+                      <Typography variant="button" sx={{ fontSize: '0.9375rem' }}>
                         {isLoginMode 
                           ? 'Signing In...' 
                           : sendingCode 
-                            ? 'Sending Code...'
+                            ? 'Sending...'
                             : registrationStep === 0 
-                              ? 'Sending Code...' 
-                              : 'Creating Account...'
+                              ? 'Sending...' 
+                              : 'Creating...'
                         }
                       </Typography>
                     </Box>
@@ -1212,19 +1055,19 @@ const Auth = () => {
                     isLoginMode 
                       ? 'Sign In' 
                       : registrationStep === 0 
-                        ? 'Send Verification Code' 
-                        : 'Complete Registration'
+                        ? 'Send Code' 
+                        : 'Complete'
                   )}
                 </Button>
 
-                <Divider sx={{ my: 3 }}>
-                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, px: 2 }}>
+                <Divider sx={{ my: 2 }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, px: 1.5, fontSize: '0.75rem' }}>
                     or
                   </Typography>
                 </Divider>
 
                 <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontSize: '0.875rem' }}>
                     {isLoginMode ? "Don't have an account?" : "Already have an account?"}{' '}
                     <Link
                       component="button"
@@ -1234,6 +1077,7 @@ const Auth = () => {
                         color: theme.palette.primary.main,
                         fontWeight: 600,
                         textDecoration: 'none',
+                        fontSize: '0.875rem',
                         '&:hover': {
                           textDecoration: 'underline',
                         },
@@ -1250,39 +1094,16 @@ const Auth = () => {
         </Fade>
 
         {/* Footer Information */}
-        <Box sx={{ textAlign: 'center', mt: 4 }}>
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              color: 'rgba(255, 255, 255, 0.8)',
-              mb: 1,
-              fontWeight: 500
-            }}
-          >
-            © 2024 U-Probe Platform. All rights reserved.
-          </Typography>
+        <Box sx={{ textAlign: 'center', mt: 2 }}>
           <Typography 
             variant="caption" 
             sx={{ 
-              color: 'rgba(255, 255, 255, 0.6)',
-              display: 'block',
-              mb: 1
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontSize: '0.75rem'
             }}
           >
-            Version 1.0 | Powered by Advanced Bioinformatics
+            © 2024 U-Probe Platform
           </Typography>
-          {error && (
-            <Typography 
-              variant="caption" 
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.5)',
-                display: 'block',
-                fontStyle: 'italic'
-              }}
-            >
-              💡 Press ESC to dismiss error messages
-            </Typography>
-          )}
         </Box>
       </Container>
       
