@@ -44,7 +44,7 @@ import {
   MenuOpen,
   ChevronLeft,
 } from '@mui/icons-material';
-import { API_BASE_URL } from '../api';
+import ApiService from '../api';
 
 interface Message {
   id: string;
@@ -73,6 +73,24 @@ interface SuggestedPrompt {
   icon: React.ReactElement;
   category: string;
 }
+
+const hydrateMessage = (message: any): Message => ({
+  ...message,
+  timestamp: new Date(message.timestamp),
+  attachments: message.attachments || [],
+  thinking: message.thinking || [],
+});
+
+const hydrateConversation = (conversation: any): Conversation => ({
+  ...conversation,
+  createdAt: new Date(conversation.createdAt),
+  updatedAt: new Date(conversation.updatedAt),
+  messages: Array.isArray(conversation.messages)
+    ? conversation.messages.map((message: any) => hydrateMessage(message))
+    : [],
+  attachments: conversation.attachments || [],
+  tags: conversation.tags || [],
+});
 
 const Agent: React.FC = () => {
   const theme = useTheme();
@@ -108,11 +126,31 @@ const Agent: React.FC = () => {
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editConversationTitle, setEditConversationTitle] = useState('');
 
-  // Load API key and conversations from localStorage on component mount
+  const refreshConversation = useCallback(async (conversationId: string) => {
+    const conversation = await ApiService.getAgentConversation(conversationId);
+    const hydrated = hydrateConversation(conversation);
+    setConversations(prev => {
+      const remaining = prev.filter(conv => conv.id !== conversationId);
+      return [hydrated, ...remaining];
+    });
+    return hydrated;
+  }, []);
+
+  const loadConversations = useCallback(async () => {
+    const remoteConversations = await ApiService.listAgentConversations();
+    const hydrated = remoteConversations.map((conversation: any) =>
+      hydrateConversation(conversation)
+    );
+    setConversations(hydrated);
+    return hydrated;
+  }, []);
+
+  // Load API key and conversations on component mount
   useEffect(() => {
     const savedApiKey = localStorage.getItem('uprobe-agent-api-key');
     const savedModel = localStorage.getItem('uprobe-agent-model');
     const savedProxy = localStorage.getItem('uprobe-agent-proxy');
+    const lastConversationId = localStorage.getItem('agent-current-conversation-id');
     if (savedApiKey) {
       setApiKey(savedApiKey);
       setTempApiKey(savedApiKey);
@@ -123,39 +161,51 @@ const Agent: React.FC = () => {
     if (savedProxy) {
       setProxy(savedProxy);
     }
-    const savedConversations = localStorage.getItem('agent-conversations');
-    if (savedConversations) {
-      const parsed = JSON.parse(savedConversations);
-      setConversations(parsed.map((conv: any) => ({
-        ...conv,
-        createdAt: new Date(conv.createdAt),
-        updatedAt: new Date(conv.updatedAt),
-        messages: conv.messages.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        })),
-        attachments: conv.attachments || [],
-        tags: conv.tags || []
-      })));
-    }
-  }, []);
-
-  // Save conversations to localStorage whenever conversations change
-  useEffect(() => {
-    localStorage.setItem('agent-conversations', JSON.stringify(conversations));
-  }, [conversations]);
+    void loadConversations()
+      .then((loaded) => {
+        if (lastConversationId && loaded.some((conv: Conversation) => conv.id === lastConversationId)) {
+          setCurrentConversationId(lastConversationId);
+          return;
+        }
+        if (loaded.length > 0) {
+          setCurrentConversationId(loaded[0].id);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load conversations:', error);
+      });
+  }, [loadConversations]);
 
   // Load current conversation messages
   useEffect(() => {
     if (currentConversationId) {
+      localStorage.setItem('agent-current-conversation-id', currentConversationId);
       const conversation = conversations.find(c => c.id === currentConversationId);
       setMessages(conversation?.messages || []);
       setSessionId(conversation?.sessionId || null);
+      const shouldRefresh =
+        !conversation ||
+        (
+          conversation.messages.length === 0 &&
+          Number((conversation as any).messageCount || 0) > 0
+        );
+      if (shouldRefresh) {
+        void refreshConversation(currentConversationId)
+          .then((loaded) => {
+            setMessages(loaded.messages || []);
+            setSessionId(loaded.sessionId || null);
+          })
+          .catch((error) => {
+            console.error('Failed to load conversation:', error);
+            setMessages([]);
+            setSessionId(null);
+          });
+      }
     } else {
       setMessages([]);
       setSessionId(null);
     }
-  }, [currentConversationId, conversations]);
+  }, [currentConversationId, conversations, refreshConversation]);
 
   // Get current conversation attachments
   const currentAttachments = conversations.find(c => c.id === currentConversationId)?.attachments || [];
@@ -195,105 +245,61 @@ const Agent: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Session management
-  const ensureSession = async (conversationId?: string | null) => {
-    const existingSessionId =
-      sessionId ||
-      (conversationId
-        ? (conversations.find(c => c.id === conversationId)?.sessionId || null)
-        : null);
-
-    if (existingSessionId) {
-      if (!sessionId) setSessionId(existingSessionId);
-      return existingSessionId;
+  // Conversation/session management
+  const ensureConversationId = async (conversationId?: string | null) => {
+    if (conversationId) {
+      return conversationId;
     }
-
-    if (!apiKey) {
-      setSnackbar({
-        open: true,
-        message: '请先在 Settings 里填写 API Key',
-        severity: 'error'
-      });
-      setShowApiKeyDialog(true);
-      return null;
-    }
-
     try {
-      const res = await fetch(`${API_BASE_URL}/agent/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ api_key: apiKey, model, proxy: proxy || undefined })
-      });
-      if (!res.ok) throw new Error('Failed to start session');
-      const data = await res.json();
-      setSessionId(data.session_id);
-
-      if (conversationId) {
-        setConversations(prev =>
-          prev.map(conv =>
-            conv.id === conversationId
-              ? { ...conv, sessionId: data.session_id }
-              : conv
-          )
-        );
-      }
-
-      return data.session_id as string;
-    } catch (e) {
-      console.error(e);
-      setSnackbar({ open: true, message: 'Failed to start session', severity: 'error' });
+      const created = hydrateConversation(
+        await ApiService.createAgentConversation('New Conversation')
+      );
+      setConversations(prev => [created, ...prev.filter(conv => conv.id !== created.id)]);
+      setCurrentConversationId(created.id);
+      return created.id;
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+      setSnackbar({ open: true, message: 'Failed to create conversation', severity: 'error' });
       return null;
     }
   };
 
   const stopSession = async () => {
-    if (!sessionId) return;
+    if (!currentConversationId) return;
     try {
-      await fetch(`${API_BASE_URL}/agent/stop`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId })
-      });
-    } catch (e) {
-      // ignore
+      await ApiService.stopAgentConversation(currentConversationId);
+      const updated = await refreshConversation(currentConversationId);
+      setSessionId(updated.sessionId || null);
+      setSnackbar({ open: true, message: 'Agent session stopped', severity: 'info' });
+    } catch (error) {
+      console.error('Failed to stop session:', error);
     }
-    setSessionId(null);
-    if (currentConversationId) {
-      setConversations(prev => prev.map(conv => conv.id === currentConversationId ? { ...conv, sessionId: undefined } : conv));
-    }
-    setSnackbar({ open: true, message: 'Agent session stopped', severity: 'info' });
   };
 
-  const createNewConversation = () => {
-    const newConversation: Conversation = {
-      id: Date.now().toString(),
-      title: 'New Conversation',
-      messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      sessionId: undefined,
-      attachments: []
-    };
-    setConversations(prev => [newConversation, ...prev]);
-    setCurrentConversationId(newConversation.id);
+  const createNewConversation = async () => {
+    try {
+      const created = hydrateConversation(
+        await ApiService.createAgentConversation('New Conversation')
+      );
+      setConversations(prev => [created, ...prev.filter(conv => conv.id !== created.id)]);
+      setCurrentConversationId(created.id);
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+      setSnackbar({ open: true, message: 'Failed to create conversation', severity: 'error' });
+    }
   };
 
   const deleteConversation = async (conversationId: string) => {
-    const target = conversations.find(c => c.id === conversationId);
-    if (target?.sessionId) {
-      try {
-        await fetch(`${API_BASE_URL}/agent/stop`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: target.sessionId })
-        });
-      } catch (e) {
-        // ignore
+    try {
+      await ApiService.deleteAgentConversation(conversationId);
+      const remaining = conversations.filter(c => c.id !== conversationId);
+      setConversations(remaining);
+      if (currentConversationId === conversationId) {
+        setCurrentConversationId(remaining[0]?.id || null);
       }
-    }
-    setConversations(prev => prev.filter(c => c.id !== conversationId));
-    if (currentConversationId === conversationId) {
-      setCurrentConversationId(null);
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+      setSnackbar({ open: true, message: 'Failed to delete conversation', severity: 'error' });
     }
   };
 
@@ -303,14 +309,23 @@ const Agent: React.FC = () => {
     setEditConversationTitle(conversation.title);
   };
 
-  const handleEditConversationSave = (e?: React.KeyboardEvent | React.FocusEvent | React.MouseEvent) => {
+  const handleEditConversationSave = async (e?: React.KeyboardEvent | React.FocusEvent | React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (editingConversationId && editConversationTitle.trim()) {
-      setConversations(prev => prev.map(conv =>
-        conv.id === editingConversationId
-          ? { ...conv, title: editConversationTitle.trim() }
-          : conv
-      ));
+      try {
+        const updated = hydrateConversation(
+          await ApiService.renameAgentConversation(
+            editingConversationId,
+            editConversationTitle.trim()
+          )
+        );
+        setConversations(prev => prev.map(conv =>
+          conv.id === editingConversationId ? { ...conv, title: updated.title } : conv
+        ));
+      } catch (error) {
+        console.error('Failed to rename conversation:', error);
+        setSnackbar({ open: true, message: 'Failed to rename conversation', severity: 'error' });
+      }
     }
     setEditingConversationId(null);
   };
@@ -347,12 +362,7 @@ const Agent: React.FC = () => {
       setSnackbar({ open: true, message: 'No conversation selected', severity: 'warning' });
       return;
     }
-    
-    // Ensure session exists (auto-start if needed)
-    const activeSessionId = await ensureSession(currentConversationId);
-    if (!activeSessionId) {
-      return;
-    }
+
     const userTurnIndex = getUserTurnIndex(message.id);
     if (userTurnIndex < 0) {
       setSnackbar({ open: true, message: 'Cannot locate this message', severity: 'error' });
@@ -390,16 +400,15 @@ const Agent: React.FC = () => {
       // Create and store AbortController
       const controller = new AbortController();
       abortControllerRef.current = controller;
-
-      const res = await fetch(`${API_BASE_URL}/agent/rewind`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: activeSessionId, user_turn_index: userTurnIndex, content: newContent, attachment_ids: attachmentIds }),
-        signal: controller.signal
-      });
+      const data = await ApiService.rewindAgentConversation(currentConversationId, {
+        user_turn_index: userTurnIndex,
+        content: newContent,
+        attachment_ids: attachmentIds,
+        api_key: apiKey || undefined,
+        model,
+        proxy: proxy || undefined,
+      }, controller.signal);
       abortControllerRef.current = null;
-      if (!res.ok) throw new Error('Request failed');
-      const data = await res.json();
       const assistantMessage: Message = {
         id: `${Date.now().toString()}-${Math.random()}`,
         content: data.message || '',
@@ -419,6 +428,9 @@ const Agent: React.FC = () => {
         }
         return conv;
       }));
+      const refreshed = await refreshConversation(currentConversationId);
+      setMessages(refreshed.messages);
+      setSessionId(refreshed.sessionId || null);
     } catch (error) {
       const isAborted = error instanceof DOMException && error.name === 'AbortError';
       if (isAborted) {
@@ -454,25 +466,8 @@ const Agent: React.FC = () => {
     if (!inputValue.trim() || isLoading) return;
 
     // Create new conversation if none exists
-    let conversationId = currentConversationId;
-    if (!conversationId) {
-      const newConversation: Conversation = {
-        id: Date.now().toString(),
-        title: 'New Conversation',
-        messages: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        sessionId: undefined,
-        attachments: []
-      };
-      setConversations(prev => [newConversation, ...prev]);
-      conversationId = newConversation.id;
-      setCurrentConversationId(conversationId);
-    }
-
-    // Ensure session (auto-start)
-    const activeSessionId = await ensureSession(conversationId);
-    if (!activeSessionId) return;
+    const conversationId = await ensureConversationId(currentConversationId);
+    if (!conversationId) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -517,16 +512,15 @@ const Agent: React.FC = () => {
       const controller = new AbortController();
       abortControllerRef.current = controller;
       const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-      const res = await fetch(`${API_BASE_URL}/agent/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: activeSessionId, content: userMessage.content, attachment_ids: attachmentIds }),
-        signal: controller.signal
-      });
+      const data = await ApiService.sendAgentMessage(conversationId, {
+        content: userMessage.content,
+        attachment_ids: attachmentIds,
+        api_key: apiKey || undefined,
+        model,
+        proxy: proxy || undefined,
+      }, controller.signal);
       clearTimeout(timeoutId);
       abortControllerRef.current = null;
-      if (!res.ok) throw new Error('Request failed');
-      const data = await res.json();
       // Expecting { thinking: string[], message: string }
       const assistantMessage: Message = {
         id: `${Date.now().toString()}-${Math.random()}`,
@@ -543,16 +537,15 @@ const Agent: React.FC = () => {
         }
         return conv;
       }));
+      const refreshed = await refreshConversation(conversationId);
+      setMessages(refreshed.messages);
+      setSessionId(refreshed.sessionId || null);
     } catch (error) {
       const isAborted = error instanceof DOMException && error.name === 'AbortError';
       if (isAborted) {
         setSnackbar({ open: true, message: 'Request cancelled', severity: 'warning' });
         try {
-          await fetch(`${API_BASE_URL}/agent/stop`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: activeSessionId })
-          });
+          await ApiService.stopAgentConversation(conversationId);
         } catch (e) {
           // ignore
         }
@@ -570,24 +563,8 @@ const Agent: React.FC = () => {
     if (isLoading) return;
 
     // Ensure a conversation exists before selecting files
-    let convId = currentConversationId;
-    if (!convId) {
-      const newConversation: Conversation = {
-        id: Date.now().toString(),
-        title: 'New Conversation',
-        messages: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        sessionId: undefined,
-        attachments: []
-      };
-      setConversations(prev => [newConversation, ...prev]);
-      setCurrentConversationId(newConversation.id);
-      convId = newConversation.id;
-    }
-
-    void ensureSession(convId).then((sid) => {
-      if (!sid) return;
+    void ensureConversationId(currentConversationId).then((convId) => {
+      if (!convId) return;
       fileInputRef.current?.click();
     });
   };
@@ -596,39 +573,20 @@ const Agent: React.FC = () => {
     const files = e.target.files;
     if (!files) return;
     // Ensure conversation id
-    let convId = currentConversationId;
-    if (!convId) {
-      const newConversation: Conversation = {
-        id: Date.now().toString(),
-        title: 'New Conversation',
-        messages: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        sessionId: sessionId || undefined,
-        attachments: []
-      };
-      setConversations(prev => [newConversation, ...prev]);
-      setCurrentConversationId(newConversation.id);
-      convId = newConversation.id;
-    }
+    const convId = await ensureConversationId(currentConversationId);
+    if (!convId) return;
 
-    const activeSessionId = await ensureSession(convId);
-    if (!activeSessionId) return;
-
-    for (const file of Array.from(files)) {
+    for (const file of Array.from(files) as File[]) {
       const fileId = `${Date.now()}-${Math.random()}`;
       setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
       const form = new FormData();
-      form.append('session_id', activeSessionId);
-      form.append('file', file);
       try {
         setUploadProgress(prev => ({ ...prev, [fileId]: 50 }));
-        const res = await fetch(`${API_BASE_URL}/agent/upload`, {
-          method: 'POST',
-          body: form
+        const data = await ApiService.uploadAgentAttachment(convId, file, {
+          api_key: apiKey || undefined,
+          model,
+          proxy: proxy || undefined,
         });
-        if (!res.ok) throw new Error('Upload failed');
-        const data = await res.json();
         const targetId = convId;
         setUploadProgress(prev => ({ ...prev, [fileId]: 100 }));
         setConversations(prev => prev.map(conv => {
@@ -646,6 +604,9 @@ const Agent: React.FC = () => {
           });
         }, 1000);
         setSnackbar({ open: true, message: `Uploaded ${file.name}`, severity: 'success' });
+        const refreshed = await refreshConversation(convId);
+        setMessages(refreshed.messages);
+        setSessionId(refreshed.sessionId || null);
       } catch (err) {
         setUploadProgress(prev => {
           const updated = { ...prev };
@@ -660,20 +621,13 @@ const Agent: React.FC = () => {
   };
 
   const handleRemoveAttachment = async (attachmentId: string) => {
-    if (!sessionId || !currentConversationId) return;
+    if (!currentConversationId) return;
     try {
-      const url = new URL(`${API_BASE_URL}/agent/upload/${attachmentId}`);
-      url.searchParams.set('session_id', sessionId);
-      const res = await fetch(url.toString(), { method: 'DELETE' });
-      if (!res.ok) throw new Error('Delete failed');
+      await ApiService.deleteAgentAttachment(currentConversationId, attachmentId);
       const convId = currentConversationId;
-      setConversations(prev => prev.map(conv => {
-        if (conv.id === convId) {
-          const atts = (conv.attachments || []).filter(a => a.id !== attachmentId);
-          return { ...conv, attachments: atts, updatedAt: new Date() };
-        }
-        return conv;
-      }));
+      const refreshed = await refreshConversation(convId);
+      setMessages(refreshed.messages);
+      setSessionId(refreshed.sessionId || null);
     } catch (e) {
       setSnackbar({ open: true, message: 'Failed to delete attachment', severity: 'error' });
     }
@@ -702,27 +656,11 @@ const Agent: React.FC = () => {
     
     setSnackbar({ open: true, message: 'Request cancelled', severity: 'info' });
 
-    // Also stop the backend session to ensure agent stops processing
-    const activeSessionId = sessionId || conversations.find(c => c.id === currentConversationId)?.sessionId;
-    if (activeSessionId) {
+    if (currentConversationId) {
       try {
-        await fetch(`${API_BASE_URL}/agent/stop`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: activeSessionId })
-        });
-        // We don't clear the session ID here to allow the user to continue chatting
-        // But we might need to "restart" the session internally on next message if the server truly killed it.
-        // For now, assume "stop" just kills the current run but keeps history if supported, 
-        // OR we might need to re-initialize on next message. 
-        // Based on backend implementation, /agent/stop deletes the chat.
-        // So we should probably clear the session ID.
-        setSessionId(null);
-        setConversations(prev => prev.map(conv => 
-          conv.id === currentConversationId 
-            ? { ...conv, sessionId: undefined } 
-            : conv
-        ));
+        await ApiService.stopAgentConversation(currentConversationId);
+        const refreshed = await refreshConversation(currentConversationId);
+        setSessionId(refreshed.sessionId || null);
       } catch (e) {
         console.error('Failed to stop session on cancel:', e);
       }
@@ -738,33 +676,16 @@ const Agent: React.FC = () => {
       abortControllerRef.current = null;
     }
     
-    // Stop backend session
-    const activeSessionId = sessionId || conversations.find(c => c.id === currentConversationId)?.sessionId;
-    if (activeSessionId) {
-      try {
-        await fetch(`${API_BASE_URL}/agent/stop`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: activeSessionId })
-        });
-        // Clear session reference
-        setSessionId(null);
-        setConversations(prev => prev.map(conv => 
-          conv.id === currentConversationId 
-            ? { ...conv, sessionId: undefined } 
-            : conv
-        ));
-      } catch (e) {
-        console.error('Failed to stop session:', e);
-      }
+    try {
+      await ApiService.clearAgentConversation(currentConversationId);
+      const refreshed = await refreshConversation(currentConversationId);
+      setMessages(refreshed.messages);
+      setSessionId(refreshed.sessionId || null);
+    } catch (error) {
+      console.error('Failed to clear conversation:', error);
+      setSnackbar({ open: true, message: 'Failed to clear conversation', severity: 'error' });
+      return;
     }
-    
-    // Clear frontend messages
-    setConversations(prev => prev.map(conv => 
-      conv.id === currentConversationId 
-        ? { ...conv, messages: [], updatedAt: new Date() }
-        : conv
-    ));
     
     setIsLoading(false);
     setSnackbar({ open: true, message: 'Chat cleared and session stopped', severity: 'info' });
@@ -780,11 +701,6 @@ const Agent: React.FC = () => {
       return;
     }
     
-    // Ensure session exists (auto-start if needed)
-    const activeSessionId = await ensureSession(currentConversationId);
-    if (!activeSessionId) {
-      return;
-    }
     const userTurnIndex = getUserTurnIndex(previousMessage.id);
     if (userTurnIndex < 0) return;
     setIsLoading(true);
@@ -812,16 +728,15 @@ const Agent: React.FC = () => {
       // Create and store AbortController
       const controller = new AbortController();
       abortControllerRef.current = controller;
-
-      const res = await fetch(`${API_BASE_URL}/agent/rewind`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: activeSessionId, user_turn_index: userTurnIndex, content: previousMessage.content, attachment_ids: attachmentIds }),
-        signal: controller.signal
-      });
+      const data = await ApiService.rewindAgentConversation(currentConversationId, {
+        user_turn_index: userTurnIndex,
+        content: previousMessage.content,
+        attachment_ids: attachmentIds,
+        api_key: apiKey || undefined,
+        model,
+        proxy: proxy || undefined,
+      }, controller.signal);
       abortControllerRef.current = null;
-      if (!res.ok) throw new Error('Request failed');
-      const data = await res.json();
       const newAssistantMessage: Message = {
         id: `${Date.now().toString()}-${Math.random()}`,
         content: data.message || '',
@@ -840,6 +755,9 @@ const Agent: React.FC = () => {
         }
         return conv;
       }));
+      const refreshed = await refreshConversation(currentConversationId);
+      setMessages(refreshed.messages);
+      setSessionId(refreshed.sessionId || null);
     } catch (error) {
       const isAborted = error instanceof DOMException && error.name === 'AbortError';
       if (isAborted) {
@@ -910,40 +828,20 @@ const Agent: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files) as File[];
     if (files.length === 0) return;
-    let convId = currentConversationId;
-    if (!convId) {
-      const newConversation: Conversation = {
-        id: Date.now().toString(),
-        title: 'New Chat',
-        messages: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        sessionId: sessionId || undefined,
-        attachments: [],
-        tags: []
-      };
-      setConversations(prev => [newConversation, ...prev]);
-      setCurrentConversationId(newConversation.id);
-      convId = newConversation.id;
-    }
-    const activeSessionId = await ensureSession(convId);
-    if (!activeSessionId) return;
+    const convId = await ensureConversationId(currentConversationId);
+    if (!convId) return;
     for (const file of files) {
       const fileId = `${Date.now()}-${Math.random()}`;
       setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
-      const form = new FormData();
-      form.append('session_id', activeSessionId);
-      form.append('file', file);
       try {
         setUploadProgress(prev => ({ ...prev, [fileId]: 50 }));
-        const res = await fetch(`${API_BASE_URL}/agent/upload`, {
-          method: 'POST',
-          body: form
+        const data = await ApiService.uploadAgentAttachment(convId, file, {
+          api_key: apiKey || undefined,
+          model,
+          proxy: proxy || undefined,
         });
-        if (!res.ok) throw new Error('Upload failed');
-        const data = await res.json();
         setUploadProgress(prev => ({ ...prev, [fileId]: 100 }));
         setConversations(prev => prev.map(conv => {
           if (conv.id === convId) {
@@ -960,6 +858,9 @@ const Agent: React.FC = () => {
           });
         }, 1000);
         setSnackbar({ open: true, message: `Uploaded ${file.name}`, severity: 'success' });
+        const refreshed = await refreshConversation(convId);
+        setMessages(refreshed.messages);
+        setSessionId(refreshed.sessionId || null);
       } catch (err) {
         setUploadProgress(prev => {
           const updated = { ...prev };
@@ -969,7 +870,7 @@ const Agent: React.FC = () => {
         setSnackbar({ open: true, message: `Failed to upload ${file.name}`, severity: 'error' });
       }
     }
-  }, [sessionId, currentConversationId, conversations, apiKey, model, proxy]);
+  }, [currentConversationId, apiKey, model, proxy, refreshConversation]);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -1009,11 +910,8 @@ const Agent: React.FC = () => {
 
     // Stop existing session if any
     if (sessionId) {
-      stopSession();
+      void stopSession();
     }
-
-    // Auto-start session after saving config
-    void ensureSession(currentConversationId);
   };
 
   const renderMessage = (message: Message) => {

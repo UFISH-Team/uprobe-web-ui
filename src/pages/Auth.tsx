@@ -48,7 +48,7 @@ const Auth = () => {
   const [formData, setFormData] = useState({
     emailOrUsername: '',
     password: '',
-    full_name: '',
+    username: '', // Changed from full_name
     email: '',  // For registration only
     password_confirm: '',  // Password confirmation
     verification_code: ''  // Email verification code
@@ -245,14 +245,21 @@ const Auth = () => {
         }
         
         await login(formData.emailOrUsername, formData.password, false);
+        navigate('/home');
       } else {
         // Registration mode validation
         if (registrationStep === 0) {
           // First step: Validate basic info and send verification code
-          if (!formData.full_name || !formData.email || !formData.password || !formData.password_confirm) {
-          throw new Error('Please fill in all fields');
-        }
-        if (!validateEmail(formData.email)) {
+          if (!formData.username || !formData.email || !formData.password || !formData.password_confirm) {
+            throw new Error('Please fill in all fields');
+          }
+          if (formData.username.length < 2) {
+            throw new Error('Username must be at least 2 characters');
+          }
+          if (!/^[a-zA-Z0-9_-]+$/.test(formData.username)) {
+            throw new Error('Username can only contain letters, numbers, underscores and hyphens');
+          }
+          if (!validateEmail(formData.email)) {
             throw new Error('Please enter a valid email address');
           }
           if (formData.password.length < 6) {
@@ -265,20 +272,19 @@ const Auth = () => {
           return; // Don't continue execution
         } else {
           // Second step: Verification code registration
-          if (!formData.email || !formData.verification_code || !formData.password || !formData.full_name) {
+          if (!formData.email || !formData.verification_code || !formData.password || !formData.username) {
             throw new Error('Please fill in all fields');
           }
           
           // Password validation
-        if (formData.password.length < 6) {
+          if (formData.password.length < 6) {
             throw new Error('Password must be at least 6 characters');
-        }
+          }
         
-          await registerWithCode(formData.email, formData.verification_code, formData.password, formData.full_name);
+          await registerWithCode(formData.email, formData.verification_code, formData.password, formData.username);
+          navigate('/home');
         }
       }
-      
-      navigate('/home');
     } catch (err: any) {
       console.error(isLoginMode ? 'Login error:' : 'Registration error:', err);
       setError(
@@ -297,7 +303,7 @@ const Auth = () => {
     setFormData({
       emailOrUsername: '',
       password: '',
-      full_name: '',
+      username: '',
       email: '',
       password_confirm: '',
       verification_code: ''
@@ -507,13 +513,12 @@ const Auth = () => {
                     <Box>
                   <TextField
                     margin="normal"
-                    required
                     fullWidth
-                    id="full_name"
-                    label="Full Name"
-                    name="full_name"
-                    autoComplete="name"
-                    value={formData.full_name}
+                    id="username"
+                    label="Username"
+                    name="username"
+                    autoComplete="username"
+                    value={formData.username}
                     onChange={handleChange}
                         disabled={loading || sendingCode}
                     error={Boolean(error)}
@@ -562,10 +567,9 @@ const Auth = () => {
                   <TextField
                             {...params}
                     margin="normal"
-                    required
                     fullWidth
                             id="email"
-                            label="Email Address"
+                            label="Email"
                             name="email"
                             type="email"
                             autoComplete="email"
@@ -599,7 +603,7 @@ const Auth = () => {
                         )}
                         renderOption={(props, option) => {
                           const [localPart, domain] = option.split('@');
-                          const isPopularDomain = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com'].includes(domain);
+                          const isPopularDomain = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', '163.com', '126.com', 'qq.com'].includes(domain);
                           
                           return (
                             <Box 
@@ -730,7 +734,6 @@ const Auth = () => {
                       )}
                   <TextField
                     margin="normal"
-                    required
                     fullWidth
                         name="password"
                         label="Password"
@@ -784,7 +787,6 @@ const Auth = () => {
                       />
                       <TextField
                         margin="normal"
-                        required
                         fullWidth
                         name="password_confirm"
                         label="Confirm Password"
@@ -865,7 +867,6 @@ const Auth = () => {
                     {/* Verification code input */}
                     <TextField
                       margin="normal"
-                      required
                       fullWidth
                       id="verification_code"
                       label="Verification Code"

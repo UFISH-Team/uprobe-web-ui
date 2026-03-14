@@ -20,8 +20,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (emailOrUsername: string, password: string, rememberMe?: boolean) => Promise<void>;
-  register: (email: string, password: string, full_name: string) => Promise<void>;
-  registerWithCode: (email: string, verification_code: string, password: string, full_name: string) => Promise<void>;
+  register: (email: string, password: string, username: string) => Promise<void>;
+  registerWithCode: (email: string, verification_code: string, password: string, username: string) => Promise<void>;
   sendVerificationCode: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -52,6 +52,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await ApiService.login(emailOrUsername, password, rememberMe);
       if (response.access_token) {
         setIsAuthenticated(true);
+        // Store auth state immediately so checkAuth doesn't fail
+        localStorage.setItem('isAuthenticated', 'true');
         await checkAuth(); // 获取用户信息
       }
     } catch (error) {
@@ -59,11 +61,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const register = async (email: string, password: string, full_name: string) => {
+  const register = async (email: string, password: string, username: string) => {
     try {
-      const response = await ApiService.register(email, password, full_name);
+      const response = await ApiService.register(email, password, username);
       if (response.access_token) {
         setIsAuthenticated(true);
+        localStorage.setItem('isAuthenticated', 'true');
         await checkAuth(); // 获取用户信息
       }
     } catch (error) {
@@ -79,11 +82,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const registerWithCode = async (email: string, verification_code: string, password: string, full_name: string) => {
+  const registerWithCode = async (email: string, verification_code: string, password: string, username: string) => {
     try {
-      const response = await ApiService.registerWithCode(email, verification_code, password, full_name);
+      const response = await ApiService.registerWithCode(email, verification_code, password, username);
       if (response.access_token) {
         setIsAuthenticated(true);
+        localStorage.setItem('isAuthenticated', 'true');
         await checkAuth(); // 获取用户信息
       }
     } catch (error) {

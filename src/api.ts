@@ -108,11 +108,11 @@ class ApiService {
     return mappedResponse;
   }
 
-  static async register(email: string, password: string, full_name: string): Promise<{ access_token: string; token_type: string }> {
+  static async register(email: string, password: string, username: string): Promise<{ access_token: string; token_type: string }> {
     const response = await api.post('/auth/register', { 
       email, 
       password, 
-      full_name 
+      username 
     }) as { token: string; token_type: string; user_info: any };
     
     const mappedResponse = {
@@ -282,12 +282,12 @@ class ApiService {
     return api.post('/auth/send-verification-code', { email });
   }
 
-  static async registerWithCode(email: string, verification_code: string, password: string, full_name: string): Promise<{ access_token: string; token_type: string }> {
+  static async registerWithCode(email: string, verification_code: string, password: string, username: string): Promise<{ access_token: string; token_type: string }> {
     const response = await api.post('/auth/register-with-code', { 
       email, 
       verification_code,
       password, 
-      full_name 
+      username 
     }) as { token: string; token_type: string; user_info: any };
     
     const mappedResponse = {
@@ -314,6 +314,99 @@ class ApiService {
         'Content-Type': 'multipart/form-data',
       },
     });
+  }
+
+  static async listAgentConversations(): Promise<any[]> {
+    return api.get('/agent/conversations');
+  }
+
+  static async createAgentConversation(title: string = 'New Conversation'): Promise<any> {
+    return api.post('/agent/conversations', { title });
+  }
+
+  static async getAgentConversation(conversationId: string): Promise<any> {
+    return api.get(`/agent/conversations/${conversationId}`);
+  }
+
+  static async renameAgentConversation(conversationId: string, title: string): Promise<any> {
+    return api.patch(`/agent/conversations/${conversationId}`, { title });
+  }
+
+  static async deleteAgentConversation(conversationId: string): Promise<any> {
+    return api.delete(`/agent/conversations/${conversationId}`);
+  }
+
+  static async sendAgentMessage(
+    conversationId: string,
+    payload: {
+      content: string;
+      attachment_ids?: string[];
+      api_key?: string;
+      model?: string;
+      proxy?: string;
+    },
+    signal?: AbortSignal
+  ): Promise<{ thinking: string[]; message: string }> {
+    return api.post(`/agent/conversations/${conversationId}/message`, payload, { signal });
+  }
+
+  static async rewindAgentConversation(
+    conversationId: string,
+    payload: {
+      user_turn_index: number;
+      content: string;
+      attachment_ids?: string[];
+      api_key?: string;
+      model?: string;
+      proxy?: string;
+    },
+    signal?: AbortSignal
+  ): Promise<{ thinking: string[]; message: string }> {
+    return api.post(`/agent/conversations/${conversationId}/rewind`, payload, { signal });
+  }
+
+  static async stopAgentConversation(conversationId: string): Promise<any> {
+    return api.post(`/agent/conversations/${conversationId}/stop`);
+  }
+
+  static async clearAgentConversation(conversationId: string): Promise<any> {
+    return api.post(`/agent/conversations/${conversationId}/clear`);
+  }
+
+  static async uploadAgentAttachment(
+    conversationId: string,
+    file: File,
+    options?: {
+      api_key?: string;
+      model?: string;
+      proxy?: string;
+    },
+    signal?: AbortSignal
+  ): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (options?.api_key) {
+      formData.append('api_key', options.api_key);
+    }
+    if (options?.model) {
+      formData.append('model', options.model);
+    }
+    if (options?.proxy) {
+      formData.append('proxy', options.proxy);
+    }
+    return api.post(`/agent/conversations/${conversationId}/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      signal,
+    });
+  }
+
+  static async deleteAgentAttachment(
+    conversationId: string,
+    attachmentId: string
+  ): Promise<any> {
+    return api.delete(`/agent/conversations/${conversationId}/upload/${attachmentId}`);
   }
 
   // Barcode generation using workflow routes
