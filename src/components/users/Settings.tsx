@@ -7,10 +7,6 @@ import {
   Card, 
   CardContent,
   Grid,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Alert,
   Snackbar,
   useTheme,
@@ -19,19 +15,15 @@ import {
 } from '@mui/material';
 import {
   Notifications,
-  Palette,
   Lock
 } from '@mui/icons-material';
 import ApiService from '../../api';
-import { useThemeContext } from '../../contexts/ThemeContext';
 
 const Settings: React.FC = () => {
   const theme = useTheme();
-  const { mode, toggleTheme } = useThemeContext();
   const [settings, setSettings] = useState({
     notifications: true,
     emailAlerts: false,
-    theme: mode
   });
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -86,15 +78,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleThemeChange = () => {
-    toggleTheme();
-    const newMode = mode === 'light' ? 'dark' : 'light';
-    setSettings(prev => ({
-      ...prev,
-      theme: newMode
-    }));
-  };
-
   const handleSwitchChange = (setting: keyof typeof settings) => (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -112,8 +95,6 @@ const Settings: React.FC = () => {
       });
     }, 500);
   };
-
-
 
   return (
     <Box sx={{ p: 3, maxWidth: 700, mx: 'auto' }}>
@@ -214,35 +195,6 @@ const Settings: React.FC = () => {
           </Grid>
         </CardContent>
       </Card>
-
-      {/* Appearance Settings */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-            <Palette color="primary" />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Appearance
-            </Typography>
-          </Box>
-
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Theme</InputLabel>
-                <Select
-                  value={settings.theme}
-                  onChange={handleThemeChange}
-                  label="Theme"
-                >
-                  <MenuItem value="light">Light</MenuItem>
-                  <MenuItem value="dark">Dark</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
 
       {/* Snackbar */}
       <Snackbar

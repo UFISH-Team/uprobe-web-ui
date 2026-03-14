@@ -105,6 +105,8 @@ const Agent: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+  const [editConversationTitle, setEditConversationTitle] = useState('');
 
   // Load API key and conversations from localStorage on component mount
   useEffect(() => {
@@ -295,6 +297,24 @@ const Agent: React.FC = () => {
     }
   };
 
+  const handleEditConversationStart = (e: React.MouseEvent, conversation: Conversation) => {
+    e.stopPropagation();
+    setEditingConversationId(conversation.id);
+    setEditConversationTitle(conversation.title);
+  };
+
+  const handleEditConversationSave = (e?: React.KeyboardEvent | React.FocusEvent | React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (editingConversationId && editConversationTitle.trim()) {
+      setConversations(prev => prev.map(conv =>
+        conv.id === editingConversationId
+          ? { ...conv, title: editConversationTitle.trim() }
+          : conv
+      ));
+    }
+    setEditingConversationId(null);
+  };
+
   const getUserTurnIndex = (messageId: string) => {
     let userIndex = -1;
     for (let i = 0; i < messages.length; i++) {
@@ -482,6 +502,14 @@ const Agent: React.FC = () => {
     // Collect attachment ids for this conversation
     const conv = conversations.find(c => c.id === conversationId);
     const attachmentIds = (conv?.attachments || []).map(a => a.id);
+
+    // Clear attachments from conversation after collecting ids
+    setConversations(prev => prev.map(c => {
+      if (c.id === conversationId) {
+        return { ...c, attachments: [] };
+      }
+      return c;
+    }));
 
     // Send message via HTTP
     try {
@@ -1018,7 +1046,7 @@ const Agent: React.FC = () => {
                 sx={{ 
                   fontSize, 
                   fontWeight, 
-                  color: '#0f172a', 
+                  color: 'text.primary', 
                   mt: lineIdx > 0 ? 2 : 0, 
                   mb: 1,
                   lineHeight: 1.4
@@ -1035,8 +1063,8 @@ const Agent: React.FC = () => {
           if (listMatch) {
             elements.push(
               <Box key={`list-${lineIdx}`} sx={{ display: 'flex', gap: 1, mb: 0.5, pl: 2 }}>
-                <Typography sx={{ color: '#64748b', minWidth: '20px' }}>•</Typography>
-                <Typography sx={{ flex: 1, color: '#1e293b' }}>
+                <Typography sx={{ color: 'text.secondary', minWidth: '20px' }}>•</Typography>
+                <Typography sx={{ flex: 1, color: 'text.primary' }}>
                   {formatInlineMarkdown(listMatch[1], `li-${lineIdx}`)}
                 </Typography>
               </Box>
@@ -1050,7 +1078,7 @@ const Agent: React.FC = () => {
               <Typography 
                 key={`p-${lineIdx}`} 
                 component="div"
-                sx={{ color: '#1e293b', mb: 0.75, lineHeight: 1.65 }}
+                sx={{ color: 'text.primary', mb: 0.75, lineHeight: 1.65 }}
               >
                 {formatInlineMarkdown(line, `p-${lineIdx}`)}
               </Typography>
@@ -1083,7 +1111,7 @@ const Agent: React.FC = () => {
           
           if (m[1]) {
             // Bold **text**
-            nodes.push(<strong key={`${keyPrefix}-b-${nodeIndex++}`} style={{ fontWeight: 600, color: '#0f172a' }}>{m[2]}</strong>);
+            nodes.push(<strong key={`${keyPrefix}-b-${nodeIndex++}`} style={{ fontWeight: 600, color: theme.palette.text.primary }}>{m[2]}</strong>);
           } else if (m[3]) {
             // Italic *text*
             nodes.push(<em key={`${keyPrefix}-i-${nodeIndex++}`} style={{ fontStyle: 'italic' }}>{m[4]}</em>);
@@ -1096,7 +1124,7 @@ const Agent: React.FC = () => {
                 href={url} 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 500 }}
+                style={{ color: theme.palette.primary.main, textDecoration: 'underline', fontWeight: 500 }}
               >
                 {url}
               </a>
@@ -1107,8 +1135,8 @@ const Agent: React.FC = () => {
               <code 
                 key={`${keyPrefix}-c-${nodeIndex++}`}
                 style={{ 
-                  backgroundColor: '#f1f5f9', 
-                  color: '#dc2626', 
+                  backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100],
+                  color: theme.palette.error.main, 
                   padding: '2px 6px', 
                   borderRadius: '4px', 
                   fontSize: '0.875em',
@@ -1161,7 +1189,7 @@ const Agent: React.FC = () => {
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}>
-                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, fontSize: '0.6875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, fontSize: '0.6875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {lang || 'code'}
                 </Typography>
               </Box>
@@ -1236,17 +1264,18 @@ const Agent: React.FC = () => {
               px: 1.75,
               ...(isUser
                 ? { 
-                    backgroundColor: '#f1f5f9',
+                    backgroundColor: 'action.hover',
                     boxShadow: 'none'
                   }
                 : { 
-                    backgroundColor: '#f8fafc',
+                    backgroundColor: 'background.paper',
                     boxShadow: 'none'
                   }
               ),
-              color: '#1e293b',
+              color: 'text.primary',
               borderRadius: 2,
-              border: '1px solid #e2e8f0',
+              border: '1px solid',
+              borderColor: 'divider',
               maxWidth: isEditing ? '85%' : '75%',
               width: isEditing ? '100%' : 'fit-content',
             }}
@@ -1270,13 +1299,10 @@ const Agent: React.FC = () => {
                   autoFocus
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      backgroundColor: '#ffffff',
-                      color: '#1e293b',
+                      backgroundColor: 'background.default',
                       fontSize: '0.9375rem',
                       lineHeight: 1.65,
                       paddingY: 0.75,
-                      '& fieldset': { borderColor: '#cbd5e1' },
-                      '&:hover fieldset': { borderColor: '#94a3b8' },
                       '&.Mui-focused fieldset': { 
                         borderColor: theme.palette.primary.main, 
                         borderWidth: 1.5,
@@ -1293,8 +1319,8 @@ const Agent: React.FC = () => {
                       sx={{
                         width: 26,
                         height: 26,
-                        color: '#94a3b8',
-                        '&:hover': { color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.08)' }
+                        color: 'text.secondary',
+                        '&:hover': { color: 'error.main', backgroundColor: 'rgba(239, 68, 68, 0.08)' }
                       }}
                     >
                       <Close sx={{ fontSize: 15 }} />
@@ -1308,9 +1334,9 @@ const Agent: React.FC = () => {
                       sx={{
                         width: 26,
                         height: 26,
-                        color: '#94a3b8',
-                        '&:hover': { color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.08)' },
-                        '&:disabled': { color: '#cbd5e1' }
+                        color: 'text.secondary',
+                        '&:hover': { color: 'success.main', backgroundColor: 'rgba(16, 185, 129, 0.08)' },
+                        '&:disabled': { color: 'text.disabled' }
                       }}
                     >
                       <Send sx={{ fontSize: 13 }} />
@@ -1326,7 +1352,7 @@ const Agent: React.FC = () => {
                   lineHeight: 1.65,
                   whiteSpace: 'pre-wrap',
                   fontSize: '0.9375rem',
-                  color: '#1e293b',
+                  color: 'text.primary',
                   '& p': {
                     margin: '0.5em 0'
                   },
@@ -1344,8 +1370,8 @@ const Agent: React.FC = () => {
             )}
             {/* Attachments in message bubble */}
             {isUser && message.attachments && message.attachments.length > 0 && (
-              <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid #e2e8f0' }}>
-                <Typography variant="caption" sx={{ color: '#64748b', mb: 1, display: 'block', fontWeight: 600 }}>
+              <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', mb: 1, display: 'block', fontWeight: 600 }}>
                   Attached Files
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
@@ -1357,12 +1383,13 @@ const Agent: React.FC = () => {
                         alignItems: 'center',
                         p: 1,
                         borderRadius: 1.5,
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #e2e8f0',
+                        backgroundColor: 'background.default',
+                        border: '1px solid',
+                        borderColor: 'divider',
                         transition: 'all 0.2s',
                         cursor: 'pointer',
                         '&:hover': {
-                          backgroundColor: '#f8fafc',
+                          backgroundColor: 'action.hover',
                           borderColor: theme.palette.primary.main
                         }
                       }}
@@ -1373,7 +1400,7 @@ const Agent: React.FC = () => {
                         <Typography 
                           variant="caption" 
                           sx={{ 
-                            color: '#1e293b',
+                            color: 'text.primary',
                             fontWeight: 500,
                             display: 'block',
                             overflow: 'hidden',
@@ -1383,11 +1410,11 @@ const Agent: React.FC = () => {
                         >
                           {att.filename}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.7rem' }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
                           {(att.size / 1024).toFixed(1)} KB
                         </Typography>
                       </Box>
-                      <Download sx={{ fontSize: 16, color: '#64748b' }} />
+                      <Download sx={{ fontSize: 16, color: 'text.secondary' }} />
                     </Box>
                   ))}
                 </Box>
@@ -1434,10 +1461,10 @@ const Agent: React.FC = () => {
                       sx={{ 
                         width: 24,
                         height: 24,
-                        color: '#94a3b8',
+                        color: 'text.secondary',
                         '&:hover': { 
-                          color: '#1e293b', 
-                          backgroundColor: 'rgba(148, 163, 184, 0.08)' 
+                          color: 'text.primary', 
+                          backgroundColor: 'action.hover' 
                         }
                       }}
                       onClick={() => {
@@ -1454,12 +1481,12 @@ const Agent: React.FC = () => {
                       sx={{ 
                         width: 24,
                         height: 24,
-                        color: '#94a3b8',
+                        color: 'text.secondary',
                         '&:hover': { 
-                          color: '#1e293b', 
-                          backgroundColor: 'rgba(148, 163, 184, 0.08)' 
+                          color: 'text.primary', 
+                          backgroundColor: 'action.hover' 
                         },
-                        '&:disabled': { color: '#cbd5e1' }
+                        '&:disabled': { color: 'text.disabled' }
                       }}
                       onClick={() => handleRegenerateMessage(message.id)}
                       disabled={isLoading}
@@ -1489,10 +1516,10 @@ const Agent: React.FC = () => {
                   sx={{ 
                     width: 24,
                     height: 24,
-                    color: '#94a3b8',
+                    color: 'text.secondary',
                     '&:hover': { 
-                      color: '#1e293b', 
-                      backgroundColor: 'rgba(148, 163, 184, 0.08)' 
+                      color: 'text.primary', 
+                      backgroundColor: 'action.hover' 
                     }
                   }}
                   onClick={() => handleEditStart(message)}
@@ -1511,7 +1538,7 @@ const Agent: React.FC = () => {
     <Box sx={{
       height: 'calc(100vh - 64px)',
       display: 'flex',
-      backgroundColor: '#ffffff'
+      backgroundColor: 'background.default'
     }}>
       <Box sx={{ width: '100%', display: 'flex', height: '100%' }}>
           {/* Left Sidebar - Conversation History */}
@@ -1522,14 +1549,15 @@ const Agent: React.FC = () => {
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                borderRight: '1px solid #e2e8f0',
-                backgroundColor: '#fafbfc'
+                borderRight: '1px solid',
+                borderColor: 'divider',
+                backgroundColor: 'background.paper'
               }}
             >
                 {/* Header */}
-                <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '64px' }}>
+                <Box sx={{ px: 3, py: 2, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '64px' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.125rem', color: '#1e293b' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.125rem', color: 'text.primary' }}>
                       Chat
                       </Typography>
                     </Box>
@@ -1594,7 +1622,7 @@ const Agent: React.FC = () => {
                 <Box sx={{ flex: 1, overflowY: 'auto', px: 1.5, py: 1 }}>
                   {filteredConversations.length === 0 ? (
                     <Box sx={{ textAlign: 'center', py: 6 }}>
-                      <Typography variant="body2" sx={{ color: '#94a3b8', fontSize: '0.875rem' }}>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
                         {searchQuery ? 'No matching conversations' : 'No conversations yet'}
                       </Typography>
                     </Box>
@@ -1618,48 +1646,87 @@ const Agent: React.FC = () => {
                               backgroundColor: currentConversationId === conversation.id ? 
                                 'rgba(37, 99, 235, 0.12)' : 
                                 'rgba(148, 163, 184, 0.08)',
-                              '& .delete-icon': {
+                              '& .action-icons': {
                                 opacity: 1
                               }
                             }
                           }}
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                            <Typography 
-                              variant="body2"
-                              noWrap
-                              sx={{ 
-                                flex: 1,
-                                fontSize: '0.875rem',
-                                fontWeight: currentConversationId === conversation.id ? 500 : 400,
-                                color: currentConversationId === conversation.id ? '#1e293b' : '#475569',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                              }}
-                            >
-                              {conversation.title}
-                            </Typography>
-                            <IconButton
-                              className="delete-icon"
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteConversation(conversation.id);
-                              }}
-                              sx={{ 
-                                opacity: 0,
-                                transition: 'opacity 0.15s ease',
-                                width: 24,
-                                height: 24,
-                                color: '#64748b',
-                                '&:hover': { 
-                                  color: '#ef4444',
-                                  backgroundColor: 'rgba(239, 68, 68, 0.1)'
-                                }
-                              }}
-                            >
-                              <Delete sx={{ fontSize: 16 }} />
-                            </IconButton>
+                            {editingConversationId === conversation.id ? (
+                              <TextField
+                                size="small"
+                                value={editConversationTitle}
+                                onChange={(e) => setEditConversationTitle(e.target.value)}
+                                onBlur={handleEditConversationSave}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleEditConversationSave(e);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingConversationId(null);
+                                  }
+                                }}
+                                autoFocus
+                                onClick={(e) => e.stopPropagation()}
+                                sx={{
+                                  '& .MuiInputBase-root': {
+                                    fontSize: '0.875rem',
+                                    height: '28px',
+                                    padding: '0 8px',
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <Typography 
+                                variant="body2"
+                                noWrap
+                                sx={{ 
+                                  flex: 1,
+                                  fontSize: '0.875rem',
+                                  fontWeight: currentConversationId === conversation.id ? 500 : 400,
+                                  color: currentConversationId === conversation.id ? 'text.primary' : 'text.secondary',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}
+                              >
+                                {conversation.title}
+                              </Typography>
+                            )}
+                            <Box className="action-icons" sx={{ display: 'flex', opacity: 0, transition: 'opacity 0.15s ease' }}>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => handleEditConversationStart(e, conversation)}
+                                sx={{ 
+                                  width: 24,
+                                  height: 24,
+                                  color: 'text.secondary',
+                                  '&:hover': { 
+                                    color: 'primary.main',
+                                    backgroundColor: 'rgba(37, 99, 235, 0.1)'
+                                  }
+                                }}
+                              >
+                                <Edit sx={{ fontSize: 14 }} />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteConversation(conversation.id);
+                                }}
+                                sx={{ 
+                                  width: 24,
+                                  height: 24,
+                                  color: 'text.secondary',
+                                  '&:hover': { 
+                                    color: 'error.main',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.1)'
+                                  }
+                                }}
+                              >
+                                <Delete sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Box>
                           </Box>
                         </Box>
                       ))}
@@ -1668,8 +1735,8 @@ const Agent: React.FC = () => {
                 </Box>
 
                 {/* Suggested Prompts */}
-                <Box sx={{ px: 3, py: 1.5, borderTop: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
-                  <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#64748b', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <Box sx={{ px: 3, py: 1.5, borderTop: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper' }}>
+                  <Typography variant="caption" sx={{ mb: 1, display: 'block', color: 'text.secondary', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Quick Starts
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
@@ -1723,7 +1790,7 @@ const Agent: React.FC = () => {
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
-              backgroundColor: '#ffffff',
+              backgroundColor: 'background.default',
               position: 'relative'
             }}
             onDragEnter={handleDragEnter}
@@ -1766,23 +1833,24 @@ const Agent: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  borderBottom: '1px solid #e2e8f0',
-                  backgroundColor: '#ffffff',
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  backgroundColor: 'background.paper',
                   minHeight: '64px'
                 }}
               >
-                  <Typography variant="h6" noWrap sx={{ fontWeight: 600, fontSize: '1.125rem', color: '#1e293b' }}>
+                  <Typography variant="h6" noWrap sx={{ fontWeight: 600, fontSize: '1.125rem', color: 'text.primary' }}>
                    ✨ U-Probe Assistant
                   </Typography>
                   {currentConversationId && (
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
                       <Tooltip title="Export">
-                        <IconButton size="small" onClick={exportConversation} sx={{ color: '#64748b' }}>
+                        <IconButton size="small" onClick={exportConversation} sx={{ color: 'text.secondary' }}>
                           <FileDownload fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Clear">
-                        <IconButton size="small" onClick={handleClearChat} sx={{ color: '#64748b' }}>
+                        <IconButton size="small" onClick={handleClearChat} sx={{ color: 'text.secondary' }}>
                           <RestartAlt fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -1797,7 +1865,7 @@ const Agent: React.FC = () => {
                   px: 3,
                   py: 2,
                   overflowY: 'auto',
-                  backgroundColor: '#ffffff',
+                  backgroundColor: 'background.default',
                   display: 'flex',
                   flexDirection: 'column'
                 }}
@@ -1813,10 +1881,10 @@ const Agent: React.FC = () => {
                     }}
                   >
                     <Box sx={{ maxWidth: 400 }}>
-                      <Typography variant="h5" sx={{ mb: 1.5, fontWeight: 600, color: '#1e293b' }}>
+                      <Typography variant="h5" sx={{ mb: 1.5, fontWeight: 600, color: 'text.primary' }}>
                         U-Probe Assistant
                       </Typography>
-                      <Typography variant="body2" sx={{ color: '#64748b', lineHeight: 1.6 }}>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
                         I can help you design probes, optimize parameters, and answer questions
                       </Typography>
                     </Box>
@@ -1841,16 +1909,17 @@ const Agent: React.FC = () => {
                           sx={{
                             py: 1.25,
                             px: 1.75,
-                            backgroundColor: '#f8fafc',
+                            backgroundColor: 'background.paper',
                             borderRadius: 2,
-                            border: '1px solid #e2e8f0',
+                            border: '1px solid',
+                            borderColor: 'divider',
                             display: 'flex',
                             alignItems: 'center',
                             gap: 1.5
                           }}
                         >
-                          <CircularProgress size={14} thickness={4} sx={{ color: '#64748b' }} />
-                          <Typography variant="body2" sx={{ color: '#64748b', fontSize: '0.875rem' }}>
+                          <CircularProgress size={14} thickness={4} sx={{ color: 'text.secondary' }} />
+                          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
                             Thinking...
                           </Typography>
                         </Paper>
@@ -1870,9 +1939,9 @@ const Agent: React.FC = () => {
                               sx={{ 
                                 width: 24,
                                 height: 24,
-                                color: '#ef4444',
+                                color: 'error.main',
                                 '&:hover': { 
-                                  color: '#dc2626', 
+                                  color: 'error.dark', 
                                   backgroundColor: 'rgba(239, 68, 68, 0.08)' 
                                 }
                               }}
@@ -1894,14 +1963,15 @@ const Agent: React.FC = () => {
                 sx={{
                   px: 3,
                   py: 2,
-                  borderTop: '1px solid #e2e8f0',
-                  backgroundColor: '#f8fafc'
+                  borderTop: '1px solid',
+                  borderColor: 'divider',
+                  backgroundColor: 'background.paper'
                 }}
               >
                 {/* Attachments Display - Modern Card Style */}
                 {currentAttachments.length > 0 && (
                   <Box sx={{ mb: 1.5 }}>
-                    <Typography variant="caption" sx={{ color: '#64748b', mb: 0.75, display: 'block', fontWeight: 600, fontSize: '0.75rem' }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.75, display: 'block', fontWeight: 600, fontSize: '0.75rem' }}>
                       {currentAttachments.length} file{currentAttachments.length > 1 ? 's' : ''}
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -1913,13 +1983,14 @@ const Agent: React.FC = () => {
                             alignItems: 'center',
                             py: 0.75,
                             px: 1.25,
-                            border: '1px solid #cbd5e1',
+                            border: '1px solid',
+                            borderColor: 'divider',
                             borderRadius: 1.5,
-                            backgroundColor: '#ffffff',
+                            backgroundColor: 'background.default',
                             transition: 'all 0.15s ease',
                             '&:hover': {
                               borderColor: theme.palette.primary.main,
-                              backgroundColor: 'rgba(37, 99, 235, 0.04)'
+                              backgroundColor: 'action.hover'
                             }
                           }}
                         >
@@ -1929,7 +2000,7 @@ const Agent: React.FC = () => {
                             sx={{ 
                               fontWeight: 500,
                               fontSize: '0.8125rem',
-                              color: '#1e293b',
+                              color: 'text.primary',
                               maxWidth: 150,
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -1938,20 +2009,20 @@ const Agent: React.FC = () => {
                           >
                             {att.filename}
                           </Typography>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleRemoveAttachment(att.id)}
-                            sx={{ 
-                              ml: 0.5,
-                              width: 20,
-                              height: 20,
-                              color: '#64748b',
-                              '&:hover': { 
-                                color: '#ef4444',
-                                backgroundColor: 'rgba(239, 68, 68, 0.08)'
-                              }
-                            }}
-                          >
+                            <IconButton 
+                              size="small" 
+                              onClick={() => handleRemoveAttachment(att.id)}
+                              sx={{ 
+                                ml: 0.5,
+                                width: 20,
+                                height: 20,
+                                color: 'text.secondary',
+                                '&:hover': { 
+                                  color: 'error.main',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.08)'
+                                }
+                              }}
+                            >
                             <Close sx={{ fontSize: 14 }} />
                           </IconButton>
                         </Box>
@@ -1989,18 +2060,10 @@ const Agent: React.FC = () => {
                       flex: 1,
                       '& .MuiOutlinedInput-root': {
                         borderRadius: 2,
-                        backgroundColor: '#ffffff',
+                        backgroundColor: 'background.default',
                         fontSize: '0.9375rem',
                         paddingY: 0.75,
                         transition: 'all 0.15s ease',
-                        '& fieldset': {
-                          borderColor: '#cbd5e1'
-                        },
-                        '&:hover': {
-                          '& fieldset': {
-                            borderColor: '#94a3b8'
-                          }
-                        },
                         '&.Mui-focused': {
                           boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.1)',
                           '& fieldset': {
@@ -2019,19 +2082,20 @@ const Agent: React.FC = () => {
                         sx={{
                           width: 40,
                           height: 40,
-                          color: '#64748b',
-                          backgroundColor: '#ffffff',
-                          border: '1px solid #cbd5e1',
+                          color: 'text.secondary',
+                          backgroundColor: 'background.paper',
+                          border: '1px solid',
+                          borderColor: 'divider',
                           borderRadius: 1.5,
                           transition: 'all 0.15s ease',
                           '&:hover': {
-                            backgroundColor: 'rgba(37, 99, 235, 0.06)',
+                            backgroundColor: 'action.hover',
                             borderColor: theme.palette.primary.main,
                             color: theme.palette.primary.main
                           },
                           '&:disabled': {
-                            color: '#cbd5e1',
-                            backgroundColor: '#f8fafc'
+                            color: 'text.disabled',
+                            backgroundColor: 'action.disabledBackground'
                           }
                         }}
                         onClick={handleChooseFiles}
@@ -2056,8 +2120,8 @@ const Agent: React.FC = () => {
                           boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
                         },
                         '&:disabled': {
-                          background: '#e2e8f0',
-                          color: '#94a3b8'
+                          background: theme.palette.action.disabledBackground,
+                          color: theme.palette.text.disabled
                         }
                       }}
                     >

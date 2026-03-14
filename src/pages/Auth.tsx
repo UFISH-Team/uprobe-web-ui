@@ -403,8 +403,9 @@ const Auth = () => {
               borderRadius: 3,
               overflow: 'hidden',
               backdropFilter: 'blur(10px)',
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              border: '1px solid rgba(255, 255, 255, 0.3)',
+              backgroundColor: 'background.paper',
+              border: '1px solid',
+              borderColor: 'divider',
               transition: 'transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
               '&:hover': {
                 transform: 'translateY(-2px)',
@@ -932,10 +933,9 @@ const Auth = () => {
                 {isLoginMode && (
                   <TextField
                     margin="normal"
-                    required
                     fullWidth
                     id="emailOrUsername"
-                    label="Username"
+                    label="Username or Email"
                     name="emailOrUsername"
                     autoComplete="username"
                     autoFocus={!isMobile}
@@ -958,7 +958,6 @@ const Auth = () => {
                 {isLoginMode && (
                 <TextField
                   margin="normal"
-                  required
                   fullWidth
                   name="password"
                   label="Password"
@@ -1060,11 +1059,6 @@ const Auth = () => {
                   )}
                 </Button>
 
-                <Divider sx={{ my: 2 }}>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, px: 1.5, fontSize: '0.75rem' }}>
-                    or
-                  </Typography>
-                </Divider>
 
                 <Box sx={{ textAlign: 'center' }}>
                   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontSize: '0.875rem' }}>
@@ -1102,7 +1096,7 @@ const Auth = () => {
               fontSize: '0.75rem'
             }}
           >
-            © 2024 U-Probe Platform
+            © 2026 U-Probe Platform
           </Typography>
         </Box>
       </Container>

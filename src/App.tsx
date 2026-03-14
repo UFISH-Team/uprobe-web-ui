@@ -1,6 +1,6 @@
 // App.tsx
 import React from 'react';
-import { AppBar, Toolbar, Button, Box, IconButton, useMediaQuery, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
+import { AppBar, Toolbar, Button, Box, IconButton, useMediaQuery, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Typography, Tooltip } from '@mui/material';
 import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
@@ -11,6 +11,9 @@ import GenomeIcon from '@mui/icons-material/Dataset';
 import TaskIcon from '@mui/icons-material/List';
 import TutorialIcon from '@mui/icons-material/HelpOutline';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import { useThemeContext } from './contexts/ThemeContext';
 
 import Home from './pages/Home';
 import Design from './pages/Design';
@@ -62,6 +65,7 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
+  const { mode, toggleTheme } = useThemeContext();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -195,7 +199,7 @@ function App() {
               sx={{ 
                 flexGrow: 0,
                 fontWeight: 700,
-                color: '#0f172a',
+                color: 'text.primary',
                 fontSize: { xs: '1.1rem', sm: '1.25rem' }
               }}
             >
@@ -221,8 +225,8 @@ function App() {
                       fontWeight: isActive ? 600 : 500,
                       fontSize: '0.8125rem',
                       textTransform: 'none',
-                      color: isActive ? '#2563eb' : '#64748b',
-                      backgroundColor: isActive ? 'rgba(37, 99, 235, 0.1)' : 'transparent',
+                      color: isActive ? 'primary.main' : 'text.secondary',
+                      backgroundColor: isActive ? 'action.selected' : 'transparent',
                       position: 'relative',
                       transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                       '&::after': {
@@ -233,13 +237,13 @@ function App() {
                         transform: 'translateX(-50%)',
                         width: isActive ? '70%' : '0%',
                         height: '2px',
-                        backgroundColor: '#2563eb',
+                        backgroundColor: 'primary.main',
                         borderRadius: '2px 2px 0 0',
                         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                       },
                       '&:hover': {
-                        backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                        color: '#2563eb',
+                        backgroundColor: 'action.hover',
+                        color: 'primary.main',
                         '&::after': {
                           width: '70%',
                         }
@@ -255,6 +259,24 @@ function App() {
               })}
             </Box>
           )}
+
+          {/* Dark mode toggle */}
+          <Tooltip title={mode === 'dark' ? 'Light Mode' : 'Dark Mode'}>
+            <IconButton
+              onClick={toggleTheme}
+              size="small"
+              sx={{
+                mr: 1,
+                color: 'text.secondary',
+                '&:hover': {
+                  backgroundColor: 'action.hover',
+                  color: 'primary.main',
+                }
+              }}
+            >
+              {mode === 'dark' ? <LightModeIcon sx={{ fontSize: '1.1rem' }} /> : <DarkModeIcon sx={{ fontSize: '1.1rem' }} />}
+            </IconButton>
+          </Tooltip>
 
           <AccountMenu />
         </Toolbar>
@@ -273,14 +295,14 @@ function App() {
             '& .MuiDrawer-paper': { 
               width: 280, 
               boxSizing: 'border-box',
-              backgroundColor: '#ffffff',
+              backgroundColor: 'background.paper',
               borderRadius: '0 16px 16px 0',
               border: 'none',
               boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
             },
           }}
         >
-          <Box sx={{ p: 3, borderBottom: '1px solid rgba(0, 0, 0, 0.08)' }}>
+          <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
               <Box
                 sx={{

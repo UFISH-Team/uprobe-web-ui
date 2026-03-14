@@ -18,9 +18,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [mode, setMode] = useState<PaletteMode>(() => {
     try {
       const storedMode = localStorage.getItem('themeMode') as PaletteMode;
-      return storedMode || 'light';
+      return storedMode || 'dark';
     } catch (error) {
-      return 'light';
+      return 'dark';
     }
   });
 
