@@ -148,6 +148,19 @@ class ApiService {
     return api.delete(`/designs/${id}`);
   }
 
+  // Custom Probes
+  static async getCustomProbes(): Promise<any[]> {
+    return api.get('/custom_probes/');
+  }
+
+  static async saveCustomProbe(probeData: any): Promise<any> {
+    return api.post('/custom_probes/', probeData);
+  }
+
+  static async deleteCustomProbe(probeId: string): Promise<void> {
+    return api.delete(`/custom_probes/${probeId}`);
+  }
+
   // 探针设计工作流相关
   static async getBarcodeOptions(): Promise<string[]> {
     return api.get('/workflow/barcodes');
@@ -155,6 +168,10 @@ class ApiService {
 
   static async getBarcodeSequence(barcode: string): Promise<{ [key: string]: string }> {
     return api.get(`/workflow/barcodes/${barcode}`);
+  }
+
+  static async getBuiltinProbes(): Promise<any> {
+    return api.get('/workflow/builtin_probes');
   }
 
   static async getSpeciesOptions(): Promise<string[]> {

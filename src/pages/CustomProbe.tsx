@@ -54,6 +54,7 @@ import TuneIcon from '@mui/icons-material/Tune';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import FormatColorTextIcon from '@mui/icons-material/FormatColorText';
 import CategoryIcon from '@mui/icons-material/Category';
+import ApiService from '../api';
 
 // Styled components
 const StyledContainer = styled(Paper)(({ theme }) => ({
@@ -748,6 +749,20 @@ const CustomProbe: React.FC = () => {
   useEffect(() => {
     generateRandomSequence(targetLength);
   }, [targetLength]);
+
+  // Load saved probe groups on mount
+  useEffect(() => {
+    const loadSavedGroups = async () => {
+      try {
+        const groups = await ApiService.getCustomProbes();
+        setSavedProbeGroups(groups);
+      } catch (error) {
+        console.error('Failed to load saved probes:', error);
+        showAlert('Failed to load saved probes', 'error');
+      }
+    };
+    loadSavedGroups();
+  }, []);
   
   const generateRandomSequence = (length: number) => {
     const bases = ['A', 'T', 'G', 'C'];
@@ -1377,7 +1392,7 @@ const CustomProbe: React.FC = () => {
   };
 
   // Save probe group
-  const saveProbeGroup = () => {
+  const saveProbeGroup = async () => {
     if (!probeGroup.name.trim()) {
       showAlert('Please enter a name for the probe group', 'error');
       return;
@@ -1414,20 +1429,16 @@ const CustomProbe: React.FC = () => {
       targetConfig: targetConfig
     };
 
-    // Save to localStorage for persistence
-    const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
-    const existingIndex = savedGroups.findIndex((g: ProbeGroup) => g.id === probeGroup.id);
-    
-    if (existingIndex >= 0) {
-      savedGroups[existingIndex] = updatedGroup;
-    } else {
-      savedGroups.push(updatedGroup);
+    try {
+      await ApiService.saveCustomProbe(updatedGroup);
+      const groups = await ApiService.getCustomProbes();
+      setSavedProbeGroups(groups);
+      setProbeGroup(updatedGroup);
+      showAlert('Probe group saved successfully!', 'success');
+    } catch (error: any) {
+      console.error('Failed to save probe group:', error);
+      showAlert(error?.response?.data?.detail || 'Failed to save probe group', 'error');
     }
-    
-    localStorage.setItem('savedProbeGroups', JSON.stringify(savedGroups));
-
-    setSavedProbeGroups(savedGroups);
-    showAlert('Probe group saved successfully!', 'success');
   };
 
   // Load probe group from history
@@ -1457,11 +1468,16 @@ const CustomProbe: React.FC = () => {
   };
 
   // Delete probe group from history
-  const deleteProbeGroup = (groupId: string) => {
-    const updatedGroups = savedProbeGroups.filter(g => g.id !== groupId);
-    setSavedProbeGroups(updatedGroups);
-    localStorage.setItem('savedProbeGroups', JSON.stringify(updatedGroups));
-    showAlert('Probe group deleted from history', 'info');
+  const deleteProbeGroup = async (groupId: string) => {
+    try {
+      await ApiService.deleteCustomProbe(groupId);
+      const updatedGroups = savedProbeGroups.filter(g => g.id !== groupId);
+      setSavedProbeGroups(updatedGroups);
+      showAlert('Probe group deleted from history', 'info');
+    } catch (error: any) {
+      console.error('Failed to delete probe group:', error);
+      showAlert(error?.response?.data?.detail || 'Failed to delete probe group', 'error');
+    }
   };
 
   // Handle position change

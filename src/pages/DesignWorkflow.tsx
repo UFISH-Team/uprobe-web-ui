@@ -131,6 +131,7 @@ const DesignWorkflow: React.FC = () => {
   };
 
   const [customProbeTypes, setCustomProbeTypes] = useState<CustomProbeType[]>([]);
+  const [builtinProbeTypes, setBuiltinProbeTypes] = useState<CustomProbeType[]>([]);
   const [isLoadingCustomTypes, setIsLoadingCustomTypes] = useState(true);
   const [showCustomProbeTypes, setShowCustomProbeTypes] = useState(false);
   const [expandedProbes, setExpandedProbes] = useState<Record<string, boolean>>({});
@@ -544,7 +545,8 @@ const DesignWorkflow: React.FC = () => {
   const loadCustomProbeTypes = async () => {
     setIsLoadingCustomTypes(true);
     try {
-      const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
+      // Load custom types from API
+      const savedGroups = await ApiService.getCustomProbes();
       const customTypes = savedGroups
         .filter((group: any) => group.type === 'custom')
         .map((group: any) => {
@@ -575,6 +577,134 @@ const DesignWorkflow: React.FC = () => {
           };
         });
       setCustomProbeTypes(customTypes);
+
+      // Load builtin types from API
+      try {
+        const builtinData = await ApiService.getBuiltinProbes();
+        const builtinTypes: CustomProbeType[] = [];
+        
+        for (const [name, config] of Object.entries(builtinData)) {
+          const typedConfig = config as any;
+          
+          // Parse target config
+          const targetLength = typedConfig.extracts?.target_region?.length || 100;
+          const overlap = typedConfig.extracts?.target_region?.overlap || 20;
+          const source = typedConfig.extracts?.target_region?.source || 'exon';
+          
+          const targetConfig: any = {
+            source: source,
+            sequence: '',
+            length: targetLength,
+            attributes: {}
+          };
+          
+          // Parse probes
+          const probes = JSON.parse(JSON.stringify(typedConfig.probes || {}));
+          
+          // Parse attributes and distribute them
+          const attributes = typedConfig.attributes || {};
+          
+          const defaultValues: Record<string, Partial<AttributeValue>> = {
+            gcContent: { min: 40, max: 60, enabled: true },
+            foldScore: { max: 40, enabled: true },
+            tm: { min: 60, max: 75, enabled: true },
+            selfMatch: { max: 4, enabled: true },
+            mappedGenes: { max: 5, aligner: 'bowtie2', enabled: true },
+            kmerCount: { kmer_len: 35, aligner: 'jellyfish', enabled: true },
+            mappedSites: { aligner: 'bowtie2', enabled: true }
+          };
+
+          const typeToNameMapping: Record<string, string> = {
+            'gc_content': 'gcContent',
+            'fold_score': 'foldScore',
+            'annealing_temperature': 'tm',
+            'self_match': 'selfMatch',
+            'n_mapped_genes': 'mappedGenes',
+            'kmer_count': 'kmerCount',
+            'mapped_sites': 'mappedSites'
+          };
+
+          for (const [attrKey, attrVal] of Object.entries(attributes)) {
+            const typedAttrVal = attrVal as any;
+            const target = typedAttrVal.target;
+            const attrType = typedAttrVal.type;
+            const uiAttrName = typeToNameMapping[attrType] || attrType;
+            
+            const attrObj = {
+              ...defaultValues[uiAttrName],
+              ...typedAttrVal,
+              enabled: true
+            };
+            delete attrObj.target;
+            delete attrObj.type;
+
+            if (target === 'target_region') {
+              targetConfig.attributes[uiAttrName] = attrObj;
+            } else if (target.includes('.')) {
+              // Part attribute (e.g. mRNA.part1)
+              const [probeName, partName] = target.split('.');
+              if (probes[probeName] && probes[probeName].parts && probes[probeName].parts[partName]) {
+                if (!probes[probeName].parts[partName].attributes) {
+                  probes[probeName].parts[partName].attributes = {};
+                }
+                probes[probeName].parts[partName].attributes[uiAttrName] = attrObj;
+              }
+            } else {
+              // Probe attribute (e.g. pad_probe)
+              if (probes[target]) {
+                if (!probes[target].attributes) {
+                  probes[target].attributes = {};
+                }
+                probes[target].attributes[uiAttrName] = attrObj;
+              }
+            }
+          }
+
+          // Calculate barcode count
+          let barcodeCount = 0;
+          const barcodeSet = new Set<string>();
+          Object.values(probes).forEach((probe: any) => {
+            if (probe.parts) {
+              Object.values(probe.parts).forEach((part: any) => {
+                if (part.expr && typeof part.expr === 'string' && part.expr.includes('encoding')) {
+                  const barcodeMatch = part.expr.match(/\['([^']+)'\]/);
+                  if (barcodeMatch) {
+                    barcodeSet.add(barcodeMatch[1]);
+                  }
+                }
+              });
+            }
+          });
+          barcodeCount = barcodeSet.size;
+
+          // Generate dummy YAML content for submission compatibility
+          const yamlObj = {
+            name: name,
+            extracts: typedConfig.extracts,
+            probes: typedConfig.probes,
+            attributes: typedConfig.attributes
+          };
+          const yamlContent = YAML.stringify(yamlObj);
+
+          builtinTypes.push({
+            id: `builtin_${name}`,
+            name: name,
+            type: 'builtin',
+            yamlContent: yamlContent,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            barcodeCount: barcodeCount,
+            targetLength: targetLength,
+            overlap: overlap,
+            probes: probes,
+            targetConfig: targetConfig,
+          });
+        }
+        setBuiltinProbeTypes(builtinTypes);
+      } catch (err) {
+        console.error('Error loading builtin probe types:', err);
+      }
+
     } catch (error) {
       console.error('Error loading custom probe types:', error);
     } finally {
@@ -585,60 +715,57 @@ const DesignWorkflow: React.FC = () => {
   // Add this useEffect to load custom probe types
   useEffect(() => {
     loadCustomProbeTypes();
-    
-    const handleStorageChange = () => {
-      loadCustomProbeTypes();
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
   }, []);
 
   // Add a new useEffect to handle probe type selection when custom types are loaded
   useEffect(() => {
-    if (!isLoadingCustomTypes && probeType && probeType !== 'RCA' && probeType !== 'DNA-FISH') {
-      const customType = customProbeTypes.find(t => t.name === probeType);
+    if (!isLoadingCustomTypes && probeType) {
+      const allTypes = [...builtinProbeTypes, ...customProbeTypes];
+      const customType = allTypes.find(t => t.name === probeType);
       if (customType) {
-        const parameters = extractParametersFromYaml(customType.yamlContent);
-        console.log('Debug - UseEffect - Extracted parameters:', parameters);
-        
-        let targetConfig = null;
-        if (parameters?.target_sequence) {
-          targetConfig = {
-            source: parameters.target_sequence.source,
-            sequence: parameters.target_sequence.sequence,
-            length: parameters.target_sequence.length,
-            attributes: parameters.target_sequence.attributes || {}
+        if (customType.type === 'builtin') {
+          setSelectedCustomType(customType);
+          if (customType.targetLength) setMinLength(customType.targetLength);
+          if (customType.overlap) setOverlap(customType.overlap);
+        } else {
+          const parameters = extractParametersFromYaml(customType.yamlContent);
+          console.log('Debug - UseEffect - Extracted parameters:', parameters);
+          
+          let targetConfig = null;
+          if (parameters?.target_sequence) {
+            targetConfig = {
+              source: parameters.target_sequence.source,
+              sequence: parameters.target_sequence.sequence,
+              length: parameters.target_sequence.length,
+              attributes: parameters.target_sequence.attributes || {}
+            };
+          }
+          
+          const updatedCustomType = {
+            ...customType,
+            targetLength: parameters?.targetLength || customType.targetLength,
+            barcodeCount: parameters?.barcodeCount || parameters?.barcodeConfig?.count || customType.barcodeCount,
+            probes: parameters?.probes || customType.probes || {},
+            targetConfig: targetConfig || customType.targetConfig,
+            barcodeConfig: parameters?.barcodeConfig || customType.barcodeConfig
           };
-        }
-        
-        const updatedCustomType = {
-          ...customType,
-          targetLength: parameters?.targetLength || customType.targetLength,
-          barcodeCount: parameters?.barcodeCount || parameters?.barcodeConfig?.count || customType.barcodeCount,
-          probes: parameters?.probes || customType.probes || {},
-          targetConfig: targetConfig || customType.targetConfig,
-          barcodeConfig: parameters?.barcodeConfig || customType.barcodeConfig
-        };
-        
-        console.log('Debug - UseEffect - Updated custom type:', updatedCustomType);
-        setSelectedCustomType(updatedCustomType);
-        
-        if (customType.targetLength) {
-          setMinLength(customType.targetLength);
-        } else if (parameters?.targetLength) {
-          setMinLength(parameters.targetLength);
-        }
-        
-        if (parameters?.overlap) {
-          setOverlap(parameters.overlap);
+          
+          console.log('Debug - UseEffect - Updated custom type:', updatedCustomType);
+          setSelectedCustomType(updatedCustomType);
+          
+          if (customType.targetLength) {
+            setMinLength(customType.targetLength);
+          } else if (parameters?.targetLength) {
+            setMinLength(parameters.targetLength);
+          }
+          
+          if (parameters?.overlap) {
+            setOverlap(parameters.overlap);
+          }
         }
       }
     }
-  }, [isLoadingCustomTypes, probeType, customProbeTypes, setMinLength, setOverlap, setSelectedCustomType]);
+  }, [isLoadingCustomTypes, probeType, customProbeTypes, builtinProbeTypes, setMinLength, setOverlap, setSelectedCustomType]);
 
   useEffect(() => {
     if (selectedCustomType?.probes) {
@@ -752,47 +879,54 @@ const DesignWorkflow: React.FC = () => {
     setGeneratingBarcodes({});
     
     // 查找自定义探针类型
-    const customType = customProbeTypes.find(t => t.name === type);
+    const allTypes = [...builtinProbeTypes, ...customProbeTypes];
+    const customType = allTypes.find(t => t.name === type);
     if (customType) {
-      const parameters = extractParametersFromYaml(customType.yamlContent);
-      console.log('Debug - Extracted parameters:', parameters);
-      
-      let targetConfig = null;
-      if (parameters?.target_sequence) {
-        targetConfig = {
-          source: parameters.target_sequence.source,
-          sequence: parameters.target_sequence.sequence,
-          length: parameters.target_sequence.length,
-          attributes: parameters.target_sequence.attributes || {}
+      if (customType.type === 'builtin') {
+        setSelectedCustomType(customType);
+        if (customType.targetLength) setMinLength(customType.targetLength);
+        if (customType.overlap) setOverlap(customType.overlap);
+      } else {
+        const parameters = extractParametersFromYaml(customType.yamlContent);
+        console.log('Debug - Extracted parameters:', parameters);
+        
+        let targetConfig = null;
+        if (parameters?.target_sequence) {
+          targetConfig = {
+            source: parameters.target_sequence.source,
+            sequence: parameters.target_sequence.sequence,
+            length: parameters.target_sequence.length,
+            attributes: parameters.target_sequence.attributes || {}
+          };
+        }
+        
+        const updatedCustomType = {
+          ...customType,
+          targetLength: parameters?.targetLength || customType.targetLength,
+          barcodeCount: parameters?.barcodeCount || parameters?.barcodeConfig?.count || customType.barcodeCount,
+          probes: parameters?.probes || customType.probes || {},
+          targetConfig: targetConfig || customType.targetConfig,
+          barcodeConfig: parameters?.barcodeConfig || customType.barcodeConfig
         };
-      }
-      
-      const updatedCustomType = {
-        ...customType,
-        targetLength: parameters?.targetLength || customType.targetLength,
-        barcodeCount: parameters?.barcodeCount || parameters?.barcodeConfig?.count || customType.barcodeCount,
-        probes: parameters?.probes || customType.probes || {},
-        targetConfig: targetConfig || customType.targetConfig,
-        barcodeConfig: parameters?.barcodeConfig || customType.barcodeConfig
-      };
-      
-      console.log('Debug - Updated custom type:', updatedCustomType);
-      setSelectedCustomType(updatedCustomType);
-      
-      // Set default target length from YAML or custom type
-      if (customType.targetLength) {
-        setMinLength(customType.targetLength);
-      } else if (parameters?.targetLength) {
-        setMinLength(parameters.targetLength);
-      } else {
-        setMinLength(100);
-      }
-      
-      // Set default overlap if specified in YAML
-      if (parameters?.overlap) {
-        setOverlap(parameters.overlap);
-      } else {
-        setOverlap(20);
+        
+        console.log('Debug - Updated custom type:', updatedCustomType);
+        setSelectedCustomType(updatedCustomType);
+        
+        // Set default target length from YAML or custom type
+        if (customType.targetLength) {
+          setMinLength(customType.targetLength);
+        } else if (parameters?.targetLength) {
+          setMinLength(parameters.targetLength);
+        } else {
+          setMinLength(100);
+        }
+        
+        // Set default overlap if specified in YAML
+        if (parameters?.overlap) {
+          setOverlap(parameters.overlap);
+        } else {
+          setOverlap(20);
+        }
       }
     } else {
       console.log('Debug - Custom type not found');
@@ -823,38 +957,15 @@ const DesignWorkflow: React.FC = () => {
   };
 
   // Function to handle deleting a custom probe type
-  const handleDelete = (typeId: string) => {
-    const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
-    const updatedGroups = savedGroups.filter((group: any) => group.id !== typeId);
-    localStorage.setItem('savedProbeGroups', JSON.stringify(updatedGroups));
-    // Reload the list
-    const loadCustomProbeTypes = async () => {
-      setIsLoadingCustomTypes(true);
-      try {
-        const savedGroups = JSON.parse(localStorage.getItem('savedProbeGroups') || '[]');
-        const customTypes = savedGroups
-          .filter((group: any) => group.type === 'custom')
-          .map((group: any) => ({
-            id: group.id,
-            name: group.name,
-            type: 'custom',
-            yamlContent: group.yamlContent,
-            createdAt: new Date(group.createdAt),
-            updatedAt: new Date(group.updatedAt),
-            barcodeCount: group.barcodeCount,
-            targetLength: group.targetLength,
-            overlap: group.overlap,
-            probes: group.probes || {}
-          }));
-        setCustomProbeTypes(customTypes);
-      } catch (error) {
-        console.error('Error loading custom probe types:', error);
-      } finally {
-        setIsLoadingCustomTypes(false);
-      }
-    };
-    loadCustomProbeTypes();
-    setAlert(true, 'Custom probe type deleted successfully', 'success');
+  const handleDelete = async (typeId: string) => {
+    try {
+      await ApiService.deleteCustomProbe(typeId);
+      loadCustomProbeTypes();
+      setAlert(true, 'Custom probe type deleted successfully', 'success');
+    } catch (error) {
+      console.error('Failed to delete custom probe:', error);
+      setAlert(true, 'Failed to delete custom probe type', 'error');
+    }
   };
 
   // Add new function to handle attribute editing
@@ -1462,15 +1573,15 @@ const DesignWorkflow: React.FC = () => {
       if (yamlObj.probes) {
         // Extract probe configurations from the probes section
         Object.entries(yamlObj.probes).forEach(([key, value]) => {
-          // Only include actual probe configurations (probe_1, probe_2, etc.), skip barcodes and other configs
-          if (key.startsWith('probe_') || /^probe\d+$/.test(key)) {
+          // Include all probe configurations, skip barcodes and other configs if any
+          if (key !== 'barcodes' && key !== 'attributes') {
             probesConfig[key] = removeAttributes(value);
           }
         });
       } else {
         // If no probes section, look for probe configurations at the top level
         Object.entries(yamlObj).forEach(([key, value]) => {
-          if (key.startsWith('probe_') || /^probe\d+$/.test(key)) {
+          if (key !== 'barcodes' && key !== 'attributes' && key !== 'extracts' && key !== 'target_sequence' && key !== 'name' && key !== 'description') {
             probesConfig[key] = removeAttributes(value);
           }
         });
@@ -1984,14 +2095,14 @@ const DesignWorkflow: React.FC = () => {
                       </Box>
                     </MenuItem>
                   ) : (
-                    customProbeTypes.map((type) => (
+                    [...builtinProbeTypes, ...customProbeTypes].map((type) => (
                       <MenuItem key={type.id} value={type.name}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                           <Typography>{type.name}</Typography>
                           <Chip 
                             size="small" 
-                            label={getProbeType(type)} 
-                            color={getProbeType(type) === 'DNA' ? 'primary' : 'secondary'}
+                            label={type.type === 'builtin' ? 'Built-in' : getProbeType(type)} 
+                            color={type.type === 'builtin' ? 'default' : (getProbeType(type) === 'DNA' ? 'primary' : 'secondary')}
                             sx={{ fontSize: '0.7rem', height: 20 }}
                           />
                         </Box>
