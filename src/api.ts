@@ -175,7 +175,8 @@ class ApiService {
   }
 
   static async getSpeciesOptions(): Promise<string[]> {
-    return api.get('/genome/');
+    const response = await api.get('/genome/') as {name: string, is_public: boolean}[];
+    return response.map(g => g.name);
   }
 
   static async designRCA(data: any): Promise<Blob> {
@@ -212,7 +213,7 @@ class ApiService {
   }
   
   // 基因组相关
-  static async getGenomes(): Promise<string[]> {
+  static async getGenomes(): Promise<{name: string, is_public: boolean}[]> {
     return api.get('/genome/');
   }
 
