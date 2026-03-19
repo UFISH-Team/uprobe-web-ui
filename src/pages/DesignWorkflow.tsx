@@ -1118,6 +1118,7 @@ const DesignWorkflow: React.FC = () => {
 
     switch(attrName) {
       case 'gcContent':
+      case 'gc_content':
         return (
           <Chip
             {...chipProps}
@@ -1126,6 +1127,7 @@ const DesignWorkflow: React.FC = () => {
           />
         );
       case 'foldScore':
+      case 'fold_score':
         return (
           <Chip
             {...chipProps}
@@ -1142,6 +1144,7 @@ const DesignWorkflow: React.FC = () => {
           />
         );
       case 'selfMatch':
+      case 'self_match':
         return (
           <Chip
             {...chipProps}
@@ -1150,6 +1153,7 @@ const DesignWorkflow: React.FC = () => {
           />
         );
       case 'mappedGenes':
+      case 'mapped_genes':
         return (
           <Chip
             {...chipProps}
@@ -1158,6 +1162,7 @@ const DesignWorkflow: React.FC = () => {
           />
         );
       case 'kmerCount':
+      case 'kmer_count':
         return (
           <Chip
             {...chipProps}
@@ -1166,6 +1171,7 @@ const DesignWorkflow: React.FC = () => {
           />
         );
       case 'mappedSites':
+      case 'mapped_sites':
         return (
           <Chip
             {...chipProps}
@@ -1574,14 +1580,14 @@ const DesignWorkflow: React.FC = () => {
         // Extract probe configurations from the probes section
         Object.entries(yamlObj.probes).forEach(([key, value]) => {
           // Include all probe configurations, skip barcodes and other configs if any
-          if (key !== 'barcodes' && key !== 'attributes') {
+          if (key !== 'barcodes' && key !== 'attributes' && key !== 'probes') {
             probesConfig[key] = removeAttributes(value);
           }
         });
       } else {
         // If no probes section, look for probe configurations at the top level
         Object.entries(yamlObj).forEach(([key, value]) => {
-          if (key !== 'barcodes' && key !== 'attributes' && key !== 'extracts' && key !== 'target_sequence' && key !== 'name' && key !== 'description') {
+          if (key !== 'barcodes' && key !== 'attributes' && key !== 'extracts' && key !== 'target_sequence' && key !== 'name' && key !== 'description' && key !== 'probes') {
             probesConfig[key] = removeAttributes(value);
           }
         });
@@ -2229,22 +2235,28 @@ const DesignWorkflow: React.FC = () => {
                                 onDelete={() => handleDeleteAttribute('target', attrName)}
                               label={
                                 attrName === 'gcContent' ? `GC: ${attrValue.min}%-${attrValue.max}%` :
+                                attrName === 'gc_content' ? `GC: ${attrValue.min}%-${attrValue.max}%` :
                                 attrName === 'foldScore' ? `Fold: max ${attrValue.max}` :
+                                attrName === 'fold_score' ? `Fold: max ${attrValue.max}` :
                                 attrName === 'tm' ? `Tm: ${attrValue.min}°C-${attrValue.max}°C` :
                                 attrName === 'selfMatch' ? `Self: max ${attrValue.max}` :
+                                attrName === 'self_match' ? `Self: max ${attrValue.max}` :
                                 attrName === 'mappedGenes' ? `Map: max ${attrValue.max}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
+                                attrName === 'mapped_genes' ? `Map: max ${attrValue.max}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
                                 attrName === 'kmerCount' ? `Kmer: ${attrValue.kmer_len}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
+                                attrName === 'kmer_count' ? `Kmer: ${attrValue.kmer_len}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
                                 attrName === 'mappedSites' ? `Sites${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
+                                attrName === 'mapped_sites' ? `Sites${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
                                 `${attrName}: ${formatAttributeValue(attrValue)}`
                               }
                               color={
-                                attrName === 'gcContent' ? 'primary' :
-                                attrName === 'foldScore' ? 'secondary' :
+                                attrName === 'gcContent' || attrName === 'gc_content' ? 'primary' :
+                                attrName === 'foldScore' || attrName === 'fold_score' ? 'secondary' :
                                 attrName === 'tm' ? 'error' :
-                                attrName === 'selfMatch' ? 'warning' :
-                                attrName === 'mappedGenes' ? 'info' :
-                                attrName === 'kmerCount' ? 'success' :
-                                attrName === 'mappedSites' ? 'info' :
+                                attrName === 'selfMatch' || attrName === 'self_match' ? 'warning' :
+                                attrName === 'mappedGenes' || attrName === 'mapped_genes' ? 'info' :
+                                attrName === 'kmerCount' || attrName === 'kmer_count' ? 'success' :
+                                attrName === 'mappedSites' || attrName === 'mapped_sites' ? 'info' :
                                 'default'
                               }
                             />
@@ -3236,16 +3248,16 @@ const DesignWorkflow: React.FC = () => {
         <DialogContent>
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle1" sx={{ mb: 2 }}>
-              {editingAttribute?.name === 'gcContent' && '🧬 GC Content'}
-              {editingAttribute?.name === 'foldScore' && '📊 Fold Score'}
+              {(editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'gc_content') && '🧬 GC Content'}
+              {(editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'fold_score') && '📊 Fold Score'}
               {editingAttribute?.name === 'tm' && '🌡️ Melting Temperature'}
-              {editingAttribute?.name === 'selfMatch' && '🔍 Self Match'}
-              {editingAttribute?.name === 'mappedGenes' && '🧬 Mapped Genes'}
-              {editingAttribute?.name === 'kmerCount' && '🔢 K-mer Count'}
-              {editingAttribute?.name === 'mappedSites' && '📍 Mapped Sites'}
+              {(editingAttribute?.name === 'selfMatch' || editingAttribute?.name === 'self_match') && '🔍 Self Match'}
+              {(editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'mapped_genes') && '🧬 Mapped Genes'}
+              {(editingAttribute?.name === 'kmerCount' || editingAttribute?.name === 'kmer_count') && '🔢 K-mer Count'}
+              {(editingAttribute?.name === 'mappedSites' || editingAttribute?.name === 'mapped_sites') && '📍 Mapped Sites'}
             </Typography>
             <Grid container spacing={2}>
-              {(editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'tm') && (
+              {(editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'gc_content' || editingAttribute?.name === 'tm') && (
                 <>
                   <Grid item xs={12} sm={6}>
                     <TextField
@@ -3273,7 +3285,9 @@ const DesignWorkflow: React.FC = () => {
                   </Grid>
                 </>
               )}
-              {(editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'selfMatch' || editingAttribute?.name === 'mappedGenes') && (
+              {(editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'fold_score' || 
+                editingAttribute?.name === 'selfMatch' || editingAttribute?.name === 'self_match' || 
+                editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'mapped_genes') && (
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -3287,7 +3301,7 @@ const DesignWorkflow: React.FC = () => {
                   />
                 </Grid>
               )}
-              {editingAttribute?.name === 'kmerCount' && (
+              {(editingAttribute?.name === 'kmerCount' || editingAttribute?.name === 'kmer_count') && (
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -3301,7 +3315,9 @@ const DesignWorkflow: React.FC = () => {
                   />
                 </Grid>
               )}
-              {(editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'kmerCount' || editingAttribute?.name === 'mappedSites') && (
+              {(editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'mapped_genes' || 
+                editingAttribute?.name === 'kmerCount' || editingAttribute?.name === 'kmer_count' || 
+                editingAttribute?.name === 'mappedSites' || editingAttribute?.name === 'mapped_sites') && (
                 <Grid item xs={12}>
                   <FormControl fullWidth>
                     <InputLabel>Aligner</InputLabel>
