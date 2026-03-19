@@ -3,7 +3,7 @@ import ApiService from '../api';
 import { useNotification } from './useNotification';
 
 export const useGenomeData = () => {
-  const [genomes, setGenomes] = useState<string[]>([]);
+  const [genomes, setGenomes] = useState<{name: string, is_public: boolean}[]>([]);
   const [selectedGenome, setSelectedGenome] = useState<string | null>(null);
   const [genomeFiles, setGenomeFiles] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
