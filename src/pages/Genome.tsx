@@ -74,7 +74,7 @@ interface FileItem {
 
 interface GenomeItem {
   name: string;
-  isPreset: boolean;
+  isPublic: boolean;
 }
 
 const Genome: React.FC = () => {
@@ -126,13 +126,11 @@ const Genome: React.FC = () => {
     fetchGenomes();
   }, [fetchGenomes]);
 
-  // Convert genomes to GenomeItem format with preset information
+  // Convert genomes to GenomeItem format
   useEffect(() => {
-    // 这里假设预设的基因组列表，实际应该从后端获取或配置文件中读取
-    const presetGenomes = ['hg38', 'hg19', 'mm10', 'mm9'];
     const items = genomes.map(genome => ({
-      name: genome,
-      isPreset: presetGenomes.includes(genome)
+      name: genome.name,
+      isPublic: genome.is_public
     }));
     setGenomeList(items);
   }, [genomes]);
@@ -141,8 +139,8 @@ const Genome: React.FC = () => {
     if (!genomeToDelete) return;
     
     const genomeItem = genomeList.find(g => g.name === genomeToDelete);
-    if (!genomeItem || genomeItem.isPreset) {
-      showNotification('Cannot delete preset genome', 'error');
+    if (!genomeItem || genomeItem.isPublic) {
+      showNotification('Cannot delete public genome', 'error');
       return;
     }
 
@@ -591,17 +589,37 @@ const Genome: React.FC = () => {
                               />
                               <Typography>
                                 {genome.name}
-                                {genome.isPreset && (
+                                {genome.isPublic ? (
                                   <Typography
                                     component="span"
                                     variant="caption"
-                                    sx={{ 
+                                    sx={{
                                       ml: 1,
-                                      color: 'text.secondary',
-                                      fontSize: '0.75rem'
+                                      px: 1,
+                                      py: 0.2,
+                                      bgcolor: 'primary.light',
+                                      color: 'primary.contrastText',
+                                      borderRadius: 1,
+                                      fontSize: '0.7rem'
                                     }}
                                   >
-                                    (preset)
+                                    Public
+                                  </Typography>
+                                ) : (
+                                  <Typography
+                                    component="span"
+                                    variant="caption"
+                                    sx={{
+                                      ml: 1,
+                                      px: 1,
+                                      py: 0.2,
+                                      bgcolor: 'success.light',
+                                      color: 'success.contrastText',
+                                      borderRadius: 1,
+                                      fontSize: '0.7rem'
+                                    }}
+                                  >
+                                    Private
                                   </Typography>
                                 )}
                               </Typography>
@@ -620,7 +638,7 @@ const Genome: React.FC = () => {
                       >
                         Add
                       </Button>
-                      {selectedGenome && !genomeList.find(g => g.name === selectedGenome)?.isPreset && (
+                      {selectedGenome && !genomeList.find(g => g.name === selectedGenome)?.isPublic && (
                         <Button
                           variant="outlined"
                           size="small"
@@ -1299,6 +1317,7 @@ const Genome: React.FC = () => {
               ref={fileInputRef}
               type="file"
               multiple
+              accept=".fa,.fasta,.fna,.gtf,.gff"
               style={{ display: 'none' }}
               onChange={handleFileInputChange}
             />
@@ -1311,6 +1330,10 @@ const Genome: React.FC = () => {
               onChange={handleFolderUpload}
             />
             
+            <Typography variant="body2" color="warning.main" sx={{ mb: 2, textAlign: 'center' }}>
+              Note: Only FASTA (.fa, .fasta, .fna) and GTF/GFF files are supported. If you need other files or indices, please contact the author.
+            </Typography>
+
             {/* Upload Area */}
             <Box 
               sx={{ 
