@@ -609,7 +609,10 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
     };
   });
   
-  return `${yaml.dump(barcodeYaml)}\n${yaml.dump(targetYaml)}\nprobes:\n${yaml.dump(yamlProbes)}`;
+  const yamlString = yaml.dump(yamlProbes);
+  const indentedYamlString = yamlString.split('\n').map(line => line ? `  ${line}` : line).join('\n');
+  
+  return `${yaml.dump(barcodeYaml)}\n${yaml.dump(targetYaml)}\nprobes:\n${indentedYamlString}`;
 };
 
 const CustomProbe: React.FC = () => {
@@ -620,9 +623,9 @@ const CustomProbe: React.FC = () => {
   const [targetLength, setTargetLength] = useState<number>(50);
   const [targetSequence, setTargetSequence] = useState<string>('');
   const [targetConfig, setTargetConfig] = useState<TargetConfig>({
-    source: 'genome',
+    source: '',
     sequence: '',
-    length: 100,
+    length: targetLength,
     attributes: {
       gcContent: { min: 40, max: 60, enabled: false },
       foldScore: { max: 40, enabled: false },
@@ -648,9 +651,9 @@ const CustomProbe: React.FC = () => {
         foldScore: { max: 40, enabled: false },
         tm: { min: 60, max: 75, enabled: false },
         selfMatch: { max: 4, enabled: false },
-        mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
+        mappedGenes: { max: 5, aligner: 'Bowtie2', enabled: false },
         kmerCount: { kmer_len: 15, aligner: 'BLAST', enabled: false },
-        mappedSites: { aligner: 'BLAST', enabled: false }
+        mappedSites: { aligner: 'Bowtie2', enabled: false }
       }
     }
   ]);
