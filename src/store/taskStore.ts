@@ -146,11 +146,12 @@ const useTaskStore = create<TaskState>((set, get) => ({
       config.name = `${config.name}-rerun-${Date.now().toString().slice(-4)}`;
 
       // Submit a new task with the old configuration
-      const newTask = await ApiService.submitTask(config);
+      const response = await ApiService.submitTask(config);
+      const newTaskId = response.data?.job_id || response.job_id || response.id;
       
       // Immediately run the new task
-      if (newTask && newTask.id) {
-        await ApiService.runTask(newTask.id);
+      if (newTaskId) {
+        await ApiService.runTask(newTaskId);
       }
 
       // Refresh the task list to show the new task
