@@ -204,18 +204,26 @@ export const extractParametersFromYaml = (yamlContent: string) => {
     
     // Extract barcode count from probes
     const barcodeSet = new Set<string>();
-    Object.values(parsed.probes).forEach((probe: any) => {
-      if (probe.parts) {
-        Object.values(probe.parts).forEach((part: any) => {
-          if (part.expr && typeof part.expr === 'string' && part.expr.includes('encoding')) {
-            const barcodeMatch = part.expr.match(/'([^']+)'/);
-            if (barcodeMatch) {
-              barcodeSet.add(barcodeMatch[1]);
-            }
-          }
-        });
+    
+    const findBarcodes = (obj: any) => {
+      if (!obj || typeof obj !== 'object') return;
+      
+      if (obj.expr && typeof obj.expr === 'string' && obj.expr.includes('encoding')) {
+        const barcodeMatch = obj.expr.match(/\['([^']+)'\]/);
+        if (barcodeMatch) {
+          barcodeSet.add(barcodeMatch[1]);
+        }
       }
+      
+      if (obj.parts) {
+        Object.values(obj.parts).forEach(part => findBarcodes(part));
+      }
+    };
+
+    Object.values(parsed.probes).forEach((probe: any) => {
+      findBarcodes(probe);
     });
+    
     parameters.barcodeCount = barcodeSet.size;
     
     // Extract part lengths for RCA probes
