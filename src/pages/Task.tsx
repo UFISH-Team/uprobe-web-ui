@@ -327,7 +327,7 @@ const Task: React.FC = () => {
       task.description.toLowerCase().includes(searchText.toLowerCase()) ||
       task.genome.toLowerCase().includes(searchText.toLowerCase());
     return matchesTab && matchesSearch;
-  });
+  }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <Box sx={{ p: 3 }}>
