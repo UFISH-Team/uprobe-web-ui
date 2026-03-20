@@ -3,10 +3,10 @@ import { Grid, Card, CardContent, Typography, styled, Box } from '@mui/material'
 import {
   Assignment as TotalIcon,
   CheckCircle as CompletedIcon,
-  PlayCircle as RunningIcon,
+  Autorenew as RunningIcon,
   Schedule as PendingIcon,
   Error as FailedIcon,
-  PauseCircle as PausedIcon,
+  Pause as PausedIcon,
 } from '@mui/icons-material';
 
 const StyledCard = styled(Card)(({ theme }) => ({
