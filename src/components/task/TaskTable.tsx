@@ -17,8 +17,8 @@ import {
   styled,
 } from '@mui/material';
 import {
-  PauseCircle as PauseIcon,
-  PlayCircle as PlayIcon,
+  PauseCircle as PauseCircleIcon,
+  PlayCircle as PlayCircleIcon,
   PlayArrow as PlayArrowIcon,
   Download as DownloadIcon,
   Delete as DeleteIcon,
@@ -26,6 +26,8 @@ import {
   Schedule as ScheduleIcon,
   Replay as ReplayIcon,
   Visibility as VisibilityIcon,
+  Autorenew as AutorenewIcon,
+  Pause as PauseIcon,
 } from '@mui/icons-material';
 import type { Task } from '../../types';
 import YAML from 'yaml';
@@ -83,7 +85,7 @@ const getStatusColor = (status: string): "success" | "info" | "warning" | "error
 
 const statusIcons = {
   pending: <ScheduleIcon fontSize="small" />,
-  running: <PlayArrowIcon fontSize="small" />,
+  running: <AutorenewIcon fontSize="small" />,
   completed: <CheckCircleIcon fontSize="small" />,
   failed: <DeleteIcon fontSize="small" />,
   paused: <PauseIcon fontSize="small" />,
@@ -279,14 +281,14 @@ const TaskTable: React.FC<TaskTableProps> = ({
                     {task.status === "running" && (
                       <Tooltip title="Pause Task">
                         <IconButton size="small" onClick={() => onPauseTask(task.id)}>
-                          <PauseIcon fontSize="small" />
+                          <PauseCircleIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
                     {task.status === "paused" && (
                       <Tooltip title="Resume Task">
                         <IconButton size="small" onClick={() => onResumeTask(task.id)}>
-                          <PlayIcon fontSize="small" />
+                          <PlayCircleIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
