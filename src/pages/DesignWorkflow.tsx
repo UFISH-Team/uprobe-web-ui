@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Snackbar, 
   Alert, 
@@ -510,8 +511,9 @@ const DesignWorkflow: React.FC = () => {
     setAlert,
     setSubmitting,
     setProgress,
-    navigateToJobs,
   } = useDesignStore();
+
+  const navigate = useNavigate();
 
 
 
@@ -663,18 +665,26 @@ const DesignWorkflow: React.FC = () => {
           // Calculate barcode count
           let barcodeCount = 0;
           const barcodeSet = new Set<string>();
-          Object.values(probes).forEach((probe: any) => {
-            if (probe.parts) {
-              Object.values(probe.parts).forEach((part: any) => {
-                if (part.expr && typeof part.expr === 'string' && part.expr.includes('encoding')) {
-                  const barcodeMatch = part.expr.match(/\['([^']+)'\]/);
-                  if (barcodeMatch) {
-                    barcodeSet.add(barcodeMatch[1]);
-                  }
-                }
-              });
+          
+          const findBarcodes = (obj: any) => {
+            if (!obj || typeof obj !== 'object') return;
+            
+            if (obj.expr && typeof obj.expr === 'string' && obj.expr.includes('encoding')) {
+              const barcodeMatch = obj.expr.match(/\['([^']+)'\]/);
+              if (barcodeMatch) {
+                barcodeSet.add(barcodeMatch[1]);
+              }
             }
+            
+            if (obj.parts) {
+              Object.values(obj.parts).forEach(part => findBarcodes(part));
+            }
+          };
+
+          Object.values(probes).forEach((probe: any) => {
+            findBarcodes(probe);
           });
+          
           barcodeCount = barcodeSet.size;
 
           // Generate dummy YAML content for submission compatibility
@@ -1935,7 +1945,7 @@ const DesignWorkflow: React.FC = () => {
 
       // Submit the task and get the new task's ID
       const response = await ApiService.submitTask(taskConfig);
-      const newTaskId = response.data?.job_id; // Assuming the response contains the new task ID
+      const newTaskId = response.data?.job_id || (response as any).job_id || (response as any).id;
 
       // Automatically start the task
       if (newTaskId) {
@@ -1948,7 +1958,7 @@ const DesignWorkflow: React.FC = () => {
       setProgress(100);
       
       // Navigate to tasks page immediately
-      navigateToJobs();
+      navigate('/task');
     } catch (error) {
       console.error('Failed to submit task:', error);
       setAlert(true, 'Failed to submit task. Please try again.', 'error');
