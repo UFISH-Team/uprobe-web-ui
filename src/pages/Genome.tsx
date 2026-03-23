@@ -81,7 +81,6 @@ const Genome: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
   
   const {
     genomes,
@@ -89,6 +88,7 @@ const Genome: React.FC = () => {
     genomeFiles,
     isLoading,
     setSelectedGenome,
+    setGenomeFiles,
     fetchGenomes,
     fetchGenomeFiles,
     uploadGenomeFile,
@@ -162,15 +162,24 @@ const Genome: React.FC = () => {
   // Load files when genome is selected
   useEffect(() => {
     if (selectedGenome) {
+      // Clear old data immediately to prevent rendering old files with new genome name
+      setGenomeFiles([]);
+      setFileItems([]);
+      setFilteredItems([]);
       fetchGenomeFiles(selectedGenome);
-      setCurrentPath([]);
     }
   }, [selectedGenome, fetchGenomeFiles]);
 
   // Convert API files to FileItem format with folder structure
   useEffect(() => {
     if (genomeFiles && selectedGenome) {
-      buildFileStructureWithMetadata(genomeFiles, currentPath, selectedGenome);
+      // Only build structure if we have files, otherwise clear items
+      if (genomeFiles.length > 0) {
+        buildFileStructureWithMetadata(genomeFiles, currentPath, selectedGenome);
+      } else {
+        setFileItems([]);
+        setFilteredItems([]);
+      }
     }
   }, [genomeFiles, currentPath, selectedGenome]);
 
@@ -234,15 +243,17 @@ const Genome: React.FC = () => {
         // Root level
         if (parts.length === 1) {
           // File in root
-          items.push({
-            name: file,
-            type: 'file',
-            size: 0,
-            modified: new Date().toISOString(),
-            path: file,
-            fullPath: file,
-            extension: getFileExtension(file)
-          });
+          if (file !== '.gitkeep') {
+            items.push({
+              name: file,
+              type: 'file',
+              size: 0,
+              modified: new Date().toISOString(),
+              path: file,
+              fullPath: file,
+              extension: getFileExtension(file)
+            });
+          }
         } else {
           // File in subfolder, add folder if not exists
           const folderName = parts[0];
@@ -265,15 +276,17 @@ const Genome: React.FC = () => {
           
           if (relativeParts.length === 1) {
             // Direct file in current folder
-            items.push({
-              name: relativePath,
-              type: 'file',
-              size: 0,
-              modified: new Date().toISOString(),
-              path: relativePath,
-              fullPath: file,
-              extension: getFileExtension(relativePath)
-            });
+            if (relativePath !== '.gitkeep') {
+              items.push({
+                name: relativePath,
+                type: 'file',
+                size: 0,
+                modified: new Date().toISOString(),
+                path: relativePath,
+                fullPath: file,
+                extension: getFileExtension(relativePath)
+              });
+            }
           } else {
             // File in subfolder
             const folderName = relativeParts[0];
@@ -327,7 +340,11 @@ const Genome: React.FC = () => {
 
   const handleGenomeSelect = (genomeName: string) => {
     setSelectedGenome(genomeName);
+    setGenomeFiles([]);
     setSelectedFiles(new Set());
+    setFileItems([]);
+    setFilteredItems([]);
+    setCurrentPath([]);
   };
 
   const handleFileSelect = (fileName: string) => {
@@ -524,11 +541,6 @@ const Genome: React.FC = () => {
     setUploadFiles(files);
   };
 
-  const handleFolderUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    setUploadFiles(prev => [...prev, ...files]);
-  };
-
   const handleDragOver = (event: React.DragEvent) => {
     event.preventDefault();
   };
@@ -683,7 +695,7 @@ const Genome: React.FC = () => {
                 <>
                   {/* Header with breadcrumbs and actions */}
                   <Box sx={{ mb: 2 }}>
-                    {/* Navigation and Path */}
+                    {/* Navigation and Path & Actions */}
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
                         {currentPath.length > 0 && (
@@ -716,97 +728,86 @@ const Genome: React.FC = () => {
                         </Breadcrumbs>
                       </Box>
                       
-                      <Box sx={{ display: 'flex', gap: 1 }}>
+                      {/* Right Actions */}
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                         <Tooltip title="Refresh">
                           <IconButton size="small" onClick={() => fetchGenomeFiles(selectedGenome)}>
                             <RefreshIcon />
                           </IconButton>
                         </Tooltip>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          startIcon={<CloudUploadIcon />}
+                          onClick={() => setShowUploadDialog(true)}
+                          disabled={isUploading}
+                          sx={{ 
+                            minWidth: 120,
+                            fontWeight: 600
+                          }}
+                        >
+                          Upload FASTA / GTF
+                        </Button>
                       </Box>
                     </Box>
 
                     {/* Action Buttons */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<CreateFolderIcon />}
-                          onClick={() => setShowCreateFolderDialog(true)}
-                        >
-                          New Folder
-                        </Button>
-                        {selectedFiles.size > 0 && (
-                          <>
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              startIcon={<DownloadIcon />}
-                              onClick={() => {
+                    {selectedFiles.size > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', mb: 2 }}>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<DownloadIcon />}
+                            onClick={() => {
+                              selectedFiles.forEach(fileName => {
+                                const item = fileItems.find(f => f.name === fileName);
+                                if (item && item.type === 'file') {
+                                  handleFileDownload(item.fullPath);
+                                }
+                              });
+                            }}
+                          >
+                            Download ({selectedFiles.size})
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<DeleteIcon />}
+                            color="error"
+                            onClick={() => {
+                              // 检查选中项中是否有预设文件或文件夹
+                              const selectedItems = Array.from(selectedFiles).map(fileName => 
+                                fileItems.find(f => f.name === fileName)
+                              ).filter(Boolean);
+                              
+                              const hasPresetItems = selectedItems.some(item => item?.isPreset || item?.canDelete === false);
+                              
+                              if (hasPresetItems) {
+                                showNotification('Cannot delete preset files or folders', 'error');
+                                return;
+                              }
+                              
+                              if (window.confirm(`Delete ${selectedFiles.size} selected items?`)) {
                                 selectedFiles.forEach(fileName => {
                                   const item = fileItems.find(f => f.name === fileName);
-                                  if (item && item.type === 'file') {
-                                    handleFileDownload(item.fullPath);
+                                  if (item && item.canDelete !== false && !item.isPreset) {
+                                    if (item.type === 'file') {
+                                      handleFileDelete(item.fullPath);
+                                    } else {
+                                      handleFolderDelete(item.fullPath);
+                                    }
                                   }
                                 });
-                              }}
-                            >
-                              Download ({selectedFiles.size})
-                            </Button>
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              startIcon={<DeleteIcon />}
-                              color="error"
-                              onClick={() => {
-                                // 检查选中项中是否有预设文件或文件夹
-                                const selectedItems = Array.from(selectedFiles).map(fileName => 
-                                  fileItems.find(f => f.name === fileName)
-                                ).filter(Boolean);
-                                
-                                const hasPresetItems = selectedItems.some(item => item?.isPreset || item?.canDelete === false);
-                                
-                                if (hasPresetItems) {
-                                  showNotification('Cannot delete preset files or folders', 'error');
-                                  return;
-                                }
-                                
-                                if (window.confirm(`Delete ${selectedFiles.size} selected items?`)) {
-                                  selectedFiles.forEach(fileName => {
-                                    const item = fileItems.find(f => f.name === fileName);
-                                    if (item && item.canDelete !== false && !item.isPreset) {
-                                      if (item.type === 'file') {
-                                        handleFileDelete(item.fullPath);
-                                      } else {
-                                        handleFolderDelete(item.fullPath);
-                                      }
-                                    }
-                                  });
-                                  setSelectedFiles(new Set());
-                                }
-                              }}
-                            >
-                              Delete ({selectedFiles.size})
-                            </Button>
-                          </>
-                        )}
+                                setSelectedFiles(new Set());
+                              }
+                            }}
+                          >
+                            Delete ({selectedFiles.size})
+                          </Button>
+                        </Box>
                       </Box>
-                      
-                      {/* Upload Button on the right */}
-                      <Button
-                        variant="contained"
-                        size="small"
-                        startIcon={<CloudUploadIcon />}
-                        onClick={() => setShowUploadDialog(true)}
-                        disabled={isUploading}
-                        sx={{ 
-                          minWidth: 120,
-                          fontWeight: 600
-                        }}
-                      >
-                        Upload Files
-                      </Button>
-                    </Box>
+                    )}
                     
                     {/* File Stats */}
                     <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -943,14 +944,6 @@ const Genome: React.FC = () => {
                                 >
                                   {item.name}
                                 </Typography>
-                                {item.isPreset && (
-                                  <Chip 
-                                    size="small" 
-                                    label="PRESET"
-                                    color="secondary"
-                                    sx={{ height: 16, fontSize: '0.65rem', mt: 0.5 }}
-                                  />
-                                )}
                               </Box>
                             </Box>
 
@@ -1072,14 +1065,7 @@ const Genome: React.FC = () => {
                                   startIcon={<CloudUploadIcon />}
                                   onClick={() => setShowUploadDialog(true)}
                                 >
-                                  Upload Files
-                                </Button>
-                                <Button
-                                  variant="outlined"
-                                  startIcon={<CreateFolderIcon />}
-                                  onClick={() => setShowCreateFolderDialog(true)}
-                                >
-                                  Create Folder
+                                  Upload FASTA / GTF
                                 </Button>
                               </Stack>
                             </>
@@ -1090,7 +1076,7 @@ const Genome: React.FC = () => {
                                 No files in this genome
                               </Typography>
                               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                                Start by uploading genome files (.fa, .fasta, .gtf, etc.) or create folders to organize your data
+                                Start by uploading genome files (.fa, .fasta, .gtf, etc.)
                               </Typography>
                               <Stack direction="row" spacing={2} justifyContent="center">
                                 <Button
@@ -1098,14 +1084,7 @@ const Genome: React.FC = () => {
                                   startIcon={<CloudUploadIcon />}
                                   onClick={() => setShowUploadDialog(true)}
                                 >
-                                  Upload Files
-                                </Button>
-                                <Button
-                                  variant="outlined"
-                                  startIcon={<CreateFolderIcon />}
-                                  onClick={() => setShowCreateFolderDialog(true)}
-                                >
-                                  Create Folder
+                                  Upload FASTA / GTF
                                 </Button>
                               </Stack>
                             </>
@@ -1187,7 +1166,7 @@ const Genome: React.FC = () => {
                           <ListItemIcon>
                             <CloudUploadIcon fontSize="small" />
                           </ListItemIcon>
-                          <ListItemText>Upload Files</ListItemText>
+                          <ListItemText>Upload FASTA / GTF</ListItemText>
                         </MenuItem>
                         <MenuItem key="newfolder" onClick={() => {
                           setShowCreateFolderDialog(true);
@@ -1305,7 +1284,7 @@ const Genome: React.FC = () => {
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <CloudUploadIcon />
-            Upload Files to {selectedGenome}
+            Upload FASTA / GTF to {selectedGenome}
             {currentPath.length > 0 && (
               <Chip size="small" label={`/${currentPath.join('/')}`} variant="outlined" />
             )}
@@ -1320,14 +1299,6 @@ const Genome: React.FC = () => {
               accept=".fa,.fasta,.fna,.gtf,.gff"
               style={{ display: 'none' }}
               onChange={handleFileInputChange}
-            />
-            <input
-              ref={folderInputRef}
-              type="file"
-              multiple
-              {...({ webkitdirectory: '' } as any)}
-              style={{ display: 'none' }}
-              onChange={handleFolderUpload}
             />
             
             <Typography variant="body2" color="warning.main" sx={{ mb: 2, textAlign: 'center' }}>
@@ -1357,7 +1328,7 @@ const Genome: React.FC = () => {
             >
               <CloudUploadIcon sx={{ fontSize: 48, mb: 1 }} />
               <Typography variant="h6" gutterBottom>
-                Drag & Drop Files Here
+                Drag & Drop FASTA/GTF Files Here
               </Typography>
               <Typography variant="body2">
                 or click to select files
@@ -1370,14 +1341,7 @@ const Genome: React.FC = () => {
                 startIcon={<UploadIcon />}
                 onClick={() => fileInputRef.current?.click()}
               >
-                Select Files
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<CreateFolderIcon />}
-                onClick={() => folderInputRef.current?.click()}
-              >
-                Select Folder
+                Select FASTA / GTF Files
               </Button>
             </Box>
 
