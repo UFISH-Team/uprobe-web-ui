@@ -604,7 +604,33 @@ const DesignWorkflow: React.FC = () => {
           const probes = JSON.parse(JSON.stringify(typedConfig.probes || {}));
           
           // Parse attributes and distribute them
-          const attributes = typedConfig.attributes || {};
+          const attributes = JSON.parse(JSON.stringify(typedConfig.attributes || {}));
+          
+          // Parse post_process filters to extract min/max values
+          const filters = typedConfig.post_process?.filters || {};
+          const filterValues: Record<string, {min?: number, max?: number}> = {};
+          
+          for (const [filterKey, filterVal] of Object.entries(filters)) {
+            const condition = (filterVal as any).condition;
+            if (typeof condition === 'string') {
+              const minMatch = condition.match(/>=\s*([\d.-]+)/);
+              const maxMatch = condition.match(/<=\s*([\d.-]+)/);
+              
+              if (!filterValues[filterKey]) filterValues[filterKey] = {};
+              if (minMatch) filterValues[filterKey].min = parseFloat(minMatch[1]);
+              if (maxMatch) filterValues[filterKey].max = parseFloat(maxMatch[1]);
+              
+              // Special handling for gcContent which might be in decimals (0.2-0.9) while UI expects percentages (20-90)
+              if (filterKey.toLowerCase().includes('gccontent')) {
+                if (filterValues[filterKey].min !== undefined && filterValues[filterKey].min! <= 1) {
+                  filterValues[filterKey].min = filterValues[filterKey].min! * 100;
+                }
+                if (filterValues[filterKey].max !== undefined && filterValues[filterKey].max! <= 1) {
+                  filterValues[filterKey].max = filterValues[filterKey].max! * 100;
+                }
+              }
+            }
+          }
           
           const defaultValues: Record<string, Partial<AttributeValue>> = {
             gcContent: { min: 40, max: 60, enabled: true },
@@ -635,6 +661,7 @@ const DesignWorkflow: React.FC = () => {
             const attrObj = {
               ...defaultValues[uiAttrName],
               ...typedAttrVal,
+              ...filterValues[attrKey],
               enabled: true
             };
             delete attrObj.target;
