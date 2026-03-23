@@ -133,6 +133,7 @@ export const useGenomeData = () => {
     genomeFiles,
     isLoading,
     setSelectedGenome,
+    setGenomeFiles,
     fetchGenomes,
     fetchGenomeFiles,
     uploadGenomeFile,
