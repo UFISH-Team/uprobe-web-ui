@@ -170,16 +170,16 @@ const TaskTable: React.FC<TaskTableProps> = ({
       <Table sx={{ minWidth: 800 }}>
         <TableHead>
           <TableRow>
-            <TableCell>Task</TableCell>
-            <TableCell>Description</TableCell>
-            <TableCell>Genome</TableCell>
-            <TableCell>Probe Name</TableCell>
-            <TableCell>Type</TableCell>
-            <TableCell>Source</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell>Progress</TableCell>
-            <TableCell>Created</TableCell>
-            <TableCell align="right">Actions</TableCell>
+            <TableCell sx={{ width: '15%' }}>Task</TableCell>
+            <TableCell sx={{ width: '20%' }}>Description</TableCell>
+            <TableCell sx={{ width: '8%' }}>Genome</TableCell>
+            <TableCell sx={{ width: '12%', whiteSpace: 'nowrap' }}>Probe Name</TableCell>
+            <TableCell sx={{ width: '5%' }}>Type</TableCell>
+            <TableCell sx={{ width: '5%' }}>Source</TableCell>
+            <TableCell sx={{ width: '8%' }}>Status</TableCell>
+            <TableCell sx={{ width: '10%' }}>Progress</TableCell>
+            <TableCell sx={{ width: '12%', whiteSpace: 'nowrap' }}>Created</TableCell>
+            <TableCell align="right" sx={{ minWidth: 140 }}>Actions</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -203,10 +203,12 @@ const TaskTable: React.FC<TaskTableProps> = ({
                       variant="body2"
                       color="text.secondary"
                       sx={{
-                        maxWidth: 300,
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
                       }}
                     >
                       {task.description}
@@ -216,7 +218,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
                 <TableCell>
                   <Typography variant="body2">{task.genome}</Typography>
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
                   <Typography variant="body2">{getTaskProbeName(task)}</Typography>
                 </TableCell>
                 <TableCell>
@@ -261,12 +263,15 @@ const TaskTable: React.FC<TaskTableProps> = ({
                     </Typography>
                   </Box>
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
                   <Typography variant="body2" color="text.secondary">
-                    {new Date(task.created_at).toLocaleDateString()}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    {new Date(task.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    {new Date(task.created_at).toLocaleString([], {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
