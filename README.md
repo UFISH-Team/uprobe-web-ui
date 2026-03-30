@@ -21,7 +21,7 @@ Web interface for the U-Probe platform: interactive protocol design, genome mana
 ```bash
 cd uprobe-web-ui
 pnpm install
-pnpm dev
+pnpm run dev
 ```
 
 The dev server runs on `http://localhost:5173` by default.
