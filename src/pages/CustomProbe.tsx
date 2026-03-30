@@ -474,7 +474,7 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
   };
   
   probes.forEach((probe, index) => {
-    if (!probe.isComplete) return;  // 这里会跳过未完成的probe
+    if (!probe.isComplete) return;  // This will skip incomplete probes
     
     const probeName = probe.name || `probe_${index + 1}`;
     const parts: { [key: string]: YAMLPartConfig } = {};
