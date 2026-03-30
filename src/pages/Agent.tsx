@@ -1123,7 +1123,7 @@ const Agent: React.FC = () => {
         primaryThinking.includes(finalMessage) ||
         finalMessage.includes(primaryThinking)
       ) {
-        combinedContent = primaryThinking; // 优先展示思考（前一个）
+        combinedContent = primaryThinking; // Prioritize showing thinking (previous)
       } else {
         combinedContent = `${primaryThinking}\n\n${finalMessage}`;
       }
