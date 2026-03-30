@@ -17,7 +17,7 @@ const Layout: React.FC<LayoutProps> = ({
   return (
     <Box
       sx={{
-        minHeight: 'calc(100vh - 64px)', // 减去AppBar的高度
+        minHeight: 'calc(100vh - 64px)', // Subtract AppBar height
         backgroundColor: 'background.default',
         width: '100%',
       }}
