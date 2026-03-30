@@ -173,17 +173,17 @@ export const isRememberMeEnabled = (): boolean => {
 };
 
 /**
- * 处理头像URL，确保返回完整的URL
+ * Process avatar URL, ensure returning full URL
  */
 export const getAvatarUrl = (avatarUrl: string | null | undefined): string | null => {
   if (!avatarUrl) return null;
   
-  // 如果已经是完整URL，直接返回
+  // If already full URL, return directly
   if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
     return avatarUrl;
   }
   
-  // 如果是相对路径，加上API服务器地址
+  // If relative path, add API server address
   const API_BASE_URL = 'http://127.0.0.1:8000';
   return `${API_BASE_URL}${avatarUrl}`;
 };
