@@ -4,7 +4,7 @@ import { AUTH_CONFIG, getToken } from './utils';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
-// 创建 axios 实例
+// Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
@@ -13,7 +13,7 @@ const api = axios.create({
   },
 });
 
-// 请求拦截器
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = getToken();
@@ -27,7 +27,7 @@ api.interceptors.request.use(
   }
 );
 
-// 响应拦截器
+// Response interceptor
 api.interceptors.response.use(
   (response) => {
     return response.data;
@@ -36,7 +36,7 @@ api.interceptors.response.use(
     if (error.response) {
       switch (error.response.status) {
         case 401:
-          // 处理未授权错误
+          // Handle unauthorized error
           localStorage.removeItem('token');
           localStorage.removeItem('isAuthenticated');
           localStorage.removeItem('tokenExpiration');
@@ -63,9 +63,9 @@ api.interceptors.response.use(
   }
 );
 
-// API 服务类
+// API service class
 class ApiService {
-  // 认证相关
+  // Authentication related
   static async login(emailOrUsername: string, password: string, rememberMe: boolean = false): Promise<{ access_token: string; token_type: string }> {
     // Send JSON data to match backend LoginRequest model
     const response = await api.post('/auth/login', { 
@@ -82,23 +82,23 @@ class ApiService {
 
     if (response.token) {
       if (rememberMe) {
-        // 记住我：使用localStorage，30天过期
+        // Remember me: use localStorage, expires in 30 days
         localStorage.setItem('token', response.token);
         localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('rememberMe', 'true');
-        const expirationTime = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30天
+        const expirationTime = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days
         localStorage.setItem('tokenExpiration', expirationTime.toString());
-        // 清除sessionStorage中的数据
+        // Clear data in sessionStorage
         sessionStorage.removeItem('token');
         sessionStorage.removeItem('isAuthenticated');
         sessionStorage.removeItem('tokenExpiration');
       } else {
-        // 不记住我：使用sessionStorage，关闭浏览器后过期
+        // Don't remember me: use sessionStorage, expires when browser closes
         sessionStorage.setItem('token', response.token);
         sessionStorage.setItem('isAuthenticated', 'true');
         const expirationTime = Date.now() + AUTH_CONFIG.TOKEN_EXPIRY_DURATION;
         sessionStorage.setItem('tokenExpiration', expirationTime.toString());
-        // 清除localStorage中的数据
+        // Clear data in localStorage
         localStorage.removeItem('token');
         localStorage.removeItem('isAuthenticated');
         localStorage.removeItem('tokenExpiration');
@@ -131,7 +131,7 @@ class ApiService {
     return mappedResponse;
   }
 
-  // 探针设计相关
+  // Probe design related
   static async getDesigns(params?: { page?: number; pageSize?: number }): Promise<PaginatedResponse<any>> {
     return api.get('/designs', { params });
   }
@@ -161,7 +161,7 @@ class ApiService {
     return api.delete(`/custom_probes/${probeId}`);
   }
 
-  // 探针设计工作流相关
+  // Probe design workflow related
   static async getBarcodeOptions(): Promise<string[]> {
     return api.get('/workflow/barcodes');
   }
@@ -212,7 +212,7 @@ class ApiService {
     });
   }
   
-  // 基因组相关
+  // Genome related
   static async getGenomes(): Promise<{name: string, is_public: boolean}[]> {
     return api.get('/genome/');
   }
@@ -259,7 +259,7 @@ class ApiService {
     });
   }
 
-  // 用户相关
+  // User related
   static async getCurrentUser(): Promise<any> {
     return api.get('/auth/check');
   }
@@ -485,7 +485,7 @@ class ApiService {
     return { barcodes: result };
   }
 
-  // 文件上传
+  // File upload
   static async uploadFile(file: File, type: string): Promise<ApiResponse<{ url: string }>> {
     const formData = new FormData();
     formData.append('file', file);
@@ -497,12 +497,12 @@ class ApiService {
     });
   }
 
-  // 任务提交
+  // Task submission
   static async submitTask(data: any): Promise<ApiResponse<{ job_id: string }>> {
     const yaml = await import('js-yaml');
     const formData = new FormData();
     
-    // 将配置数据转换为YAML格式
+    // Convert config data to YAML format
     const yamlContent = yaml.dump(data, {
       indent: 2,
       lineWidth: -1,
@@ -519,7 +519,7 @@ class ApiService {
     });
   }
 
-  // 任务管理 - 使用task路由器
+  // Task management - use task router
   static async getAllTasks(): Promise<ApiResponse<any[]>> {
     return api.get(`/task/`);
   }
@@ -578,7 +578,7 @@ class ApiService {
     return response.data;
   }
 
-  // 保留job相关方法以向后兼容
+  // Keep job related methods for backward compatibility
   static async getAllJobs(): Promise<ApiResponse<any[]>> {
     return this.getAllTasks();
   }
