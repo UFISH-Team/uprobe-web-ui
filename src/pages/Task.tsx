@@ -10,6 +10,10 @@ import {
   Snackbar,
   Alert,
   Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import {
   Refresh as RefreshIcon,
@@ -50,6 +54,15 @@ const Task: React.FC = () => {
     open: false,
     message: "",
     severity: "info"
+  });
+  const [errorDialog, setErrorDialog] = useState<{
+    open: boolean;
+    title: string;
+    content: string;
+  }>({
+    open: false,
+    title: "",
+    content: "",
   });
   const navigate = useNavigate();
 
@@ -283,7 +296,7 @@ const Task: React.FC = () => {
     
     ApiService.downloadTaskResult(taskId)
       .then(blob => {
-        // 创建下载链接
+        // Create download link
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -309,11 +322,19 @@ const Task: React.FC = () => {
       });
   };
 
+  const handleViewError = (task: Task) => {
+    setErrorDialog({
+      open: true,
+      title: `Error Details: ${task.name}`,
+      content: task.error_message || "No error details available.",
+    });
+  };
+
   const getTasksStatistics = () => {
     const total = tasks.length;
     const completed = tasks.filter((task) => task.status === "completed").length;
     const running = tasks.filter((task) => task.status === "running").length;
-    const pending = tasks.filter((task) => task.status === "pending").length;
+    const pending = tasks.filter((task) => task.status === "pending" || task.status === "queued").length;
     const failed = tasks.filter((task) => task.status === "failed").length;
     const paused = tasks.filter((task) => task.status === "paused").length;
     
@@ -388,7 +409,7 @@ const Task: React.FC = () => {
         >
           <Tab label="All Tasks" value="all" />
           <Tab label="Running" value="running" />
-          <Tab label="Pending" value="pending" />
+          <Tab label="Queued" value="pending" />
           <Tab label="Completed" value="completed" />
           <Tab label="Paused" value="paused" />
           <Tab label="Failed" value="failed" />
@@ -411,6 +432,7 @@ const Task: React.FC = () => {
         onDownloadResult={handleDownloadResult}
         onDeleteTask={handleDeleteTask}
         onViewReport={handleViewReport}
+        onViewError={handleViewError}
       />
 
       <Snackbar
@@ -428,6 +450,36 @@ const Task: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      <Dialog
+        open={errorDialog.open}
+        onClose={() => setErrorDialog({ ...errorDialog, open: false })}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>{errorDialog.title}</DialogTitle>
+        <DialogContent dividers>
+          <Typography
+            component="pre"
+            variant="body2"
+            sx={{
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              backgroundColor: '#f5f5f5',
+              p: 2,
+              borderRadius: 1,
+              fontFamily: 'monospace',
+              maxHeight: '60vh',
+              overflow: 'auto'
+            }}
+          >
+            {errorDialog.content}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setErrorDialog({ ...errorDialog, open: false })}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
     </Box>
   );
