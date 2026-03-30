@@ -187,7 +187,7 @@ const Genome: React.FC = () => {
   const buildFileStructureWithMetadata = async (files: string[], currentPath: string[], genomeName: string) => {
     const items = buildFileStructure(files, currentPath);
     
-    // 获取每个文件和文件夹的元数据
+    // Get metadata for each file and folder
     const itemsWithMetadata = await Promise.all(
       items.map(async (item) => {
         if (item.type === 'file') {
@@ -202,7 +202,7 @@ const Genome: React.FC = () => {
             };
           }
         } else if (item.type === 'folder') {
-          // 对于文件夹，检查其是否包含预设文件来判断是否为预设文件夹
+          // For folders, check if they contain preset files to determine if they are preset folders
           const folderFiles = files.filter(file => file.startsWith(item.fullPath + '/'));
           let isPresetFolder = false;
           let canDeleteFolder = true;
@@ -402,7 +402,7 @@ const Genome: React.FC = () => {
   const handleFileDelete = async (fileName: string) => {
     if (!selectedGenome) return;
     
-    // 检查文件权限
+    // Check file permissions
     const item = fileItems.find(f => f.fullPath === fileName);
     if (item && item.isPreset) {
       showNotification('Cannot delete preset files', 'error');
@@ -425,7 +425,7 @@ const Genome: React.FC = () => {
   const handleFolderDelete = async (folderPath: string) => {
     if (!selectedGenome) return;
     
-    // 检查文件夹权限
+    // Check folder permissions
     const folderItem = fileItems.find(f => f.fullPath === folderPath);
     if (folderItem && folderItem.isPreset) {
       showNotification('Cannot delete preset folders', 'error');
@@ -438,7 +438,7 @@ const Genome: React.FC = () => {
         item.path?.startsWith(folderPath) || item.name.startsWith(folderPath)
       );
       
-      // 检查文件夹内是否包含预设文件
+      // Check if folder contains preset files
       const hasPresetFiles = folderFiles.some(file => file.isPreset);
       if (hasPresetFiles) {
         showNotification('Cannot delete folders containing preset files', 'error');
@@ -776,7 +776,7 @@ const Genome: React.FC = () => {
                             startIcon={<DeleteIcon />}
                             color="error"
                             onClick={() => {
-                              // 检查选中项中是否有预设文件或文件夹
+                              // Check if selected items contain preset files or folders
                               const selectedItems = Array.from(selectedFiles).map(fileName => 
                                 fileItems.find(f => f.name === fileName)
                               ).filter(Boolean);
