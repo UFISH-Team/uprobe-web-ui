@@ -554,7 +554,7 @@ const Auth = () => {
                           const emailPrefix = newInputValue.split('@')[0];
                           generateEmailSuggestions(emailPrefix);
                           
-                          // 检查邮箱支持情况
+                          // Check email support status
                           if (validateEmail(newInputValue)) {
                             checkEmailSupport(newInputValue);
                           } else {
@@ -662,7 +662,7 @@ const Auth = () => {
                         sx={{ mb: 2 }}
                       />
 
-                      {/* 邮箱支持信息显示 */}
+                      {/* Email support info display */}
                       {formData.email && validateEmail(formData.email) && emailSupportInfo && !checkingEmail && (
                         <Box sx={{ mb: 1.5 }}>
                             <Box sx={{ 
@@ -1102,7 +1102,7 @@ const Auth = () => {
         </Box>
       </Container>
       
-      {/* 忘记密码对话框 */}
+      {/* Forgot password dialog */}
       <Dialog 
         open={forgotPasswordOpen} 
         onClose={() => setForgotPasswordOpen(false)}
@@ -1149,7 +1149,7 @@ const Auth = () => {
             </Box>
           ) : (
             <Box>
-              {/* 邮箱确认信息 */}
+              {/* Email confirmation info */}
               <Box sx={{ 
                 mb: 3, 
                 p: 2, 
