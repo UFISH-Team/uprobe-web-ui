@@ -33,7 +33,7 @@ const useTaskStore = create<TaskState>((set, get) => ({
       const response = await ApiService.getAllTasks();
       
       if (response) {
-        // 后端task路由器直接返回数组，而不是包装在data字段中
+        // Backend task router returns an array directly, not wrapped in a data field
         const taskData = response.data || response;
         const apiTasks: Task[] = taskData.map((task: any) => ({
           id: task.id,
@@ -46,7 +46,8 @@ const useTaskStore = create<TaskState>((set, get) => ({
           genome: task.genome || 'Unknown',
           parameters: task.parameters || {},
           result_url: task.result_url || '',
-          yaml_content: task.yaml_content || ''
+          yaml_content: task.yaml_content || '',
+          error_message: task.error_message || ''
         }));
         
         set({ tasks: apiTasks, isLoading: false });
@@ -97,10 +98,10 @@ const useTaskStore = create<TaskState>((set, get) => ({
     try {
       await ApiService.resumeTask(taskId);
       
-      // Update the task status in the state
+      // Update the task status in the state to pending (queued)
       set((state) => ({
         tasks: state.tasks.map((task) =>
-          task.id === taskId ? { ...task, status: "running" } : task
+          task.id === taskId ? { ...task, status: "pending" } : task
         )
       }));
       
@@ -115,10 +116,10 @@ const useTaskStore = create<TaskState>((set, get) => ({
     try {
       await ApiService.runTask(taskId);
       
-      // Update the task status in the state
+      // Update the task status in the state to pending (queued)
       set((state) => ({
         tasks: state.tasks.map((task) =>
-          task.id === taskId ? { ...task, status: "running", progress: 10 } : task
+          task.id === taskId ? { ...task, status: "pending", progress: 0 } : task
         )
       }));
       
@@ -142,8 +143,9 @@ const useTaskStore = create<TaskState>((set, get) => ({
     try {
       const config = YAML.parse(taskToRerun.yaml_content);
       
-      // Create a new name for the rerun task to avoid confusion
-      config.name = `${config.name}-rerun-${Date.now().toString().slice(-4)}`;
+      // Remove any existing '-rerun-XXXX' suffix before appending the new one
+      const baseName = config.name.split('-rerun-')[0];
+      config.name = `${baseName}-rerun-${Date.now().toString().slice(-4)}`;
 
       // Submit a new task with the old configuration
       const response = await ApiService.submitTask(config);
