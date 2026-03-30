@@ -19,7 +19,7 @@ Web interface for the U-Probe platform: interactive protocol design, genome mana
 ## Quick start
 
 ```bash
-cd ui
+cd uprobe-web-ui
 pnpm install
 pnpm dev
 ```
