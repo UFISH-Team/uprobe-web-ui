@@ -42,7 +42,7 @@ export interface SnackbarState {
   severity: 'success' | 'error' | 'info' | 'warning';
 }
 
-// API响应类型
+// API response types
 export interface ApiResponse<T> {
   code: number;
   message: string;
@@ -56,7 +56,7 @@ export interface PaginatedResponse<T> {
   pageSize: number;
 }
 
-// 基因组相关类型
+// Genome related types
 export interface Genome {
   id: string;
   name: string;
@@ -125,7 +125,7 @@ export interface CustomProbeType {
   probes?: Record<string, ProbeConfig>;
 }
 
-// 用户相关类型
+// User related types
 export interface User {
   username: string;
   email?: string;
