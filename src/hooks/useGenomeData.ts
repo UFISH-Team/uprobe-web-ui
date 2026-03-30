@@ -9,7 +9,7 @@ export const useGenomeData = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { showNotification } = useNotification();
 
-  // 获取所有基因组列表
+  // Get all genome list
   const fetchGenomes = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -22,7 +22,7 @@ export const useGenomeData = () => {
     }
   }, [showNotification]);
 
-  // 获取基因组文件列表
+  // Get genome file list
   const fetchGenomeFiles = useCallback(async (genomeName: string) => {
     try {
       setIsLoading(true);
@@ -35,7 +35,7 @@ export const useGenomeData = () => {
     }
   }, [showNotification]);
 
-  // 上传基因组文件
+  // Upload genome file
   const uploadGenomeFile = useCallback(async (genomeName: string, file: File) => {
     try {
       setIsLoading(true);
@@ -49,7 +49,7 @@ export const useGenomeData = () => {
     }
   }, [fetchGenomeFiles, showNotification]);
 
-  // 删除基因组文件
+  // Delete genome file
   const deleteGenomeFile = useCallback(async (genomeName: string, fileName: string) => {
     try {
       setIsLoading(true);
@@ -63,7 +63,7 @@ export const useGenomeData = () => {
     }
   }, [fetchGenomeFiles, showNotification]);
 
-  // 下载基因组文件
+  // Download genome file
   const downloadGenomeFile = useCallback(async (genomeName: string, fileName: string) => {
     try {
       setIsLoading(true);
@@ -71,7 +71,7 @@ export const useGenomeData = () => {
       const url = window.URL.createObjectURL(new Blob([response]));
       const link = document.createElement('a');
       link.href = url;
-      // 获取文件名（不包含路径）
+      // Get filename (without path)
       const actualFileName = fileName.split('/').pop() || fileName;
       link.setAttribute('download', actualFileName);
       document.body.appendChild(link);
@@ -85,7 +85,7 @@ export const useGenomeData = () => {
     }
   }, [showNotification]);
 
-  // 获取文件元数据
+  // Get file metadata
   const getFileMetadata = useCallback(async (genomeName: string, fileName: string) => {
     try {
       const response = await ApiService.getFileMetadata(genomeName, fileName);
@@ -96,7 +96,7 @@ export const useGenomeData = () => {
     }
   }, []);
 
-  // 添加新基因组
+  // Add new genome
   const addGenome = useCallback(async (genomeName: string) => {
     try {
       setIsLoading(true);
@@ -110,7 +110,7 @@ export const useGenomeData = () => {
     }
   }, [fetchGenomes, showNotification]);
 
-  // 删除基因组
+  // Delete genome
   const deleteGenome = useCallback(async (genomeName: string) => {
     try {
       setIsLoading(true);
