@@ -54,7 +54,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setIsAuthenticated(true);
         // Store auth state immediately so checkAuth doesn't fail
         localStorage.setItem('isAuthenticated', 'true');
-        await checkAuth(); // 获取用户信息
+        await checkAuth(); // Get user info
       }
     } catch (error) {
       throw error;
@@ -67,7 +67,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.access_token) {
         setIsAuthenticated(true);
         localStorage.setItem('isAuthenticated', 'true');
-        await checkAuth(); // 获取用户信息
+        await checkAuth(); // Get user info
       }
     } catch (error) {
       throw error;
@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.access_token) {
         setIsAuthenticated(true);
         localStorage.setItem('isAuthenticated', 'true');
-        await checkAuth(); // 获取用户信息
+        await checkAuth(); // Get user info
       }
     } catch (error) {
       throw error;
@@ -141,7 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth();
   }, []);
 
-  // 定期检查token是否过期，到期自动登出
+  // Periodically check if token is expired, auto logout if expired
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -152,10 +152,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-    // 初始检查
+    // Initial check
     checkTokenExpiry();
 
-    // 每5分钟检查一次token是否过期
+    // Check token expiration every 5 minutes
     const interval = setInterval(checkTokenExpiry, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [isAuthenticated]);
