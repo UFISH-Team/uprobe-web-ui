@@ -28,6 +28,7 @@ import {
   Visibility as VisibilityIcon,
   Autorenew as AutorenewIcon,
   Pause as PauseIcon,
+  ErrorOutline as ErrorOutlineIcon,
 } from '@mui/icons-material';
 import type { Task } from '../../types';
 import YAML from 'yaml';
@@ -65,6 +66,7 @@ interface TaskTableProps {
   onDownloadResult: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onViewReport: (task: Task) => void;
+  onViewError?: (task: Task) => void;
 }
 
 const getStatusColor = (status: string): "success" | "info" | "warning" | "error" | "default" => {
@@ -74,6 +76,8 @@ const getStatusColor = (status: string): "success" | "info" | "warning" | "error
     case "running":
       return "info";
     case "pending":
+      return "warning";
+    case "queued":
       return "warning";
     case "failed":
       return "error";
@@ -85,6 +89,7 @@ const getStatusColor = (status: string): "success" | "info" | "warning" | "error
 
 const statusIcons = {
   pending: <ScheduleIcon fontSize="small" />,
+  queued: <ScheduleIcon fontSize="small" />,
   running: <AutorenewIcon fontSize="small" />,
   completed: <CheckCircleIcon fontSize="small" />,
   failed: <DeleteIcon fontSize="small" />,
@@ -164,6 +169,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
   onDeleteTask,
   onRerunTask,
   onViewReport,
+  onViewError,
 }) => {
   return (
     <StyledTableContainer>
@@ -239,7 +245,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
                 <TableCell>
                   <Chip
                     icon={statusIcons[task.status as keyof typeof statusIcons]}
-                    label={task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                    label={task.status === "pending" ? "Queued" : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
                     color={getStatusColor(task.status)}
                     size="small"
                   />
@@ -301,6 +307,13 @@ const TaskTable: React.FC<TaskTableProps> = ({
                       <Tooltip title="Rerun Task">
                         <IconButton size="small" onClick={() => onRerunTask(task.id)}>
                           <ReplayIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    {task.status === 'failed' && task.error_message && onViewError && (
+                      <Tooltip title="View Error Details">
+                        <IconButton size="small" onClick={() => onViewError(task)} sx={{ color: 'error.main' }}>
+                          <ErrorOutlineIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
