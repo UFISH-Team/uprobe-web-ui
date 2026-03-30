@@ -48,7 +48,7 @@ const TaskStatistics: React.FC<TaskStatisticsProps> = ({ stats }) => {
     { value: stats.total, label: 'Total Tasks', color: 'text.primary', icon: <TotalIcon /> },
     { value: stats.completed, label: 'Completed', color: 'success.main', icon: <CompletedIcon /> },
     { value: stats.running, label: 'Running', color: 'info.main', icon: <RunningIcon /> },
-    { value: stats.pending, label: 'Pending', color: 'warning.main', icon: <PendingIcon /> },
+    { value: stats.pending, label: 'Queued', color: 'warning.main', icon: <PendingIcon /> },
     { value: stats.failed, label: 'Failed', color: 'error.main', icon: <FailedIcon /> },
     { value: stats.paused, label: 'Paused', color: 'text.secondary', icon: <PausedIcon /> },
   ];
