@@ -16,6 +16,7 @@ export interface Task {
   parameters: Record<string, any>;
   result_url?: string;
   yaml_content?: string;
+  error_message?: string;
 }
 
 export const statusColors = {
@@ -42,7 +43,7 @@ export interface SnackbarState {
   severity: 'success' | 'error' | 'info' | 'warning';
 }
 
-// API响应类型
+// API response types
 export interface ApiResponse<T> {
   code: number;
   message: string;
@@ -56,7 +57,7 @@ export interface PaginatedResponse<T> {
   pageSize: number;
 }
 
-// 基因组相关类型
+// Genome related types
 export interface Genome {
   id: string;
   name: string;
