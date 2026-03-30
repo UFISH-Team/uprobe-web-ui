@@ -306,7 +306,7 @@ const DesignWorkflow: React.FC = () => {
       console.error('Failed to generate barcode via API:', error);
       
       // Show error to user with option to retry
-      setAlert(true, `Barcode生成失败: ${error instanceof Error ? error.message : String(error)}。请重新生成或手动输入。`, 'error');
+      setAlert(true, `Barcode generation failed: ${error instanceof Error ? error.message : String(error)}。Please regenerate or input manually。`, 'error');
       
       // Fallback to local generation if API fails
       const bases = ['A', 'T', 'G', 'C'];
@@ -915,7 +915,7 @@ const DesignWorkflow: React.FC = () => {
     setBarcodeFromFile({});
     setGeneratingBarcodes({});
     
-    // 查找自定义探针类型
+    // Find custom probe type
     const allTypes = [...builtinProbeTypes, ...customProbeTypes];
     const customType = allTypes.find(t => t.name === type);
     if (customType) {
@@ -1268,7 +1268,7 @@ const DesignWorkflow: React.FC = () => {
       }
     }
 
-    // 添加探针属性
+    // Add probe attributes
     if (selectedCustomType.probes) {
       const probeFields: SortField[] = [];
       Object.entries(selectedCustomType.probes).forEach(([probeName, probe]) => {
@@ -1294,7 +1294,7 @@ const DesignWorkflow: React.FC = () => {
         });
       }
 
-      // 添加探针部分属性
+      // Add probe part attributes
       const partFields: SortField[] = [];
       Object.entries(selectedCustomType.probes).forEach(([probeName, probe]) => {
         const formattedProbeName = /^\d+$/.test(probeName) ? `probe${parseInt(probeName) + 1}` : probeName;
@@ -1338,11 +1338,11 @@ const DesignWorkflow: React.FC = () => {
   useEffect(() => {
     const isDnaProbe = shouldEnableDnaFeatures();
     if (isDnaProbe) {
-      // DNA探针：默认启用OTP和Equal Space
+      // DNA probe: enable OTP and Equal Space by default
       setEnableAvoidOtp(true);
       setEnableEqualSpace(true);
     } else {
-      // RNA探针：禁用OTP和Equal Space
+      // RNA probe: disable OTP and Equal Space
       setEnableAvoidOtp(false);
       setEnableEqualSpace(false);
     }
@@ -1554,7 +1554,7 @@ const DesignWorkflow: React.FC = () => {
     const probeName = selectedCustomType?.name || probeType;
     const finalTaskName = taskName.trim() || generateAutoTaskName();
     
-    // 基础配置 - 按期望格式顺序排列
+    // Basic config - ordered by expected format
     const config: any = {
       name: finalTaskName.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_'),
       description: `Protocol for designing ${probeName} probes from species ${species}`,
@@ -1572,7 +1572,7 @@ const DesignWorkflow: React.FC = () => {
         })
     };
 
-    // 编码配置 (条码映射)
+    // Encoding config (barcode mapping)
     const targetEncoding: any = {};
     targetList.forEach(item => {
       if (item.target.trim() !== '' && selectedCustomType?.barcodeCount) {
@@ -1593,7 +1593,7 @@ const DesignWorkflow: React.FC = () => {
       config.encoding = targetEncoding;
     }
 
-    // 提取配置
+    // Extraction config
     config.extracts = {
       target_region: {
         source: selectedCustomType?.targetConfig?.source || 
@@ -1604,7 +1604,7 @@ const DesignWorkflow: React.FC = () => {
       }
     };
     
-    // Add custom probe type parameters if selected (probes section - 倒数第三)
+    // Add custom probe type parameters if selected (probes section - third from last)
     if (selectedCustomType) {
       // Extract only the actual probe configurations from yamlContent
       const yamlContent = selectedCustomType.yamlContent;
@@ -1636,11 +1636,11 @@ const DesignWorkflow: React.FC = () => {
       }
     }
 
-    // 属性配置 - 使用期望的命名格式
+    // Attribute config - use expected naming format
     if (selectedCustomType) {
       const attributes: any = {};
       
-      // 目标区域属性
+      // Target region attributes
       if (selectedCustomType.targetConfig?.attributes) {
         Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
           if (attrValue.enabled) {
@@ -1659,7 +1659,7 @@ const DesignWorkflow: React.FC = () => {
             if (attrValue.aligner && (attrName === 'mappedSites')) {
               attr.aligner = attrValue.aligner;
             }
-            // 添加特定属性参数
+            // Add specific attribute parameters
             if (attrName === 'kmerCount' && attrValue.kmer_len) {
               attr.kmer_len = attrValue.kmer_len;
               attr.threads = 10;
@@ -1671,18 +1671,18 @@ const DesignWorkflow: React.FC = () => {
         });
       }
       
-      // 探针属性 - 使用期望的命名格式 (probe1 而不是 probe_1)
+      // Probe attributes - use expected naming format (probe1 instead of probe_1)
       if (selectedCustomType.probes) {
         Object.entries(selectedCustomType.probes).forEach(([probeName, probeConfig]) => {
           const formattedProbeName = /^\d+$/.test(probeName) ? `probe${parseInt(probeName) + 1}` : probeName;
           
-          // 探针级别属性
+          // Probe level attributes
           if (probeConfig.attributes) {
             Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
               if (attrValue.enabled) {
                 const attributeKey = `${formattedProbeName}_${attrName}`;
                 const attr: any = {
-                  target: formattedProbeName.replace(/probe(\d+)/, 'probe_$1'), // 在target中使用probe_1格式
+                  target: formattedProbeName.replace(/probe(\d+)/, 'probe_$1'), // Use probe_1 format in target
                   type: getAttributeType(attrName)
                 };
                 
@@ -1707,7 +1707,7 @@ const DesignWorkflow: React.FC = () => {
             });
           }
           
-          // 部件级别属性 - 使用点号分隔符
+          // Part level attributes - use dot separator
           if (probeConfig.parts) {
             Object.entries(probeConfig.parts).forEach(([partName, partConfig]) => {
               const formattedPartName = /^\d+$/.test(partName) ? `part${parseInt(partName) + 1}` : partName;
@@ -1717,7 +1717,7 @@ const DesignWorkflow: React.FC = () => {
                   if (attrValue.enabled) {
                     const attributeKey = `${formattedProbeName}_${formattedPartName}_${attrName}`;
                     const attr: any = {
-                      target: `${formattedProbeName.replace(/probe(\d+)/, 'probe_$1')}.${formattedPartName}`, // 使用点号分隔
+                      target: `${formattedProbeName.replace(/probe(\d+)/, 'probe_$1')}.${formattedPartName}`, // Use dot separator
                       type: getAttributeType(attrName)
                     };
                     
@@ -1750,14 +1750,14 @@ const DesignWorkflow: React.FC = () => {
       }
     }
 
-    // 后处理配置
+    // Post-processing config
     const post_process: any = {};
     
-    // 1. 过滤器
+    // 1. Filters
     if (enableBasicFilter && selectedCustomType) {
       const filters: any = {};
       
-      // 目标区域过滤
+      // Target region filtering
       if (selectedCustomType.targetConfig?.attributes) {
         Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
           if (attrValue.enabled) {
@@ -1785,7 +1785,7 @@ const DesignWorkflow: React.FC = () => {
         });
       }
       
-      // 探针和部件过滤 - 使用期望的命名格式
+      // Probe and part filtering - use expected naming format
       if (selectedCustomType.probes) {
         Object.entries(selectedCustomType.probes).forEach(([probeName, probeConfig]) => {
           const formattedProbeName = /^\d+$/.test(probeName) ? `probe${parseInt(probeName) + 1}` : probeName;
@@ -1857,31 +1857,31 @@ const DesignWorkflow: React.FC = () => {
       }
     }
     
-    // 2. 避免脱靶 - 修改为数组格式
+    // 2. Avoid off-target - modified to array format
     if (enableAvoidOtp && Object.keys(avoidOtpConfig).length > 0) {
       const avoid_otp: any = {};
       Object.entries(avoidOtpConfig).forEach(([target, config]) => {
         avoid_otp[target] = {
-          target_regions: [config.target_regions], // 转换为数组格式
+          target_regions: [config.target_regions], // Convert to array format
           density_thresh: config.density_thresh
         };
       });
       post_process.avoid_otp = avoid_otp;
     }
     
-    // 3. 等距分布
+    // 3. Equal spacing
     if (enableEqualSpace && Object.keys(equalSpaceConfig).length > 0) {
       post_process.equal_space = equalSpaceConfig;
     }
     
-    // 4. 移除重叠
+    // 4. Remove overlap
     if (enableRemoveOverlap) {
       post_process.remove_overlap = {
         location_interval: overlapThreshold
       };
     }
     
-    // 5. 排序
+    // 5. Sorting
     if (enableSorting && sortOptions.length > 0) {
       const ascFields = sortOptions.filter(opt => opt.order === 'asc').map(opt => opt.field);
       const descFields = sortOptions.filter(opt => opt.order === 'desc').map(opt => opt.field);
@@ -1895,19 +1895,19 @@ const DesignWorkflow: React.FC = () => {
     
     config.post_process = post_process;
 
-    // 添加报告配置
+    // Add report config
     const summaryConfig: any = {};
     
-    // 判断探针类型：DNA (source为genome) 或 RNA (source为非genome)
+    // Determine probe type: DNA (source is genome) or RNA (source is not genome)
     const probeSource = selectedCustomType?.targetConfig?.source || 
                        (probeType === 'DNA-FISH' ? 'genome' : 'exon');
     const isDnaProbe = probeSource === 'genome';
     summaryConfig.report_name = isDnaProbe ? 'dna_report' : 'rna_report';
     
-    // 动态收集所有启用的属性
+    // Dynamically collect all enabled attributes
     const summaryAttributes: string[] = [];
     
-    // 收集目标区域属性
+    // Collect target region attributes
     if (selectedCustomType?.targetConfig?.attributes) {
       Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
         if (attrValue.enabled) {
@@ -1916,7 +1916,7 @@ const DesignWorkflow: React.FC = () => {
       });
     }
     
-    // 收集探针属性
+    // Collect probe attributes
     if (selectedCustomType?.probes) {
       Object.entries(selectedCustomType.probes).forEach(([probeName, probeConfig]) => {
         const formattedProbeName = /^\d+$/.test(probeName) ? `probe${parseInt(probeName) + 1}` : probeName;
@@ -1929,7 +1929,7 @@ const DesignWorkflow: React.FC = () => {
           });
         }
         
-        // 收集部件属性
+        // Collect part attributes
         if (probeConfig.parts) {
           Object.entries(probeConfig.parts).forEach(([partName, partConfig]) => {
             const formattedPartName = /^\d+$/.test(partName) ? `part${parseInt(partName) + 1}` : partName;
@@ -2004,7 +2004,7 @@ const DesignWorkflow: React.FC = () => {
   ) => {
     if (!selectedCustomType) return;
     
-    // 使用深拷贝避免状态突变
+    // Use deep copy to avoid state mutation
     const newType = JSON.parse(JSON.stringify(selectedCustomType));
 
     if (type === 'target') {
