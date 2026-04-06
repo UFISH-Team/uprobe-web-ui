@@ -554,7 +554,7 @@ const DesignWorkflow: React.FC = () => {
         .map((group: any) => {
           const parameters = extractParametersFromYaml(group.yamlContent);
           
-          let targetConfig = null;
+          let targetConfig: any = undefined;
           if (parameters?.target_sequence) {
             targetConfig = {
               source: parameters.target_sequence.source,

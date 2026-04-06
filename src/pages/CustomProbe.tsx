@@ -191,12 +191,12 @@ type PartSource = 'target' | 'barcode' | 'fixed' | 'external' | 'probe';
 type AlignerType = 'Bowtie2' | 'BLAST' | 'MMseqs2';
 
 interface TargetAttributes {
-  gcContent?: {
+  gc_content?: {
     min?: number;
     max?: number;
     enabled: boolean;
   };
-  foldScore?: {
+  fold_score?: {
     max?: number;
     enabled: boolean;
   };
@@ -205,21 +205,21 @@ interface TargetAttributes {
     max?: number;
     enabled: boolean;
   };
-  selfMatch?: {
+  self_match?: {
     max?: number;
     enabled: boolean;
   };
-  mappedGenes?: {
+  mapped_genes?: {
     max?: number;
     aligner?: AlignerType;
     enabled: boolean;
   };
-  kmerCount?: {
+  kmer_count?: {
     kmer_len?: number;
     aligner?: AlignerType;
     enabled: boolean;
   };
-  mappedSites?: {
+  mapped_sites?: {
     aligner?: AlignerType;
     enabled: boolean;
   };
@@ -233,12 +233,12 @@ interface TargetConfig {
 }
 
 interface PartAttributes {
-  gcContent?: {
+  gc_content?: {
     min?: number;
     max?: number;
     enabled: boolean;
   };
-  foldScore?: {
+  fold_score?: {
     max?: number;
     enabled: boolean;
   };
@@ -247,21 +247,21 @@ interface PartAttributes {
     max?: number;
     enabled: boolean;
   };
-  selfMatch?: {
+  self_match?: {
     max?: number;
     enabled: boolean;
   };
-  mappedGenes?: {
+  mapped_genes?: {
     max?: number;
     aligner?: AlignerType;
     enabled: boolean;
   };
-  kmerCount?: {
+  kmer_count?: {
     kmer_len?: number;
     aligner?: AlignerType;
     enabled: boolean;
   };
-  mappedSites?: {
+  mapped_sites?: {
     aligner?: AlignerType;
     enabled: boolean;
   };
@@ -282,12 +282,12 @@ interface ProbePart {
 }
 
 interface ProbeAttributes {
-  gcContent?: {
+  gc_content?: {
     min?: number;
     max?: number;
     enabled: boolean;
   };
-  foldScore?: {
+  fold_score?: {
     max?: number;
     enabled: boolean;
   };
@@ -296,21 +296,21 @@ interface ProbeAttributes {
     max?: number;
     enabled: boolean;
   };
-  selfMatch?: {
+  self_match?: {
     max?: number;
     enabled: boolean;
   };
-  mappedGenes?: {
+  mapped_genes?: {
     max?: number;
     aligner?: AlignerType;
     enabled: boolean;
   };
-  kmerCount?: {
+  kmer_count?: {
     kmer_len?: number;
     aligner?: AlignerType;
     enabled: boolean;
   };
-  mappedSites?: {
+  mapped_sites?: {
     aligner?: AlignerType;
     enabled: boolean;
   };
@@ -410,13 +410,13 @@ interface YAMLTarget {
 
 // Helper function to create properly typed default attributes
 const createDefaultAttributes = (): ProbeAttributes => ({
-  gcContent: { min: 40, max: 60, enabled: false },
-  foldScore: { max: 40, enabled: false },
+  gc_content: { min: 40, max: 60, enabled: false },
+  fold_score: { max: 40, enabled: false },
   tm: { min: 60, max: 75, enabled: false },
-  selfMatch: { max: 4, enabled: false },
-  mappedGenes: { max: 5, aligner: 'Bowtie2' as AlignerType, enabled: false },
-  kmerCount: { kmer_len: 35, aligner: 'Bowtie2' as AlignerType, enabled: false },
-  mappedSites: { aligner: 'Bowtie2' as AlignerType, enabled: false }
+  self_match: { max: 4, enabled: false },
+  mapped_genes: { max: 5, aligner: 'Bowtie2' as AlignerType, enabled: false },
+  kmer_count: { kmer_len: 35, aligner: 'Bowtie2' as AlignerType, enabled: false },
+  mapped_sites: { aligner: 'Bowtie2' as AlignerType, enabled: false }
 });
 
 const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[key: string]: string}, barcodeLengths: {[key: string]: number}, targetConfig: TargetConfig): string => {
@@ -444,30 +444,30 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
       sequence: targetConfig.sequence,
       length: targetConfig.length,
       attributes: {
-        gc_content: targetConfig.attributes.gcContent?.enabled ? {
-          min: targetConfig.attributes.gcContent.min,
-          max: targetConfig.attributes.gcContent.max
+        gc_content: targetConfig.attributes.gc_content?.enabled ? {
+          min: targetConfig.attributes.gc_content.min,
+          max: targetConfig.attributes.gc_content.max
         } : undefined,
-        fold_score: targetConfig.attributes.foldScore?.enabled ? {
-          max: targetConfig.attributes.foldScore.max
+        fold_score: targetConfig.attributes.fold_score?.enabled ? {
+          max: targetConfig.attributes.fold_score.max
         } : undefined,
         tm: targetConfig.attributes.tm?.enabled ? {
           min: targetConfig.attributes.tm.min,
           max: targetConfig.attributes.tm.max
         } : undefined,
-        self_match: targetConfig.attributes.selfMatch?.enabled ? {
-          max: targetConfig.attributes.selfMatch.max
+        self_match: targetConfig.attributes.self_match?.enabled ? {
+          max: targetConfig.attributes.self_match.max
         } : undefined,
-        mapped_genes: targetConfig.attributes.mappedGenes?.enabled ? {
-          max: targetConfig.attributes.mappedGenes.max,
-          aligner: targetConfig.attributes.mappedGenes.aligner
+        mapped_genes: targetConfig.attributes.mapped_genes?.enabled ? {
+          max: targetConfig.attributes.mapped_genes.max,
+          aligner: targetConfig.attributes.mapped_genes.aligner
         } : undefined,
-        kmer_count: targetConfig.attributes.kmerCount?.enabled ? {
-          kmer_len: targetConfig.attributes.kmerCount.kmer_len,
-          aligner: targetConfig.attributes.kmerCount.aligner
+        kmer_count: targetConfig.attributes.kmer_count?.enabled ? {
+          kmer_len: targetConfig.attributes.kmer_count.kmer_len,
+          aligner: targetConfig.attributes.kmer_count.aligner
         } : undefined,
-        mapped_sites: targetConfig.attributes.mappedSites?.enabled ? {
-          aligner: targetConfig.attributes.mappedSites.aligner
+        mapped_sites: targetConfig.attributes.mapped_sites?.enabled ? {
+          aligner: targetConfig.attributes.mapped_sites.aligner
         } : undefined
       }
     }
@@ -482,15 +482,15 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
     
     // Add probe-level attributes if any
     const probeAttributes: YAMLAttributes = {};
-    if (probe.attributes?.gcContent?.enabled) {
+    if (probe.attributes?.gc_content?.enabled) {
       probeAttributes.gc_content = {
-        min: probe.attributes.gcContent.min,
-        max: probe.attributes.gcContent.max
+        min: probe.attributes.gc_content.min,
+        max: probe.attributes.gc_content.max
       };
     }
-    if (probe.attributes?.foldScore?.enabled) {
+    if (probe.attributes?.fold_score?.enabled) {
       probeAttributes.fold_score = {
-        max: probe.attributes.foldScore.max
+        max: probe.attributes.fold_score.max
       };
     }
     if (probe.attributes?.tm?.enabled) {
@@ -499,26 +499,26 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
         max: probe.attributes.tm.max
       };
     }
-    if (probe.attributes?.selfMatch?.enabled) {
+    if (probe.attributes?.self_match?.enabled) {
       probeAttributes.self_match = {
-        max: probe.attributes.selfMatch.max
+        max: probe.attributes.self_match.max
       };
     }
-    if (probe.attributes?.mappedGenes?.enabled) {
+    if (probe.attributes?.mapped_genes?.enabled) {
       probeAttributes.mapped_genes = {
-        max: probe.attributes.mappedGenes.max,
-        aligner: probe.attributes.mappedGenes.aligner
+        max: probe.attributes.mapped_genes.max,
+        aligner: probe.attributes.mapped_genes.aligner
       };
     }
-    if (probe.attributes?.kmerCount?.enabled) {
+    if (probe.attributes?.kmer_count?.enabled) {
       probeAttributes.kmer_count = {
-        kmer_len: probe.attributes.kmerCount.kmer_len,
-        aligner: probe.attributes.kmerCount.aligner
+        kmer_len: probe.attributes.kmer_count.kmer_len,
+        aligner: probe.attributes.kmer_count.aligner
       };
     }
-    if (probe.attributes?.mappedSites?.enabled) {
+    if (probe.attributes?.mapped_sites?.enabled) {
       probeAttributes.mapped_sites = {
-        aligner: probe.attributes.mappedSites.aligner
+        aligner: probe.attributes.mapped_sites.aligner
       };
     }
     
@@ -535,15 +535,15 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
       // Add part-level attributes if any
       if (part.attributes) {
         partConfig.attributes = {};
-        if (part.attributes.gcContent?.enabled) {
+        if (part.attributes.gc_content?.enabled) {
           partConfig.attributes.gc_content = {
-            min: part.attributes.gcContent.min,
-            max: part.attributes.gcContent.max
+            min: part.attributes.gc_content.min,
+            max: part.attributes.gc_content.max
           };
         }
-        if (part.attributes.foldScore?.enabled) {
+        if (part.attributes.fold_score?.enabled) {
           partConfig.attributes.fold_score = {
-            max: part.attributes.foldScore.max
+            max: part.attributes.fold_score.max
           };
         }
         if (part.attributes.tm?.enabled) {
@@ -552,26 +552,26 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
             max: part.attributes.tm.max
           };
         }
-        if (part.attributes.selfMatch?.enabled) {
+        if (part.attributes.self_match?.enabled) {
           partConfig.attributes.self_match = {
-            max: part.attributes.selfMatch.max
+            max: part.attributes.self_match.max
           };
         }
-        if (part.attributes.mappedGenes?.enabled) {
+        if (part.attributes.mapped_genes?.enabled) {
           partConfig.attributes.mapped_genes = {
-            max: part.attributes.mappedGenes.max,
-            aligner: part.attributes.mappedGenes.aligner
+            max: part.attributes.mapped_genes.max,
+            aligner: part.attributes.mapped_genes.aligner
           };
         }
-        if (part.attributes.kmerCount?.enabled) {
+        if (part.attributes.kmer_count?.enabled) {
           partConfig.attributes.kmer_count = {
-            kmer_len: part.attributes.kmerCount.kmer_len,
-            aligner: part.attributes.kmerCount.aligner
+            kmer_len: part.attributes.kmer_count.kmer_len,
+            aligner: part.attributes.kmer_count.aligner
           };
         }
-        if (part.attributes.mappedSites?.enabled) {
+        if (part.attributes.mapped_sites?.enabled) {
           partConfig.attributes.mapped_sites = {
-            aligner: part.attributes.mappedSites.aligner
+            aligner: part.attributes.mapped_sites.aligner
           };
         }
       }
@@ -627,13 +627,13 @@ const CustomProbe: React.FC = () => {
     sequence: '',
     length: targetLength,
     attributes: {
-      gcContent: { min: 40, max: 60, enabled: false },
-      foldScore: { max: 40, enabled: false },
+      gc_content: { min: 40, max: 60, enabled: false },
+      fold_score: { max: 40, enabled: false },
       tm: { min: 60, max: 75, enabled: false },
-      selfMatch: { max: 4, enabled: false },
-      mappedGenes: { max: 5, aligner: 'Bowtie2' as AlignerType, enabled: false },
-      kmerCount: { kmer_len: 35, aligner: 'Bowtie2' as AlignerType, enabled: false },
-      mappedSites: { aligner: 'Bowtie2' as AlignerType, enabled: false }
+      self_match: { max: 4, enabled: false },
+      mapped_genes: { max: 5, aligner: 'Bowtie2' as AlignerType, enabled: false },
+      kmer_count: { kmer_len: 35, aligner: 'Bowtie2' as AlignerType, enabled: false },
+      mapped_sites: { aligner: 'Bowtie2' as AlignerType, enabled: false }
     }
   });
 
@@ -647,13 +647,13 @@ const CustomProbe: React.FC = () => {
       parts: [], 
       isComplete: false,
       attributes: {
-        gcContent: { min: 40, max: 60, enabled: false },
-        foldScore: { max: 40, enabled: false },
+        gc_content: { min: 40, max: 60, enabled: false },
+        fold_score: { max: 40, enabled: false },
         tm: { min: 60, max: 75, enabled: false },
-        selfMatch: { max: 4, enabled: false },
-        mappedGenes: { max: 5, aligner: 'Bowtie2', enabled: false },
-        kmerCount: { kmer_len: 15, aligner: 'BLAST', enabled: false },
-        mappedSites: { aligner: 'Bowtie2', enabled: false }
+        self_match: { max: 4, enabled: false },
+        mapped_genes: { max: 5, aligner: 'Bowtie2', enabled: false },
+        kmer_count: { kmer_len: 15, aligner: 'BLAST', enabled: false },
+        mapped_sites: { aligner: 'Bowtie2', enabled: false }
       }
     }
   ]);
@@ -738,13 +738,13 @@ const CustomProbe: React.FC = () => {
     sourceStartPos: '1',
     sourceEndPos: '10',
     attributes: {
-      gcContent: { min: 40, max: 60, enabled: false },
-      foldScore: { max: 40, enabled: false },
+      gc_content: { min: 40, max: 60, enabled: false },
+      fold_score: { max: 40, enabled: false },
       tm: { min: 60, max: 75, enabled: false },
-      selfMatch: { max: 4, enabled: false },
-      mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
-      kmerCount: { kmer_len: 15, aligner: 'BLAST', enabled: false },
-      mappedSites: { aligner: 'BLAST', enabled: false }
+      self_match: { max: 4, enabled: false },
+      mapped_genes: { max: 5, aligner: 'BLAST', enabled: false },
+      kmer_count: { kmer_len: 15, aligner: 'BLAST', enabled: false },
+      mapped_sites: { aligner: 'BLAST', enabled: false }
     }
   });
   
@@ -940,17 +940,17 @@ const CustomProbe: React.FC = () => {
       const [_, attributeType, property] = field.split('.');
       setNewPart(prev => {
         const updatedAttributes = { ...prev.attributes };
-        if (attributeType === 'gcContent') {
-          updatedAttributes.gcContent = {
-            ...updatedAttributes.gcContent,
+        if (attributeType === 'gc_content') {
+          updatedAttributes.gc_content = {
+            ...updatedAttributes.gc_content,
             [property]: property === 'enabled' ? value : Number(value),
-            enabled: property === 'enabled' ? value : (updatedAttributes.gcContent?.enabled || false)
+            enabled: property === 'enabled' ? value : (updatedAttributes.gc_content?.enabled || false)
           };
-        } else if (attributeType === 'foldScore') {
-          updatedAttributes.foldScore = {
-            ...updatedAttributes.foldScore,
+        } else if (attributeType === 'fold_score') {
+          updatedAttributes.fold_score = {
+            ...updatedAttributes.fold_score,
             [property]: property === 'enabled' ? value : Number(value),
-            enabled: property === 'enabled' ? value : (updatedAttributes.foldScore?.enabled || false)
+            enabled: property === 'enabled' ? value : (updatedAttributes.fold_score?.enabled || false)
           };
         } else if (attributeType === 'tm') {
           updatedAttributes.tm = {
@@ -958,31 +958,31 @@ const CustomProbe: React.FC = () => {
             [property]: property === 'enabled' ? value : Number(value),
             enabled: property === 'enabled' ? value : (updatedAttributes.tm?.enabled || false)
           };
-        } else if (attributeType === 'selfMatch') {
-          updatedAttributes.selfMatch = {
-            ...updatedAttributes.selfMatch,
+        } else if (attributeType === 'self_match') {
+          updatedAttributes.self_match = {
+            ...updatedAttributes.self_match,
             [property]: property === 'enabled' ? value : Number(value),
-            enabled: property === 'enabled' ? value : (updatedAttributes.selfMatch?.enabled || false)
+            enabled: property === 'enabled' ? value : (updatedAttributes.self_match?.enabled || false)
           };
-        } else if (attributeType === 'mappedGenes') {
-          updatedAttributes.mappedGenes = {
-            ...updatedAttributes.mappedGenes,
+        } else if (attributeType === 'mapped_genes') {
+          updatedAttributes.mapped_genes = {
+            ...updatedAttributes.mapped_genes,
             [property]: property === 'enabled' ? value : 
                         property === 'aligner' ? value : Number(value),
-            enabled: property === 'enabled' ? value : (updatedAttributes.mappedGenes?.enabled || false)
+            enabled: property === 'enabled' ? value : (updatedAttributes.mapped_genes?.enabled || false)
           };
-        } else if (attributeType === 'kmerCount') {
-          updatedAttributes.kmerCount = {
-            ...updatedAttributes.kmerCount,
+        } else if (attributeType === 'kmer_count') {
+          updatedAttributes.kmer_count = {
+            ...updatedAttributes.kmer_count,
             [property]: property === 'enabled' ? value : 
                         property === 'aligner' ? value : Number(value),
-            enabled: property === 'enabled' ? value : (updatedAttributes.kmerCount?.enabled || false)
+            enabled: property === 'enabled' ? value : (updatedAttributes.kmer_count?.enabled || false)
           };
-        } else if (attributeType === 'mappedSites') {
-          updatedAttributes.mappedSites = {
-            ...updatedAttributes.mappedSites,
+        } else if (attributeType === 'mapped_sites') {
+          updatedAttributes.mapped_sites = {
+            ...updatedAttributes.mapped_sites,
             [property]: property === 'enabled' ? value : value,
-            enabled: property === 'enabled' ? value : (updatedAttributes.mappedSites?.enabled || false)
+            enabled: property === 'enabled' ? value : (updatedAttributes.mapped_sites?.enabled || false)
           };
         }
         return {
@@ -1007,27 +1007,27 @@ const CustomProbe: React.FC = () => {
       
       if (!probe.attributes) {
         probe.attributes = {
-          gcContent: { min: 40, max: 60, enabled: false },
-          foldScore: { max: 40, enabled: false },
+          gc_content: { min: 40, max: 60, enabled: false },
+          fold_score: { max: 40, enabled: false },
           tm: { min: 60, max: 75, enabled: false },
-          selfMatch: { max: 4, enabled: false },
-          mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
-          kmerCount: { kmer_len: 15, aligner: 'BLAST', enabled: false },
-        mappedSites: { aligner: 'BLAST', enabled: false }
+          self_match: { max: 4, enabled: false },
+          mapped_genes: { max: 5, aligner: 'BLAST', enabled: false },
+          kmer_count: { kmer_len: 15, aligner: 'BLAST', enabled: false },
+        mapped_sites: { aligner: 'BLAST', enabled: false }
         };
       }
       
-      if (attributeType === 'gcContent') {
-        probe.attributes.gcContent = {
-          ...probe.attributes.gcContent,
+      if (attributeType === 'gc_content') {
+        probe.attributes.gc_content = {
+          ...probe.attributes.gc_content,
           [property]: property === 'enabled' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (probe.attributes.gcContent?.enabled || false)
+          enabled: property === 'enabled' ? value : (probe.attributes.gc_content?.enabled || false)
         };
-      } else if (attributeType === 'foldScore') {
-        probe.attributes.foldScore = {
-          ...probe.attributes.foldScore,
+      } else if (attributeType === 'fold_score') {
+        probe.attributes.fold_score = {
+          ...probe.attributes.fold_score,
           [property]: property === 'enabled' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (probe.attributes.foldScore?.enabled || false)
+          enabled: property === 'enabled' ? value : (probe.attributes.fold_score?.enabled || false)
         };
       } else if (attributeType === 'tm') {
         probe.attributes.tm = {
@@ -1035,31 +1035,31 @@ const CustomProbe: React.FC = () => {
           [property]: property === 'enabled' ? value : Number(value),
           enabled: property === 'enabled' ? value : (probe.attributes.tm?.enabled || false)
         };
-      } else if (attributeType === 'selfMatch') {
-        probe.attributes.selfMatch = {
-          ...probe.attributes.selfMatch,
+      } else if (attributeType === 'self_match') {
+        probe.attributes.self_match = {
+          ...probe.attributes.self_match,
           [property]: property === 'enabled' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (probe.attributes.selfMatch?.enabled || false)
+          enabled: property === 'enabled' ? value : (probe.attributes.self_match?.enabled || false)
         };
-      } else if (attributeType === 'mappedGenes') {
-        probe.attributes.mappedGenes = {
-          ...probe.attributes.mappedGenes,
+      } else if (attributeType === 'mapped_genes') {
+        probe.attributes.mapped_genes = {
+          ...probe.attributes.mapped_genes,
           [property]: property === 'enabled' ? value : 
                      property === 'aligner' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (probe.attributes.mappedGenes?.enabled || false)
+          enabled: property === 'enabled' ? value : (probe.attributes.mapped_genes?.enabled || false)
         };
-      } else if (attributeType === 'kmerCount') {
-        probe.attributes.kmerCount = {
-          ...probe.attributes.kmerCount,
+      } else if (attributeType === 'kmer_count') {
+        probe.attributes.kmer_count = {
+          ...probe.attributes.kmer_count,
           [property]: property === 'enabled' ? value : 
                      property === 'aligner' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (probe.attributes.kmerCount?.enabled || false)
+          enabled: property === 'enabled' ? value : (probe.attributes.kmer_count?.enabled || false)
         };
-      } else if (attributeType === 'mappedSites') {
-        probe.attributes.mappedSites = {
-          ...probe.attributes.mappedSites,
+      } else if (attributeType === 'mapped_sites') {
+        probe.attributes.mapped_sites = {
+          ...probe.attributes.mapped_sites,
           [property]: property === 'enabled' ? value : value,
-          enabled: property === 'enabled' ? value : (probe.attributes.mappedSites?.enabled || false)
+          enabled: property === 'enabled' ? value : (probe.attributes.mapped_sites?.enabled || false)
         };
       }
       
@@ -1078,27 +1078,27 @@ const CustomProbe: React.FC = () => {
       
       if (!part.attributes) {
         part.attributes = {
-          gcContent: { min: 40, max: 60, enabled: false },
-          foldScore: { max: 40, enabled: false },
+          gc_content: { min: 40, max: 60, enabled: false },
+          fold_score: { max: 40, enabled: false },
           tm: { min: 60, max: 75, enabled: false },
-          selfMatch: { max: 4, enabled: false },
-          mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
-          kmerCount: { kmer_len: 15, aligner: 'BLAST', enabled: false },
-        mappedSites: { aligner: 'BLAST', enabled: false }
+          self_match: { max: 4, enabled: false },
+          mapped_genes: { max: 5, aligner: 'BLAST', enabled: false },
+          kmer_count: { kmer_len: 15, aligner: 'BLAST', enabled: false },
+        mapped_sites: { aligner: 'BLAST', enabled: false }
         };
       }
       
-      if (attributeType === 'gcContent') {
-        part.attributes.gcContent = {
-          ...part.attributes.gcContent,
+      if (attributeType === 'gc_content') {
+        part.attributes.gc_content = {
+          ...part.attributes.gc_content,
           [property]: property === 'enabled' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (part.attributes.gcContent?.enabled || false)
+          enabled: property === 'enabled' ? value : (part.attributes.gc_content?.enabled || false)
         };
-      } else if (attributeType === 'foldScore') {
-        part.attributes.foldScore = {
-          ...part.attributes.foldScore,
+      } else if (attributeType === 'fold_score') {
+        part.attributes.fold_score = {
+          ...part.attributes.fold_score,
           [property]: property === 'enabled' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (part.attributes.foldScore?.enabled || false)
+          enabled: property === 'enabled' ? value : (part.attributes.fold_score?.enabled || false)
         };
       } else if (attributeType === 'tm') {
         part.attributes.tm = {
@@ -1106,31 +1106,31 @@ const CustomProbe: React.FC = () => {
           [property]: property === 'enabled' ? value : Number(value),
           enabled: property === 'enabled' ? value : (part.attributes.tm?.enabled || false)
         };
-      } else if (attributeType === 'selfMatch') {
-        part.attributes.selfMatch = {
-          ...part.attributes.selfMatch,
+      } else if (attributeType === 'self_match') {
+        part.attributes.self_match = {
+          ...part.attributes.self_match,
           [property]: property === 'enabled' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (part.attributes.selfMatch?.enabled || false)
+          enabled: property === 'enabled' ? value : (part.attributes.self_match?.enabled || false)
         };
-      } else if (attributeType === 'mappedGenes') {
-        part.attributes.mappedGenes = {
-          ...part.attributes.mappedGenes,
+      } else if (attributeType === 'mapped_genes') {
+        part.attributes.mapped_genes = {
+          ...part.attributes.mapped_genes,
           [property]: property === 'enabled' ? value : 
                      property === 'aligner' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (part.attributes.mappedGenes?.enabled || false)
+          enabled: property === 'enabled' ? value : (part.attributes.mapped_genes?.enabled || false)
         };
-      } else if (attributeType === 'kmerCount') {
-        part.attributes.kmerCount = {
-          ...part.attributes.kmerCount,
+      } else if (attributeType === 'kmer_count') {
+        part.attributes.kmer_count = {
+          ...part.attributes.kmer_count,
           [property]: property === 'enabled' ? value : 
                      property === 'aligner' ? value : Number(value),
-          enabled: property === 'enabled' ? value : (part.attributes.kmerCount?.enabled || false)
+          enabled: property === 'enabled' ? value : (part.attributes.kmer_count?.enabled || false)
         };
-      } else if (attributeType === 'mappedSites') {
-        part.attributes.mappedSites = {
-          ...part.attributes.mappedSites,
+      } else if (attributeType === 'mapped_sites') {
+        part.attributes.mapped_sites = {
+          ...part.attributes.mapped_sites,
           [property]: property === 'enabled' ? value : value,
-          enabled: property === 'enabled' ? value : (part.attributes.mappedSites?.enabled || false)
+          enabled: property === 'enabled' ? value : (part.attributes.mapped_sites?.enabled || false)
         };
       }
       
@@ -1214,13 +1214,13 @@ const CustomProbe: React.FC = () => {
       sourceStartPos: '1',
       sourceEndPos: '10',
       attributes: {
-        gcContent: { min: 40, max: 60, enabled: false },
-        foldScore: { max: 40, enabled: false },
+        gc_content: { min: 40, max: 60, enabled: false },
+        fold_score: { max: 40, enabled: false },
         tm: { min: 60, max: 75, enabled: false },
-        selfMatch: { max: 4, enabled: false },
-        mappedGenes: { max: 5, aligner: 'BLAST', enabled: false },
-        kmerCount: { kmer_len: 15, aligner: 'BLAST', enabled: false },
-        mappedSites: { aligner: 'BLAST', enabled: false }
+        self_match: { max: 4, enabled: false },
+        mapped_genes: { max: 5, aligner: 'BLAST', enabled: false },
+        kmer_count: { kmer_len: 15, aligner: 'BLAST', enabled: false },
+        mapped_sites: { aligner: 'BLAST', enabled: false }
       }
     });
     
@@ -1514,6 +1514,8 @@ const CustomProbe: React.FC = () => {
 
   // Render attributes form
   const renderAttributesForm = (attributes: any, onChange: (field: string, value: any) => void) => {
+    const isDna = targetConfig.source === 'genome';
+
     return (
       <Box>
         <StyledTabs 
@@ -1526,9 +1528,9 @@ const CustomProbe: React.FC = () => {
           <StyledTab label="Fold Score" icon={<TuneIcon fontSize="small" />} />
           <StyledTab label="Temperature" icon={<TuneIcon fontSize="small" />} />
           <StyledTab label="Self Match" icon={<TuneIcon fontSize="small" />} />
-          <StyledTab label="Mapping" icon={<CategoryIcon fontSize="small" />} />
-          <StyledTab label="K-mer Count" icon={<FilterListIcon fontSize="small" />} />
-          <StyledTab label="Mapped Sites" icon={<CategoryIcon fontSize="small" />} />
+          <StyledTab label="Mapped Genes" icon={<CategoryIcon fontSize="small" />} disabled={isDna} />
+          <StyledTab label="K-mer Count" icon={<FilterListIcon fontSize="small" />} disabled={!isDna} />
+          <StyledTab label="Mapped Sites" icon={<CategoryIcon fontSize="small" />} disabled={!isDna} />
         </StyledTabs>
         
         {/* GC Content Tab */}
@@ -1537,19 +1539,19 @@ const CustomProbe: React.FC = () => {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="subtitle2">GC Content Check</Typography>
               <Switch
-                checked={attributes.gcContent?.enabled}
-                onChange={(e) => onChange('gcContent.enabled', e.target.checked)}
+                checked={attributes.gc_content?.enabled}
+                onChange={(e) => onChange('gc_content.enabled', e.target.checked)}
                 size="small"
               />
             </Box>
-            {attributes.gcContent?.enabled && (
+            {attributes.gc_content?.enabled && (
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <TextField
                     label="Min %"
                     type="number"
-                    value={attributes.gcContent?.min}
-                    onChange={(e) => onChange('gcContent.min', e.target.value)}
+                    value={attributes.gc_content?.min}
+                    onChange={(e) => onChange('gc_content.min', e.target.value)}
                     size="small"
                     fullWidth
                     InputProps={{
@@ -1561,8 +1563,8 @@ const CustomProbe: React.FC = () => {
                   <TextField
                     label="Max %"
                     type="number"
-                    value={attributes.gcContent?.max}
-                    onChange={(e) => onChange('gcContent.max', e.target.value)}
+                    value={attributes.gc_content?.max}
+                    onChange={(e) => onChange('gc_content.max', e.target.value)}
                     size="small"
                     fullWidth
                     InputProps={{
@@ -1581,17 +1583,17 @@ const CustomProbe: React.FC = () => {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="subtitle2">Fold Score Check</Typography>
               <Switch
-                checked={attributes.foldScore?.enabled}
-                onChange={(e) => onChange('foldScore.enabled', e.target.checked)}
+                checked={attributes.fold_score?.enabled}
+                onChange={(e) => onChange('fold_score.enabled', e.target.checked)}
                 size="small"
               />
             </Box>
-            {attributes.foldScore?.enabled && (
+            {attributes.fold_score?.enabled && (
               <TextField
                 label="Maximum Score"
                 type="number"
-                value={attributes.foldScore?.max}
-                onChange={(e) => onChange('foldScore.max', e.target.value)}
+                value={attributes.fold_score?.max}
+                onChange={(e) => onChange('fold_score.max', e.target.value)}
                 size="small"
                 fullWidth
               />
@@ -1649,17 +1651,17 @@ const CustomProbe: React.FC = () => {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="subtitle2">Self Match Check</Typography>
               <Switch
-                checked={attributes.selfMatch?.enabled}
-                onChange={(e) => onChange('selfMatch.enabled', e.target.checked)}
+                checked={attributes.self_match?.enabled}
+                onChange={(e) => onChange('self_match.enabled', e.target.checked)}
                 size="small"
               />
             </Box>
-            {attributes.selfMatch?.enabled && (
+            {attributes.self_match?.enabled && (
               <TextField
                 label="Maximum Value"
                 type="number"
-                value={attributes.selfMatch?.max}
-                onChange={(e) => onChange('selfMatch.max', e.target.value)}
+                value={attributes.self_match?.max}
+                onChange={(e) => onChange('self_match.max', e.target.value)}
                 size="small"
                 fullWidth
               />
@@ -1668,24 +1670,24 @@ const CustomProbe: React.FC = () => {
         )}
         
         {/* Mapped Genes Tab */}
-        {attributeTab === 4 && (
+        {attributeTab === 4 && !isDna && (
           <Box sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="subtitle2">Mapped Genes Check</Typography>
               <Switch
-                checked={attributes.mappedGenes?.enabled}
-                onChange={(e) => onChange('mappedGenes.enabled', e.target.checked)}
+                checked={attributes.mapped_genes?.enabled}
+                onChange={(e) => onChange('mapped_genes.enabled', e.target.checked)}
                 size="small"
               />
             </Box>
-            {attributes.mappedGenes?.enabled && (
+            {attributes.mapped_genes?.enabled && (
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <TextField
                     label="Maximum Count"
                     type="number"
-                    value={attributes.mappedGenes?.max}
-                    onChange={(e) => onChange('mappedGenes.max', e.target.value)}
+                    value={attributes.mapped_genes?.max}
+                    onChange={(e) => onChange('mapped_genes.max', e.target.value)}
                     size="small"
                     fullWidth
                   />
@@ -1694,9 +1696,9 @@ const CustomProbe: React.FC = () => {
                   <FormControl fullWidth size="small">
                     <InputLabel>Aligner</InputLabel>
                     <Select
-                      value={attributes.mappedGenes?.aligner}
+                      value={attributes.mapped_genes?.aligner}
                       label="Aligner"
-                      onChange={(e) => onChange('mappedGenes.aligner', e.target.value)}
+                      onChange={(e) => onChange('mapped_genes.aligner', e.target.value)}
                     >
                       {availableAligners.map((aligner) => (
                         <MenuItem key={aligner} value={aligner}>
@@ -1712,24 +1714,24 @@ const CustomProbe: React.FC = () => {
         )}
         
         {/* K-mer Count Tab */}
-        {attributeTab === 5 && (
+        {attributeTab === 5 && isDna && (
           <Box sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="subtitle2">K-mer Count Check</Typography>
               <Switch
-                checked={attributes.kmerCount?.enabled}
-                onChange={(e) => onChange('kmerCount.enabled', e.target.checked)}
+                checked={attributes.kmer_count?.enabled}
+                onChange={(e) => onChange('kmer_count.enabled', e.target.checked)}
                 size="small"
               />
             </Box>
-            {attributes.kmerCount?.enabled && (
+            {attributes.kmer_count?.enabled && (
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <TextField
                     label="K-mer Length"
                     type="number"
-                    value={attributes.kmerCount?.kmer_len}
-                    onChange={(e) => onChange('kmerCount.kmer_len', e.target.value)}
+                    value={attributes.kmer_count?.kmer_len}
+                    onChange={(e) => onChange('kmer_count.kmer_len', e.target.value)}
                     size="small"
                     fullWidth
                   />
@@ -1738,9 +1740,9 @@ const CustomProbe: React.FC = () => {
                   <FormControl fullWidth size="small">
                     <InputLabel>Aligner</InputLabel>
                     <Select
-                      value={attributes.kmerCount?.aligner}
+                      value={attributes.kmer_count?.aligner}
                       label="Aligner"
-                      onChange={(e) => onChange('kmerCount.aligner', e.target.value)}
+                      onChange={(e) => onChange('kmer_count.aligner', e.target.value)}
                     >
                       {availableAligners.map((aligner) => (
                         <MenuItem key={aligner} value={aligner}>
@@ -1756,25 +1758,25 @@ const CustomProbe: React.FC = () => {
         )}
         
         {/* Mapped Sites Tab */}
-        {attributeTab === 6 && (
+        {attributeTab === 6 && isDna && (
           <Box sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="subtitle2">Mapped Sites Check</Typography>
               <Switch
-                checked={attributes.mappedSites?.enabled}
-                onChange={(e) => onChange('mappedSites.enabled', e.target.checked)}
+                checked={attributes.mapped_sites?.enabled}
+                onChange={(e) => onChange('mapped_sites.enabled', e.target.checked)}
                 size="small"
               />
             </Box>
-            {attributes.mappedSites?.enabled && (
+            {attributes.mapped_sites?.enabled && (
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Aligner</InputLabel>
                     <Select
-                      value={attributes.mappedSites?.aligner}
+                      value={attributes.mapped_sites?.aligner}
                       label="Aligner"
-                      onChange={(e) => onChange('mappedSites.aligner', e.target.value)}
+                      onChange={(e) => onChange('mapped_sites.aligner', e.target.value)}
                     >
                       {availableAligners.map((aligner) => (
                         <MenuItem key={aligner} value={aligner}>
@@ -1923,10 +1925,67 @@ const CustomProbe: React.FC = () => {
                 <Select
                   value={targetConfig.source}
                   label="Source Type"
-                  onChange={(e) => setTargetConfig(prev => ({
-                    ...prev,
-                    source: e.target.value as TargetSource
-                  }))}
+                  onChange={(e) => {
+                    const newSource = e.target.value as TargetSource;
+                    const isDna = newSource === 'genome';
+                    
+                    setTargetConfig(prev => {
+                      const newConfig = { ...prev, source: newSource };
+                      
+                      // Disable attributes that don't apply to the new source type
+                      if (isDna) {
+                        if (newConfig.attributes.mapped_genes) {
+                          newConfig.attributes.mapped_genes.enabled = false;
+                        }
+                      } else {
+                        if (newConfig.attributes.kmer_count) {
+                          newConfig.attributes.kmer_count.enabled = false;
+                        }
+                        if (newConfig.attributes.mapped_sites) {
+                          newConfig.attributes.mapped_sites.enabled = false;
+                        }
+                      }
+                      
+                      return newConfig;
+                    });
+                    
+                    // Also disable attributes in all probes and parts
+                    setProbes(prev => {
+                      return prev.map(probe => {
+                        const updatedProbe = { ...probe };
+                        if (updatedProbe.attributes) {
+                          if (isDna && updatedProbe.attributes.mapped_genes) {
+                            updatedProbe.attributes.mapped_genes.enabled = false;
+                          } else if (!isDna) {
+                            if (updatedProbe.attributes.kmer_count) updatedProbe.attributes.kmer_count.enabled = false;
+                            if (updatedProbe.attributes.mapped_sites) updatedProbe.attributes.mapped_sites.enabled = false;
+                          }
+                        }
+                        
+                        updatedProbe.parts = updatedProbe.parts.map(part => {
+                          const updatedPart = { ...part };
+                          if (updatedPart.attributes) {
+                            if (isDna && updatedPart.attributes.mapped_genes) {
+                              updatedPart.attributes.mapped_genes.enabled = false;
+                            } else if (!isDna) {
+                              if (updatedPart.attributes.kmer_count) updatedPart.attributes.kmer_count.enabled = false;
+                              if (updatedPart.attributes.mapped_sites) updatedPart.attributes.mapped_sites.enabled = false;
+                            }
+                          }
+                          return updatedPart;
+                        });
+                        
+                        return updatedProbe;
+                      });
+                    });
+                    
+                    // Reset attribute tab if the current tab is disabled
+                    if (isDna && attributeTab === 4) {
+                      setAttributeTab(0);
+                    } else if (!isDna && (attributeTab === 5 || attributeTab === 6)) {
+                      setAttributeTab(0);
+                    }
+                  }}
                 >
                   <MenuItem value="genome">Genome</MenuItem>
                   <MenuItem value="exon">Exon</MenuItem>
@@ -1996,7 +2055,7 @@ const CustomProbe: React.FC = () => {
                 {Object.entries(targetConfig.attributes).map(([key, attr]) => {
                   if (attr?.enabled) {
                     switch(key) {
-                      case 'gcContent':
+                      case 'gc_content':
                         return (
                           <AttributeChip 
                             key={key}
@@ -2006,7 +2065,7 @@ const CustomProbe: React.FC = () => {
                             variant="outlined"
                           />
                         );
-                      case 'foldScore':
+                      case 'fold_score':
                         return (
                           <AttributeChip 
                             key={key}
@@ -2026,7 +2085,7 @@ const CustomProbe: React.FC = () => {
                             variant="outlined"
                           />
                         );
-                      case 'selfMatch':
+                      case 'self_match':
                         return (
                           <AttributeChip 
                             key={key}
@@ -2036,7 +2095,7 @@ const CustomProbe: React.FC = () => {
                             variant="outlined"
                           />
                         );
-                      case 'mappedGenes':
+                      case 'mapped_genes':
                         return (
                           <AttributeChip 
                             key={key}
@@ -2046,7 +2105,7 @@ const CustomProbe: React.FC = () => {
                             variant="outlined"
                           />
                         );
-                      case 'kmerCount':
+                      case 'kmer_count':
                         return (
                           <AttributeChip 
                             key={key}
@@ -2056,7 +2115,7 @@ const CustomProbe: React.FC = () => {
                             variant="outlined"
                           />
                         );
-                      case 'mappedSites':
+                      case 'mapped_sites':
                         return (
                           <AttributeChip 
                             key={key}
@@ -2102,17 +2161,17 @@ const CustomProbe: React.FC = () => {
                   const newConfig = { ...prev };
                   const [attributeType, property] = field.split('.');
                   
-                  if (attributeType === 'gcContent') {
-                    newConfig.attributes.gcContent = {
-                      ...newConfig.attributes.gcContent,
+                  if (attributeType === 'gc_content') {
+                    newConfig.attributes.gc_content = {
+                      ...newConfig.attributes.gc_content,
                       [property]: property === 'enabled' ? value : Number(value),
-                      enabled: property === 'enabled' ? value : (newConfig.attributes.gcContent?.enabled || false)
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.gc_content?.enabled || false)
                     };
-                  } else if (attributeType === 'foldScore') {
-                    newConfig.attributes.foldScore = {
-                      ...newConfig.attributes.foldScore,
+                  } else if (attributeType === 'fold_score') {
+                    newConfig.attributes.fold_score = {
+                      ...newConfig.attributes.fold_score,
                       [property]: property === 'enabled' ? value : Number(value),
-                      enabled: property === 'enabled' ? value : (newConfig.attributes.foldScore?.enabled || false)
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.fold_score?.enabled || false)
                     };
                   } else if (attributeType === 'tm') {
                     newConfig.attributes.tm = {
@@ -2120,31 +2179,31 @@ const CustomProbe: React.FC = () => {
                       [property]: property === 'enabled' ? value : Number(value),
                       enabled: property === 'enabled' ? value : (newConfig.attributes.tm?.enabled || false)
                     };
-                  } else if (attributeType === 'selfMatch') {
-                    newConfig.attributes.selfMatch = {
-                      ...newConfig.attributes.selfMatch,
+                  } else if (attributeType === 'self_match') {
+                    newConfig.attributes.self_match = {
+                      ...newConfig.attributes.self_match,
                       [property]: property === 'enabled' ? value : Number(value),
-                      enabled: property === 'enabled' ? value : (newConfig.attributes.selfMatch?.enabled || false)
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.self_match?.enabled || false)
                     };
-                  } else if (attributeType === 'mappedGenes') {
-                    newConfig.attributes.mappedGenes = {
-                      ...newConfig.attributes.mappedGenes,
+                  } else if (attributeType === 'mapped_genes') {
+                    newConfig.attributes.mapped_genes = {
+                      ...newConfig.attributes.mapped_genes,
                       [property]: property === 'enabled' ? value : 
                                   property === 'aligner' ? value : Number(value),
-                      enabled: property === 'enabled' ? value : (newConfig.attributes.mappedGenes?.enabled || false)
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.mapped_genes?.enabled || false)
                     };
-                  } else if (attributeType === 'kmerCount') {
-                    newConfig.attributes.kmerCount = {
-                      ...newConfig.attributes.kmerCount,
+                  } else if (attributeType === 'kmer_count') {
+                    newConfig.attributes.kmer_count = {
+                      ...newConfig.attributes.kmer_count,
                       [property]: property === 'enabled' ? value : 
                                   property === 'aligner' ? value : Number(value),
-                      enabled: property === 'enabled' ? value : (newConfig.attributes.kmerCount?.enabled || false)
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.kmer_count?.enabled || false)
                     };
-                  } else if (attributeType === 'mappedSites') {
-                    newConfig.attributes.mappedSites = {
-                      ...newConfig.attributes.mappedSites,
+                  } else if (attributeType === 'mapped_sites') {
+                    newConfig.attributes.mapped_sites = {
+                      ...newConfig.attributes.mapped_sites,
                       [property]: property === 'enabled' ? value : value,
-                      enabled: property === 'enabled' ? value : (newConfig.attributes.mappedSites?.enabled || false)
+                      enabled: property === 'enabled' ? value : (newConfig.attributes.mapped_sites?.enabled || false)
                     };
                   }
                   
@@ -2375,18 +2434,18 @@ const CustomProbe: React.FC = () => {
                           
                           {/* Display active attributes as chips */}
                           <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1 }}>
-                            {probe.attributes?.gcContent?.enabled && (
+                            {probe.attributes?.gc_content?.enabled && (
                               <AttributeChip 
                                 size="small" 
-                                label={`GC: ${probe.attributes.gcContent.min}%-${probe.attributes.gcContent.max}%`} 
+                                label={`GC: ${probe.attributes.gc_content.min}%-${probe.attributes.gc_content.max}%`} 
                                 color="primary" 
                                 variant="outlined"
                               />
                             )}
-                            {probe.attributes?.foldScore?.enabled && (
+                            {probe.attributes?.fold_score?.enabled && (
                               <AttributeChip 
                                 size="small" 
-                                label={`Fold: max ${probe.attributes.foldScore.max}`} 
+                                label={`Fold: max ${probe.attributes.fold_score.max}`} 
                                 color="secondary" 
                                 variant="outlined"
                               />
@@ -2399,31 +2458,31 @@ const CustomProbe: React.FC = () => {
                                 variant="outlined"
                               />
                             )}
-                            {probe.attributes?.selfMatch?.enabled && (
+                            {probe.attributes?.self_match?.enabled && (
                               <AttributeChip 
                                 size="small" 
-                                label={`Self: max ${probe.attributes.selfMatch.max}`} 
+                                label={`Self: max ${probe.attributes.self_match.max}`} 
                                 color="warning" 
                                 variant="outlined"
                               />
                             )}
-                            {probe.attributes?.mappedGenes?.enabled && (
+                            {probe.attributes?.mapped_genes?.enabled && (
                               <AttributeChip 
                                 size="small" 
-                                label={`Map: max ${probe.attributes.mappedGenes.max}`} 
+                                label={`Map: max ${probe.attributes.mapped_genes.max}`} 
                                 color="info" 
                                 variant="outlined"
                               />
                             )}
-                            {probe.attributes?.kmerCount?.enabled && (
+                            {probe.attributes?.kmer_count?.enabled && (
                               <AttributeChip 
                                 size="small" 
-                                label={`Kmer: ${probe.attributes.kmerCount.kmer_len}`} 
+                                label={`Kmer: ${probe.attributes.kmer_count.kmer_len}`} 
                                 color="success" 
                                 variant="outlined"
                               />
                             )}
-                            {probe.attributes?.mappedSites?.enabled && (
+                            {probe.attributes?.mapped_sites?.enabled && (
                               <AttributeChip 
                                 size="small" 
                                 label={`Sites`} 
@@ -2479,7 +2538,7 @@ const CustomProbe: React.FC = () => {
                                     {Object.entries(part.attributes).map(([key, attr]) => {
                                       if (attr?.enabled) {
                                         switch(key) {
-                                          case 'gcContent':
+                                          case 'gc_content':
                                             return (
                                               <Chip 
                                                 key={key}
@@ -2489,7 +2548,7 @@ const CustomProbe: React.FC = () => {
                                                 sx={{ height: 20, fontSize: '0.7rem' }}
                                               />
                                             );
-                                          case 'foldScore':
+                                          case 'fold_score':
                                             return (
                                               <Chip 
                                                 key={key}
@@ -2509,7 +2568,7 @@ const CustomProbe: React.FC = () => {
                                                 sx={{ height: 20, fontSize: '0.7rem' }}
                                               />
                                             );
-                                          case 'selfMatch':
+                                          case 'self_match':
                                             return (
                                               <Chip 
                                                 key={key}
@@ -2519,7 +2578,7 @@ const CustomProbe: React.FC = () => {
                                                 sx={{ height: 20, fontSize: '0.7rem' }}
                                               />
                                             );
-                                          case 'mappedGenes':
+                                          case 'mapped_genes':
                                             return (
                                               <Chip 
                                                 key={key}
@@ -2529,7 +2588,7 @@ const CustomProbe: React.FC = () => {
                                                 sx={{ height: 20, fontSize: '0.7rem' }}
                                               />
                                             );
-                                          case 'kmerCount':
+                                          case 'kmer_count':
                                             return (
                                               <Chip 
                                                 key={key}
@@ -2539,7 +2598,7 @@ const CustomProbe: React.FC = () => {
                                                 sx={{ height: 20, fontSize: '0.7rem' }}
                                               />
                                             );
-                                          case 'mappedSites':
+                                          case 'mapped_sites':
                                             return (
                                               <Chip 
                                                 key={key}
@@ -2616,13 +2675,13 @@ const CustomProbe: React.FC = () => {
                               </DialogTitle>
                               <DialogContent>
                                 {renderAttributesForm(part.attributes || {
-                                  gcContent: { min: 40, max: 60, enabled: false },
-                                  foldScore: { max: 40, enabled: false },
+                                  gc_content: { min: 40, max: 60, enabled: false },
+                                  fold_score: { max: 40, enabled: false },
                                   tm: { min: 60, max: 75, enabled: false },
-                                  selfMatch: { max: 4, enabled: false },
-                                  mappedGenes: { max: 5, aligner: 'BLAST' as AlignerType, enabled: false },
-                                  kmerCount: { kmer_len: 15, aligner: 'BLAST' as AlignerType, enabled: false },
-                                  mappedSites: { aligner: 'BLAST' as AlignerType, enabled: false }
+                                  self_match: { max: 4, enabled: false },
+                                  mapped_genes: { max: 5, aligner: 'BLAST' as AlignerType, enabled: false },
+                                  kmer_count: { kmer_len: 15, aligner: 'BLAST' as AlignerType, enabled: false },
+                                  mapped_sites: { aligner: 'BLAST' as AlignerType, enabled: false }
                                 }, (field, value) => handlePartAttributeChange(index, idx, field, value))}
                                 
                                 <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
