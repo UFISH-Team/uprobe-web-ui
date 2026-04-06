@@ -2599,7 +2599,7 @@ const DesignWorkflow: React.FC = () => {
             </Typography>
 
             {/* Global Barcode Configuration */}
-            {selectedCustomType?.barcodeCount && (
+            {!!selectedCustomType?.barcodeCount && (
               <Paper variant="outlined" sx={{ p: 2, mb: 3, backgroundColor: 'grey.50' }}>
                 <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
                   🔧 Barcode Configuration
@@ -2658,7 +2658,7 @@ const DesignWorkflow: React.FC = () => {
                     <Grid item xs={selectedCustomType?.barcodeCount ? 3 : 5}>
                       <TextField
                         fullWidth
-                        label="Target"
+                        label={`Target ${index + 1}`}
                         value={item.target}
                         onChange={(e) => updateTarget(index, 'target', e.target.value)}
                       />
@@ -3172,11 +3172,18 @@ const DesignWorkflow: React.FC = () => {
                               >
                                 {option.category && getAvailableSortFields()
                                   .find(cat => cat.category === option.category)
-                                  ?.fields.map((field) => (
-                                    <MenuItem key={field.value} value={field.value}>
-                                      {field.label}
-                                    </MenuItem>
-                                  ))}
+                                  ?.fields.map((field) => {
+                                    const isSelected = sortOptions.some((opt, i) => i !== index && opt.field === field.value);
+                                    return (
+                                      <MenuItem 
+                                        key={field.value} 
+                                        value={field.value}
+                                        disabled={isSelected}
+                                      >
+                                        {field.label} {isSelected && '(Selected)'}
+                                      </MenuItem>
+                                    );
+                                  })}
                               </Select>
                             </FormControl>
                           </Grid>

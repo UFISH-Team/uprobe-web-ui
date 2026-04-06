@@ -620,12 +620,12 @@ const CustomProbe: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
   // Target sequence state
-  const [targetLength, setTargetLength] = useState<number>();
+  const [targetLength, setTargetLength] = useState<number | undefined>(undefined);
   const [targetSequence, setTargetSequence] = useState<string>('');
   const [targetConfig, setTargetConfig] = useState<TargetConfig>({
     source: '' as TargetSource,
     sequence: '',
-    length: targetLength,
+    length: targetLength || 50,
     attributes: {
       gc_content: { min: 40, max: 60, enabled: false },
       fold_score: { max: 40, enabled: false },
@@ -750,7 +750,7 @@ const CustomProbe: React.FC = () => {
   
   // Generate random sequence as Target when targetLength changes
   useEffect(() => {
-    generateRandomSequence(targetLength);
+    generateRandomSequence(targetLength || 50);
   }, [targetLength]);
 
   // Load saved probe groups on mount
@@ -1491,7 +1491,7 @@ const CustomProbe: React.FC = () => {
       });
     });
 
-    const yamlContent = convertProbesToYAML(probes, targetLength, barcodes, barcodeLengths, targetConfig);
+    const yamlContent = convertProbesToYAML(probes, targetLength || 50, barcodes, barcodeLengths, targetConfig);
 
     const updatedGroup: ProbeGroup = {
       ...probeGroup,
@@ -1501,7 +1501,7 @@ const CustomProbe: React.FC = () => {
       type: 'custom',
       yamlContent: yamlContent,
       barcodeCount: barcodeSet.size,
-      targetLength: targetLength,
+      targetLength: targetLength || 50,
       targetConfig: targetConfig
     };
 
@@ -1535,7 +1535,7 @@ const CustomProbe: React.FC = () => {
       setProbes(group.probes);
       if (group.targetConfig) {
         setTargetConfig(group.targetConfig);
-        setTargetLength(group.targetConfig.length);
+        setTargetLength(group.targetConfig.length || 50);
         setTargetSequence(group.targetConfig.sequence);
       }
       setShowHistory(false);
@@ -2093,7 +2093,7 @@ const CustomProbe: React.FC = () => {
                   <Button 
                     variant="outlined" 
                     startIcon={<RefreshIcon />}
-                    onClick={() => generateRandomSequence(targetLength)}
+                    onClick={() => generateRandomSequence(targetLength || 50)}
                   >
                     Regenerate
                   </Button>
