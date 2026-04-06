@@ -647,7 +647,7 @@ const DesignWorkflow: React.FC = () => {
             'fold_score': 'foldScore',
             'annealing_temperature': 'tm',
             'self_match': 'selfMatch',
-            'n_mapped_genes': 'mappedGenes',
+            'mapped_genes': 'mappedGenes',
             'kmer_count': 'kmerCount',
             'mapped_sites': 'mappedSites'
           };
@@ -768,24 +768,52 @@ const DesignWorkflow: React.FC = () => {
           const parameters = extractParametersFromYaml(customType.yamlContent);
           console.log('Debug - UseEffect - Extracted parameters:', parameters);
           
-          let targetConfig = null;
-          if (parameters?.target_sequence) {
-            targetConfig = {
-              source: parameters.target_sequence.source,
-              sequence: parameters.target_sequence.sequence,
-              length: parameters.target_sequence.length,
-              attributes: parameters.target_sequence.attributes || {}
-            };
+        // Helper to enable attributes
+        const enableAttributes = (attrs: any) => {
+          if (!attrs) return attrs;
+          const enabledAttrs: any = {};
+          for (const [key, val] of Object.entries(attrs)) {
+            enabledAttrs[key] = { ...(val as any), enabled: true };
           }
-          
-          const updatedCustomType = {
-            ...customType,
-            targetLength: parameters?.targetLength || customType.targetLength,
-            barcodeCount: parameters?.barcodeCount || parameters?.barcodeConfig?.count || customType.barcodeCount,
-            probes: parameters?.probes || customType.probes || {},
-            targetConfig: targetConfig || customType.targetConfig,
-            barcodeConfig: parameters?.barcodeConfig || customType.barcodeConfig
+          return enabledAttrs;
+        };
+
+        let targetConfig = null;
+        if (parameters?.target_sequence) {
+          targetConfig = {
+            source: parameters.target_sequence.source,
+            sequence: parameters.target_sequence.sequence,
+            length: parameters.target_sequence.length,
+            attributes: enableAttributes(parameters.target_sequence.attributes)
           };
+        }
+        
+        const probes = parameters?.probes || customType.probes || {};
+        const enabledProbes: any = {};
+        for (const [probeName, probe] of Object.entries(probes)) {
+          enabledProbes[probeName] = { ...probe as any };
+          if ((probe as any).attributes) {
+            enabledProbes[probeName].attributes = enableAttributes((probe as any).attributes);
+          }
+          if ((probe as any).parts) {
+            enabledProbes[probeName].parts = {};
+            for (const [partName, part] of Object.entries((probe as any).parts)) {
+              enabledProbes[probeName].parts[partName] = { ...part as any };
+              if ((part as any).attributes) {
+                enabledProbes[probeName].parts[partName].attributes = enableAttributes((part as any).attributes);
+              }
+            }
+          }
+        }
+        
+        const updatedCustomType = {
+          ...customType,
+          targetLength: parameters?.targetLength || customType.targetLength,
+          barcodeCount: parameters?.barcodeCount || parameters?.barcodeConfig?.count || customType.barcodeCount,
+          probes: enabledProbes,
+          targetConfig: targetConfig || customType.targetConfig,
+          barcodeConfig: parameters?.barcodeConfig || customType.barcodeConfig
+        };
           
           console.log('Debug - UseEffect - Updated custom type:', updatedCustomType);
           setSelectedCustomType(updatedCustomType);
@@ -830,6 +858,7 @@ const DesignWorkflow: React.FC = () => {
       
       Papa.parse(file, {
         header: true,
+        skipEmptyLines: true, // 添加此行：自动跳过空行
         complete: (results: Papa.ParseResult<Record<string, string>>) => {
           try {
             if (results.data.length === 0) {
@@ -927,21 +956,49 @@ const DesignWorkflow: React.FC = () => {
         const parameters = extractParametersFromYaml(customType.yamlContent);
         console.log('Debug - Extracted parameters:', parameters);
         
+        // Helper to enable attributes
+        const enableAttributes = (attrs: any) => {
+          if (!attrs) return attrs;
+          const enabledAttrs: any = {};
+          for (const [key, val] of Object.entries(attrs)) {
+            enabledAttrs[key] = { ...(val as any), enabled: true };
+          }
+          return enabledAttrs;
+        };
+        
         let targetConfig = null;
         if (parameters?.target_sequence) {
           targetConfig = {
             source: parameters.target_sequence.source,
             sequence: parameters.target_sequence.sequence,
             length: parameters.target_sequence.length,
-            attributes: parameters.target_sequence.attributes || {}
+            attributes: enableAttributes(parameters.target_sequence.attributes)
           };
+        }
+        
+        const probes = parameters?.probes || customType.probes || {};
+        const enabledProbes: any = {};
+        for (const [probeName, probe] of Object.entries(probes)) {
+          enabledProbes[probeName] = { ...probe as any };
+          if ((probe as any).attributes) {
+            enabledProbes[probeName].attributes = enableAttributes((probe as any).attributes);
+          }
+          if ((probe as any).parts) {
+            enabledProbes[probeName].parts = {};
+            for (const [partName, part] of Object.entries((probe as any).parts)) {
+              enabledProbes[probeName].parts[partName] = { ...part as any };
+              if ((part as any).attributes) {
+                enabledProbes[probeName].parts[partName].attributes = enableAttributes((part as any).attributes);
+              }
+            }
+          }
         }
         
         const updatedCustomType = {
           ...customType,
           targetLength: parameters?.targetLength || customType.targetLength,
           barcodeCount: parameters?.barcodeCount || parameters?.barcodeConfig?.count || customType.barcodeCount,
-          probes: parameters?.probes || customType.probes || {},
+          probes: enabledProbes,
           targetConfig: targetConfig || customType.targetConfig,
           barcodeConfig: parameters?.barcodeConfig || customType.barcodeConfig
         };
@@ -1254,7 +1311,7 @@ const DesignWorkflow: React.FC = () => {
         if (value.enabled) {
           const fieldLabel = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
           targetFields.push({
-            value: `target_${key}`,
+            value: `target_${getSnakeCaseAttrName(key)}`,
             label: fieldLabel
           });
         }
@@ -1279,7 +1336,7 @@ const DesignWorkflow: React.FC = () => {
             if (value.enabled) {
               const fieldLabel = `${formatProbeName(probeName)} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
               probeFields.push({
-                value: `${formattedProbeName}_${key}`,
+                value: `${formattedProbeName}_${getSnakeCaseAttrName(key)}`,
                 label: fieldLabel
               });
             }
@@ -1308,7 +1365,7 @@ const DesignWorkflow: React.FC = () => {
                 if (value.enabled) {
                   const fieldLabel = `${formatProbeName(probeName)} - ${formatPartName(partName)} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
                   partFields.push({
-                    value: `${formattedProbeName}_${formattedPartName}_${key}`,
+                    value: `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(key)}`,
                     label: fieldLabel
                   });
                 }
@@ -1488,11 +1545,25 @@ const DesignWorkflow: React.FC = () => {
       'foldScore': 'fold_score',
       'tm': 'annealing_temperature',
       'selfMatch': 'self_match',
-      'mappedGenes': 'n_mapped_genes',
+      'mappedGenes': 'mapped_genes',
       'kmerCount': 'kmer_count',
       'mappedSites': 'mapped_sites'
     };
     return typeMapping[attrName] || attrName;
+  };
+
+  // Helper function to get snake_case attribute name for keys
+  const getSnakeCaseAttrName = (attrName: string): string => {
+    const mapping: Record<string, string> = {
+      'gcContent': 'gc_content',
+      'foldScore': 'fold_score',
+      'tm': 'tm',
+      'selfMatch': 'self_match',
+      'mappedGenes': 'mapped_genes',
+      'kmerCount': 'kmer_count',
+      'mappedSites': 'mapped_sites'
+    };
+    return mapping[attrName] || attrName;
   };
 
   // Helper function to generate automatic task name
@@ -1589,9 +1660,9 @@ const DesignWorkflow: React.FC = () => {
         }
       }
     });
-    if (Object.keys(targetEncoding).length > 0) {
-      config.encoding = targetEncoding;
-    }
+    
+    
+    config.encoding = targetEncoding;
 
     // Extraction config
     config.extracts = {
@@ -1644,7 +1715,7 @@ const DesignWorkflow: React.FC = () => {
       if (selectedCustomType.targetConfig?.attributes) {
         Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
           if (attrValue.enabled) {
-            const attributeKey = `target_${attrName}`;
+            const attributeKey = `target_${getSnakeCaseAttrName(attrName)}`;
             const attr: any = {
               target: 'target_region',
               type: getAttributeType(attrName)
@@ -1680,7 +1751,7 @@ const DesignWorkflow: React.FC = () => {
           if (probeConfig.attributes) {
             Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
               if (attrValue.enabled) {
-                const attributeKey = `${formattedProbeName}_${attrName}`;
+                const attributeKey = `${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`;
                 const attr: any = {
                   target: formattedProbeName.replace(/probe(\d+)/, 'probe_$1'), // Use probe_1 format in target
                   type: getAttributeType(attrName)
@@ -1715,7 +1786,7 @@ const DesignWorkflow: React.FC = () => {
               if (partConfig.attributes) {
                 Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
                   if (attrValue.enabled) {
-                    const attributeKey = `${formattedProbeName}_${formattedPartName}_${attrName}`;
+                    const attributeKey = `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`;
                     const attr: any = {
                       target: `${formattedProbeName.replace(/probe(\d+)/, 'probe_$1')}.${formattedPartName}`, // Use dot separator
                       type: getAttributeType(attrName)
@@ -1761,10 +1832,10 @@ const DesignWorkflow: React.FC = () => {
       if (selectedCustomType.targetConfig?.attributes) {
         Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
           if (attrValue.enabled) {
-            const filterName = `target_${attrName}`;
+            const filterName = `target_${getSnakeCaseAttrName(attrName)}`;
             let condition = '';
             
-            if (attrName === 'gcContent' || attrName === 'tm') {
+            if (attrName === 'gcContent' || attrName === 'gc_content') {
               if (attrValue.min !== undefined && attrValue.max !== undefined) {
                 condition = `${filterName} >= ${attrValue.min/100} & ${filterName} <= ${attrValue.max/100}`;
               } else if (attrValue.max !== undefined) {
@@ -1793,10 +1864,10 @@ const DesignWorkflow: React.FC = () => {
           if (probeConfig.attributes) {
             Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
               if (attrValue.enabled) {
-                const filterName = `${formattedProbeName}_${attrName}`;
+                const filterName = `${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`;
                 let condition = '';
                 
-                if (attrName === 'gcContent' || attrName === 'tm') {
+                if (attrName === 'gcContent' || attrName === 'gc_content') {
                   if (attrValue.min !== undefined && attrValue.max !== undefined) {
                     condition = `${filterName} >= ${attrValue.min/100} & ${filterName} <= ${attrValue.max/100}`;
                   } else if (attrValue.max !== undefined) {
@@ -1824,10 +1895,10 @@ const DesignWorkflow: React.FC = () => {
               if (partConfig.attributes) {
                 Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
                   if (attrValue.enabled) {
-                    const filterName = `${formattedProbeName}_${formattedPartName}_${attrName}`;
+                    const filterName = `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`;
                     let condition = '';
                     
-                    if (attrName === 'gcContent' || attrName === 'tm') {
+                    if (attrName === 'gcContent' || attrName === 'gc_content') {
                       if (attrValue.min !== undefined && attrValue.max !== undefined) {
                         condition = `${filterName} >= ${attrValue.min/100} & ${filterName} <= ${attrValue.max/100}`;
                       } else if (attrValue.max !== undefined) {
@@ -1911,7 +1982,7 @@ const DesignWorkflow: React.FC = () => {
     if (selectedCustomType?.targetConfig?.attributes) {
       Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
         if (attrValue.enabled) {
-          summaryAttributes.push(`target_${attrName}`);
+          summaryAttributes.push(`target_${getSnakeCaseAttrName(attrName)}`);
         }
       });
     }
@@ -1924,7 +1995,7 @@ const DesignWorkflow: React.FC = () => {
         if (probeConfig.attributes) {
           Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
             if (attrValue.enabled) {
-              summaryAttributes.push(`${formattedProbeName}_${attrName}`);
+              summaryAttributes.push(`${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`);
             }
           });
         }
@@ -1937,7 +2008,7 @@ const DesignWorkflow: React.FC = () => {
             if (partConfig.attributes) {
               Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
                 if (attrValue.enabled) {
-                  summaryAttributes.push(`${formattedProbeName}_${formattedPartName}_${attrName}`);
+                  summaryAttributes.push(`${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`);
                 }
               });
             }
@@ -2446,11 +2517,11 @@ const DesignWorkflow: React.FC = () => {
                 component="label"
                 startIcon={<AddIcon />}
               >
-                Upload target list csv/txt
+                Upload target list (.csv)
                 <input
                   type="file"
                   hidden
-                  accept=".csv,.txt"
+                  accept=".csv"
                   onChange={handleTargetCsvUpload}
                 />
               </Button>
@@ -2464,10 +2535,11 @@ const DesignWorkflow: React.FC = () => {
               </Button>
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+              <strong>CSV Format Required:</strong> The first row must be a header. <code>target</code> is required, <code>sequence</code> is optional.<br />
               {selectedCustomType?.barcodeCount ? 
-                `CSV/TXT format: target,sequence${Array.from({ length: selectedCustomType.barcodeCount }, (_, i) => `,barcode${i + 1}`).join('')} (one line per target)` :
-                'CSV/TXT format: target,sequence (one line per target)'}<br />
-              Sequence is optional. Barcode options: Builtin selection | Auto-generate based on config | Manual input | Upload from file
+                `Header format: target,sequence${Array.from({ length: selectedCustomType.barcodeCount }, (_, i) => `,barcode${i + 1}`).join('')}` :
+                'Header format: target,sequence'}<br />
+              <em>Note: You can leave sequence or barcodes empty in the CSV and configure them later in the UI.</em>
             </Typography>
 
             {/* Global Barcode Configuration */}
