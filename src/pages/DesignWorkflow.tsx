@@ -1590,6 +1590,18 @@ const DesignWorkflow: React.FC = () => {
       errors.push('please add at least one target');
     }
     
+    if (!selectedCustomType?.targetConfig?.source) {
+      errors.push('please select a Source Type for the Target Sequence in the custom probe configuration');
+    }
+
+    if (overlap === undefined || overlap === null || isNaN(Number(overlap)) || overlap.toString().trim() === '') {
+      errors.push('please specify a valid Overlap value for the Target Sequence Configuration');
+    }
+
+    if (minLength === undefined || minLength === null || isNaN(Number(minLength)) || minLength.toString().trim() === '') {
+      errors.push('please specify a valid Target Length value for the Target Sequence Configuration');
+    }
+
     // Check if barcode fields are filled and have correct length when required
     if (selectedCustomType?.barcodeCount) {
       const targetsWithInvalidBarcodes = targetList.filter(item => {
@@ -1615,6 +1627,50 @@ const DesignWorkflow: React.FC = () => {
       
       if (targetsWithInvalidBarcodes.length > 0) {
         errors.push('some target barcodes are missing or have incorrect length, please check the barcode configuration');
+      }
+    }
+    
+    // Validate attributes
+    if (selectedCustomType) {
+      const validateAttrs = (attrs: any, context: string) => {
+        if (!attrs) return;
+        Object.entries(attrs).forEach(([attrName, attrValue]: [string, any]) => {
+          if (attrValue.enabled) {
+            if (attrName === 'gcContent' || attrName === 'gc_content' || attrName === 'tm') {
+              if (attrValue.min === undefined || attrValue.min === '' || isNaN(Number(attrValue.min)) || 
+                  attrValue.max === undefined || attrValue.max === '' || isNaN(Number(attrValue.max))) {
+                errors.push(`${context}: ${attrName} requires valid min and max values.`);
+              }
+            } else if (attrName === 'foldScore' || attrName === 'fold_score' || attrName === 'selfMatch' || attrName === 'self_match' || attrName === 'mappedGenes' || attrName === 'mapped_genes') {
+              if (attrValue.max === undefined || attrValue.max === '' || isNaN(Number(attrValue.max))) {
+                errors.push(`${context}: ${attrName} requires a valid max value.`);
+              }
+            } else if (attrName === 'kmerCount' || attrName === 'kmer_count') {
+              if (attrValue.kmer_len === undefined || attrValue.kmer_len === '' || isNaN(Number(attrValue.kmer_len))) {
+                errors.push(`${context}: ${attrName} requires a valid k-mer length.`);
+              }
+            }
+            
+            if (attrName === 'mappedGenes' || attrName === 'mapped_genes' || attrName === 'kmerCount' || attrName === 'kmer_count' || attrName === 'mappedSites' || attrName === 'mapped_sites') {
+              if (!attrValue.aligner) {
+                errors.push(`${context}: ${attrName} requires an aligner.`);
+              }
+            }
+          }
+        });
+      };
+
+      validateAttrs(selectedCustomType.targetConfig?.attributes, 'Target Sequence');
+      
+      if (selectedCustomType.probes) {
+        Object.entries(selectedCustomType.probes).forEach(([probeName, probeConfig]) => {
+          validateAttrs(probeConfig.attributes, formatProbeName(probeName));
+          if (probeConfig.parts) {
+            Object.entries(probeConfig.parts).forEach(([partName, partConfig]) => {
+              validateAttrs(partConfig.attributes, `${formatProbeName(probeName)} - ${formatPartName(partName)}`);
+            });
+          }
+        });
       }
     }
     
@@ -3216,7 +3272,7 @@ const DesignWorkflow: React.FC = () => {
 
       {/* Alert */}
       <Snackbar open={alertOpen} autoHideDuration={6000} onClose={handleAlertClose}>
-        <Alert onClose={handleAlertClose} severity={alertSeverity} sx={{ width: '100%' }}>
+        <Alert onClose={handleAlertClose} severity={alertSeverity} sx={{ width: '100%', whiteSpace: 'pre-line' }}>
           {alertMessage}
         </Alert>
       </Snackbar>

@@ -188,7 +188,7 @@ const reverseComplement = (sequence: string): string => {
 // Type definitions
 type TargetSource = 'genome' | 'exon' | 'CDS' | 'UTR';
 type PartSource = 'target' | 'barcode' | 'fixed' | 'external' | 'probe';
-type AlignerType = 'Bowtie2' | 'BLAST' | 'MMseqs2';
+type AlignerType = 'Bowtie2' | 'BLAST' | 'MMseqs2' | 'Jellyfish';
 
 interface TargetAttributes {
   gc_content?: {
@@ -415,7 +415,7 @@ const createDefaultAttributes = (): ProbeAttributes => ({
   tm: { min: 60, max: 75, enabled: false },
   self_match: { max: 4, enabled: false },
   mapped_genes: { max: 5, aligner: 'Bowtie2' as AlignerType, enabled: false },
-  kmer_count: { kmer_len: 35, aligner: 'Bowtie2' as AlignerType, enabled: false },
+  kmer_count: { kmer_len: 35, aligner: 'Jellyfish' as AlignerType, enabled: false },
   mapped_sites: { aligner: 'Bowtie2' as AlignerType, enabled: false }
 });
 
@@ -620,10 +620,10 @@ const CustomProbe: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
   // Target sequence state
-  const [targetLength, setTargetLength] = useState<number>(50);
+  const [targetLength, setTargetLength] = useState<number>();
   const [targetSequence, setTargetSequence] = useState<string>('');
   const [targetConfig, setTargetConfig] = useState<TargetConfig>({
-    source: '',
+    source: '' as TargetSource,
     sequence: '',
     length: targetLength,
     attributes: {
@@ -1394,6 +1394,56 @@ const CustomProbe: React.FC = () => {
     }));
   };
 
+  const validateAttributes = (attributes: any, context: string): string[] => {
+    const errors: string[] = [];
+    if (!attributes) return errors;
+
+    if (attributes.gc_content?.enabled) {
+      if (attributes.gc_content.min === undefined || attributes.gc_content.min === '' || isNaN(Number(attributes.gc_content.min)) || 
+          attributes.gc_content.max === undefined || attributes.gc_content.max === '' || isNaN(Number(attributes.gc_content.max))) {
+        errors.push(`${context}: GC Content requires valid min and max values.`);
+      }
+    }
+    if (attributes.fold_score?.enabled) {
+      if (attributes.fold_score.max === undefined || attributes.fold_score.max === '' || isNaN(Number(attributes.fold_score.max))) {
+        errors.push(`${context}: Fold Score requires a valid max value.`);
+      }
+    }
+    if (attributes.tm?.enabled) {
+      if (attributes.tm.min === undefined || attributes.tm.min === '' || isNaN(Number(attributes.tm.min)) || 
+          attributes.tm.max === undefined || attributes.tm.max === '' || isNaN(Number(attributes.tm.max))) {
+        errors.push(`${context}: Temperature requires valid min and max values.`);
+      }
+    }
+    if (attributes.self_match?.enabled) {
+      if (attributes.self_match.max === undefined || attributes.self_match.max === '' || isNaN(Number(attributes.self_match.max))) {
+        errors.push(`${context}: Self Match requires a valid max value.`);
+      }
+    }
+    if (attributes.mapped_genes?.enabled) {
+      if (attributes.mapped_genes.max === undefined || attributes.mapped_genes.max === '' || isNaN(Number(attributes.mapped_genes.max))) {
+        errors.push(`${context}: Mapped Genes requires a valid max value.`);
+      }
+      if (!attributes.mapped_genes.aligner) {
+        errors.push(`${context}: Mapped Genes requires an aligner.`);
+      }
+    }
+    if (attributes.kmer_count?.enabled) {
+      if (attributes.kmer_count.kmer_len === undefined || attributes.kmer_count.kmer_len === '' || isNaN(Number(attributes.kmer_count.kmer_len))) {
+        errors.push(`${context}: K-mer Count requires a valid k-mer length.`);
+      }
+      if (!attributes.kmer_count.aligner) {
+        errors.push(`${context}: K-mer Count requires an aligner.`);
+      }
+    }
+    if (attributes.mapped_sites?.enabled) {
+      if (!attributes.mapped_sites.aligner) {
+        errors.push(`${context}: Mapped Sites requires an aligner.`);
+      }
+    }
+    return errors;
+  };
+
   // Save probe group
   const saveProbeGroup = async () => {
     if (!probeGroup.name.trim()) {
@@ -1401,10 +1451,33 @@ const CustomProbe: React.FC = () => {
       return;
     }
 
+    if (!targetConfig.source) {
+      showAlert('Please select a Source Type for the Target Sequence', 'error');
+      return;
+    }
+
     // Check for incomplete probes
     const incompleteProbes = probes.filter(probe => !probe.isComplete);
     if (incompleteProbes.length > 0) {
       showAlert(`Cannot save probe group. ${incompleteProbes.length} probe(s) are not marked as complete.`, 'error');
+      return;
+    }
+
+    // Validate attributes
+    let validationErrors: string[] = [];
+    validationErrors = validationErrors.concat(validateAttributes(targetConfig.attributes, 'Target Sequence'));
+    
+    probes.forEach((probe, index) => {
+      const probeName = probe.name || `Probe_${index + 1}`;
+      validationErrors = validationErrors.concat(validateAttributes(probe.attributes, probeName));
+      
+      probe.parts.forEach((part, partIndex) => {
+        validationErrors = validationErrors.concat(validateAttributes(part.attributes, `${probeName} - Part_${partIndex + 1}`));
+      });
+    });
+
+    if (validationErrors.length > 0) {
+      showAlert(`Please complete all required attribute parameters:\n${validationErrors.join('\n')}`, 'error');
       return;
     }
 
@@ -1819,7 +1892,7 @@ const CustomProbe: React.FC = () => {
           <Alert 
             severity={alertState.severity}
             onClose={() => setAlertState(prev => ({ ...prev, open: false }))}
-            sx={{ width: '100%' }}
+            sx={{ width: '100%', whiteSpace: 'pre-line' }}
           >
             {alertState.message}
           </Alert>
