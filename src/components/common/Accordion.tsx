@@ -31,16 +31,16 @@ export const AccordionSummary = styled((props: AccordionSummaryProps) => (
       ? 'rgba(255, 255, 255, .05)'
       : 'rgba(0, 0, 0, .03)',
   flexDirection: 'row-reverse',
-  '& .my-MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
+  '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
     transform: 'rotate(90deg)',
   },
-  '& .my-MuiAccordionSummary-content': {
+  '& .MuiAccordionSummary-content': {
     marginLeft: theme.spacing(1),
   },
 }));
 
 
-export const AccordionDetails = styled(MuiAccordionDetails)(({ theme }) => ({
+export const AccordionDetails = styled(MuiAccordionDetails)(() => ({
   padding: 0,
   borderTop: '1px solid rgba(0, 0, 0, .125)',
 }));

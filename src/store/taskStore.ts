@@ -149,7 +149,7 @@ const useTaskStore = create<TaskState>((set, get) => ({
 
       // Submit a new task with the old configuration
       const response = await ApiService.submitTask(config);
-      const newTaskId = response.data?.job_id || response.job_id || response.id;
+      const newTaskId = (response as any).data?.job_id || (response as any).job_id || (response as any).id;
       
       // Immediately run the new task
       if (newTaskId) {
@@ -172,48 +172,5 @@ const useTaskStore = create<TaskState>((set, get) => ({
     set({ currentTask: task });
   }
 }));
-
-// Helper function to map job status to task status
-const mapJobStatusToTaskStatus = (jobStatus: string): "pending" | "running" | "completed" | "failed" | "paused" => {
-  switch (jobStatus?.toLowerCase()) {
-    case 'pending': 
-      return 'pending';
-    case 'running': 
-      return 'running';
-    case 'completed': 
-    case 'success':
-    case 'succeeded':
-      return 'completed';
-    case 'failed': 
-    case 'error':
-      return 'failed';
-    case 'paused': 
-    case 'stopped':
-      return 'paused';
-    default:
-      return 'pending';
-  }
-};
-
-// Helper function to calculate task progress
-const calculateProgress = (status: string, progress: number | undefined): number => {
-  if (progress !== undefined) {
-    return progress;
-  }
-  
-  switch (status?.toLowerCase()) {
-    case 'completed':
-    case 'success':
-    case 'succeeded':
-      return 100;
-    case 'failed':
-    case 'error':
-      return 0;
-    case 'running':
-      return 50; // Default for running if no progress provided
-    default:
-      return 0;
-  }
-};
 
 export default useTaskStore; 

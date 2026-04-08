@@ -8,7 +8,7 @@ export interface Task {
   id: string;
   name: string;
   description: string;
-  status: "pending" | "running" | "completed" | "failed" | "paused";
+  status: "pending" | "running" | "completed" | "failed" | "paused" | "queued";
   progress: number;
   created_at: string;
   updated_at: string;

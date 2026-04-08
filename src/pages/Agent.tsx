@@ -579,7 +579,7 @@ const Agent: React.FC = () => {
     for (const file of Array.from(files) as File[]) {
       const fileId = `${Date.now()}-${Math.random()}`;
       setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
-      const form = new FormData();
+      // const form = new FormData();
       try {
         setUploadProgress(prev => ({ ...prev, [fileId]: 50 }));
         const data = await ApiService.uploadAgentAttachment(convId, file, {

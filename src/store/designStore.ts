@@ -57,7 +57,7 @@ interface DesignState {
   getBarcodeSequence: (barcode: string) => Promise<string | null>;
 }
 
-const useDesignStore = create<DesignState>((set, get) => ({
+const useDesignStore = create<DesignState>((set, _get) => ({
   // Initial state
   taskName: '',
   probeType: '',

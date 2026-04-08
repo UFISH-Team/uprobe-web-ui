@@ -223,24 +223,6 @@ export const lightThemeOptions: ThemeOptions = {
         },
       },
     },
-    MuiInputBase: {
-      styleOverrides: {
-        input: {
-          '&:-webkit-autofill': {
-            transition: 'background-color 5000s ease-in-out 0s, color 5000s ease-in-out 0s',
-          },
-          '&:-webkit-autofill:hover': {
-            transition: 'background-color 5000s ease-in-out 0s, color 5000s ease-in-out 0s',
-          },
-          '&:-webkit-autofill:focus': {
-            transition: 'background-color 5000s ease-in-out 0s, color 5000s ease-in-out 0s',
-          },
-          '&:-webkit-autofill:active': {
-            transition: 'background-color 5000s ease-in-out 0s, color 5000s ease-in-out 0s',
-          },
-        },
-      },
-    },
     MuiChip: {
       styleOverrides: {
         root: {
@@ -547,24 +529,6 @@ export const darkThemeOptions: ThemeOptions = {
           '& .MuiOutlinedInput-root': {
             borderRadius: 8,
             transition: 'all 0.15s ease',
-          },
-        },
-      },
-    },
-    MuiInputBase: {
-      styleOverrides: {
-        input: {
-          '&:-webkit-autofill': {
-            transition: 'background-color 5000s ease-in-out 0s, color 5000s ease-in-out 0s',
-          },
-          '&:-webkit-autofill:hover': {
-            transition: 'background-color 5000s ease-in-out 0s, color 5000s ease-in-out 0s',
-          },
-          '&:-webkit-autofill:focus': {
-            transition: 'background-color 5000s ease-in-out 0s, color 5000s ease-in-out 0s',
-          },
-          '&:-webkit-autofill:active': {
-            transition: 'background-color 5000s ease-in-out 0s, color 5000s ease-in-out 0s',
           },
         },
       },

@@ -19,7 +19,6 @@ import {
 } from '@mui/material';
 import {
   RocketLaunch,
-  Science,
   FolderOpen,
   AutoAwesome,
   Build,
@@ -66,7 +65,7 @@ const Tutorial: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [activeTab, setActiveTab] = useState(0);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 

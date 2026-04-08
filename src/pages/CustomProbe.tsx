@@ -419,7 +419,7 @@ const createDefaultAttributes = (): ProbeAttributes => ({
   mapped_sites: { aligner: 'Bowtie2' as AlignerType, enabled: false }
 });
 
-const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[key: string]: string}, barcodeLengths: {[key: string]: number}, targetConfig: TargetConfig): string => {
+const convertProbesToYAML = (probes: Probe[], _targetLength: number, barcodes: {[key: string]: string}, barcodeLengths: {[key: string]: number}, targetConfig: TargetConfig): string => {
   const yamlProbes: YAMLProbes = {};
   
   // Add barcode configuration  
@@ -427,7 +427,7 @@ const convertProbesToYAML = (probes: Probe[], targetLength: number, barcodes: {[
     barcodes: {
       count: Object.keys(barcodes).length,
       barcodes: Object.fromEntries(
-        Object.entries(barcodes).map(([key, sequence]) => [
+        Object.entries(barcodes).map(([key, _sequence]) => [
           key, 
           { 
             length: barcodeLengths[key]
@@ -694,7 +694,7 @@ const CustomProbe: React.FC = () => {
   
   // Tab state for probe attributes
   const [attributeTab, setAttributeTab] = useState<number>(0);
-  const [showAttributes, setShowAttributes] = useState<Record<string, boolean>>({});
+  // const [showAttributes, setShowAttributes] = useState<Record<string, boolean>>({});
   
   // Simple barcode state for backward compatibility and YAML export
   const [barcodes, setBarcodes] = useState<{[key: string]: string}>({
@@ -1235,6 +1235,7 @@ const CustomProbe: React.FC = () => {
   };
   
   // Mark probe as complete (finalized)
+  /*
   const completeProbe = (probeIndex: number) => {
     if (probes[probeIndex].parts.length === 0) {
       showAlert('Cannot complete an empty probe. Add at least one part.', 'error');
@@ -1247,6 +1248,7 @@ const CustomProbe: React.FC = () => {
     
     showAlert(`Probe ${probes[probeIndex].id} design completed!`, 'success');
   };
+  */
   
   // Toggle probe completion status
   const toggleProbeCompletion = (probeIndex: number) => {
