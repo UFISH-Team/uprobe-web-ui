@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Card, CardActions, CardContent, CardMedia, Button, Typography, Box,
-  useTheme, useMediaQuery, Paper, Chip, Grid 
+  useTheme, useMediaQuery, Paper, Chip, Grid, alpha
 } from '@mui/material';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { 
@@ -31,7 +31,6 @@ const Design: React.FC = () => {
       image: '/4.jpeg',
       path: '/design/designworkflow',
       color: theme.palette.primary.main,
-      bgColor: 'rgba(37, 99, 235, 0.05)',
       icon: <AutoAwesome />,
       difficulty: 'Recommended',
       estimatedTime: '5-10 minutes'
@@ -43,7 +42,6 @@ const Design: React.FC = () => {
       image: '/3.webp',
       path: '/design/customprobe',
       color: theme.palette.secondary.main,
-      bgColor: 'rgba(8, 145, 178, 0.05)',
       icon: <Build />,
       difficulty: 'Advanced',
       estimatedTime: '10-15 minutes'
@@ -64,7 +62,7 @@ const Design: React.FC = () => {
                 sx={{ 
                   mb: 2,
                   fontWeight: 800,
-                  background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
@@ -97,9 +95,9 @@ const Design: React.FC = () => {
                       flexDirection: 'column',
                       position: 'relative',
                     background: theme.palette.mode === 'dark' 
-                      ? `linear-gradient(135deg, ${option.bgColor} 0%, rgba(255, 255, 255, 0.05) 100%)`
-                      : `linear-gradient(135deg, ${option.bgColor} 0%, rgba(255, 255, 255, 0.8) 100%)`,
-                      border: `1px solid rgba(37, 99, 235, 0.1)`,
+                      ? `linear-gradient(135deg, ${alpha(option.color, 0.1)} 0%, ${theme.palette.background.paper} 100%)`
+                      : `linear-gradient(135deg, ${alpha(option.color, 0.05)} 0%, ${theme.palette.background.paper} 100%)`,
+                      border: `1px solid ${alpha(option.color, 0.1)}`,
                       '&:hover': {
                         '& .card-image': {
                           transform: 'scale(1.05)',
@@ -282,8 +280,8 @@ const Design: React.FC = () => {
               sx={{
                 p: 4,
                 textAlign: 'center',
-                background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(8, 145, 178, 0.05) 100%)',
-                border: '1px solid rgba(37, 99, 235, 0.1)',
+                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
               }}
             >
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
