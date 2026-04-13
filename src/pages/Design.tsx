@@ -96,7 +96,9 @@ const Design: React.FC = () => {
                       display: 'flex',
                       flexDirection: 'column',
                       position: 'relative',
-                      background: `linear-gradient(135deg, ${option.bgColor} 0%, rgba(255, 255, 255, 0.8) 100%)`,
+                    background: theme.palette.mode === 'dark' 
+                      ? `linear-gradient(135deg, ${option.bgColor} 0%, rgba(255, 255, 255, 0.05) 100%)`
+                      : `linear-gradient(135deg, ${option.bgColor} 0%, rgba(255, 255, 255, 0.8) 100%)`,
                       border: `1px solid rgba(37, 99, 235, 0.1)`,
                       '&:hover': {
                         '& .card-image': {
