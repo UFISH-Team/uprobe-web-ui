@@ -111,7 +111,9 @@ const Agent: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [tempApiKey, setTempApiKey] = useState('');
   const [model, setModel] = useState('gpt-5.4');
+  const [tempModel, setTempModel] = useState('gpt-5.4');
   const [proxy, setProxy] = useState('');
+  const [tempProxy, setTempProxy] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' as 'success' | 'error' | 'info' | 'warning' });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
@@ -126,6 +128,23 @@ const Agent: React.FC = () => {
   
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editConversationTitle, setEditConversationTitle] = useState('');
+
+  const hasAgentConfiguration = Boolean(apiKey.trim());
+
+  const openApiKeyDialog = useCallback(() => {
+    setTempApiKey(apiKey);
+    setTempModel(model);
+    setTempProxy(proxy);
+    setShowApiKeyDialog(true);
+  }, [apiKey, model, proxy]);
+
+  const closeApiKeyDialog = useCallback(() => {
+    setTempApiKey(apiKey);
+    setTempModel(model);
+    setTempProxy(proxy);
+    setShowApiKeyDialog(false);
+  }, [apiKey, model, proxy]);
+
 
   const refreshConversation = useCallback(async (conversationId: string) => {
     const conversation = await ApiService.getAgentConversation(conversationId);
@@ -158,9 +177,11 @@ const Agent: React.FC = () => {
     }
     if (savedModel) {
       setModel(savedModel);
+      setTempModel(savedModel);
     }
     if (savedProxy) {
       setProxy(savedProxy);
+      setTempProxy(savedProxy);
     }
     void loadConversations()
       .then((loaded) => {
@@ -356,6 +377,11 @@ const Agent: React.FC = () => {
   };
 
   const handleEditSave = async (message: Message) => {
+    if (!hasAgentConfiguration) {
+      openApiKeyDialog();
+      setSnackbar({ open: true, message: 'Please configure Agent API Key first', severity: 'warning' });
+      return;
+    }
     if (isLoading) return;
     const newContent = editValue.trim();
     if (!newContent) {
@@ -467,6 +493,11 @@ const Agent: React.FC = () => {
   };
 
   const handleSendMessage = async () => {
+    if (!hasAgentConfiguration) {
+      openApiKeyDialog();
+      setSnackbar({ open: true, message: 'Please configure Agent API Key first', severity: 'warning' });
+      return;
+    }
     if (!inputValue.trim() || isLoading) return;
 
     // Create new conversation if none exists
@@ -564,6 +595,11 @@ const Agent: React.FC = () => {
   };
 
   const handleChooseFiles = () => {
+    if (!hasAgentConfiguration) {
+      openApiKeyDialog();
+      setSnackbar({ open: true, message: 'Please configure Agent API Key first', severity: 'warning' });
+      return;
+    }
     if (isLoading) return;
 
     // Ensure a conversation exists before selecting files
@@ -576,6 +612,12 @@ const Agent: React.FC = () => {
   const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
+    if (!hasAgentConfiguration) {
+      openApiKeyDialog();
+      setSnackbar({ open: true, message: 'Please configure Agent API Key first', severity: 'warning' });
+      e.target.value = '';
+      return;
+    }
     // Ensure conversation id
     const convId = await ensureConversationId(currentConversationId);
     if (!convId) return;
@@ -645,6 +687,11 @@ const Agent: React.FC = () => {
   };
 
   const handleSuggestedPrompt = (prompt: string) => {
+    if (!hasAgentConfiguration) {
+      openApiKeyDialog();
+      setSnackbar({ open: true, message: 'Please configure Agent API Key first', severity: 'warning' });
+      return;
+    }
     setInputValue(prompt);
     inputRef.current?.focus();
   };
@@ -696,6 +743,11 @@ const Agent: React.FC = () => {
     setSnackbar({ open: true, message: 'Chat cleared and session stopped', severity: 'info' });
   };
   const handleRegenerateMessage = async (messageId: string) => {
+    if (!hasAgentConfiguration) {
+      openApiKeyDialog();
+      setSnackbar({ open: true, message: 'Please configure Agent API Key first', severity: 'warning' });
+      return;
+    }
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1 || messageIndex === 0) return;
     const previousMessage = messages[messageIndex - 1];
@@ -833,6 +885,11 @@ const Agent: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    if (!hasAgentConfiguration) {
+      openApiKeyDialog();
+      setSnackbar({ open: true, message: 'Please configure Agent API Key first', severity: 'warning' });
+      return;
+    }
     const files = Array.from(e.dataTransfer.files) as File[];
     if (files.length === 0) return;
     const convId = await ensureConversationId(currentConversationId);
@@ -875,7 +932,7 @@ const Agent: React.FC = () => {
         setSnackbar({ open: true, message: `${file.name}: ${formatApiError(err)}`, severity: 'error' });
       }
     }
-  }, [currentConversationId, apiKey, model, proxy, refreshConversation]);
+  }, [currentConversationId, hasAgentConfiguration, model, openApiKeyDialog, proxy, refreshConversation]);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -901,11 +958,20 @@ const Agent: React.FC = () => {
       return;
     }
 
-    setApiKey(tempApiKey);
-    localStorage.setItem('uprobe-agent-api-key', tempApiKey);
-    localStorage.setItem('uprobe-agent-model', model);
-    if (proxy) {
-      localStorage.setItem('uprobe-agent-proxy', proxy);
+    const nextApiKey = tempApiKey.trim();
+    const nextModel = tempModel.trim() || 'gpt-5.4';
+    const nextProxy = tempProxy.trim();
+
+    setApiKey(nextApiKey);
+    setTempApiKey(nextApiKey);
+    setModel(nextModel);
+    setTempModel(nextModel);
+    setProxy(nextProxy);
+    setTempProxy(nextProxy);
+    localStorage.setItem('uprobe-agent-api-key', nextApiKey);
+    localStorage.setItem('uprobe-agent-model', nextModel);
+    if (nextProxy) {
+      localStorage.setItem('uprobe-agent-proxy', nextProxy);
     } else {
       localStorage.removeItem('uprobe-agent-proxy');
     }
@@ -1479,10 +1545,18 @@ const Agent: React.FC = () => {
                           <Search fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Settings">
+                      <Tooltip title={hasAgentConfiguration ? 'Agent configured' : 'Configure Agent'}>
                         <IconButton
                           size="small"
-                          onClick={() => setShowApiKeyDialog(true)}
+                          onClick={openApiKeyDialog}
+                          sx={{
+                            color: hasAgentConfiguration ? 'success.main' : 'text.secondary',
+                            backgroundColor: hasAgentConfiguration ? 'rgba(34, 197, 94, 0.08)' : 'transparent',
+                            '&:hover': {
+                              color: hasAgentConfiguration ? 'success.dark' : 'text.primary',
+                              backgroundColor: hasAgentConfiguration ? 'rgba(34, 197, 94, 0.14)' : 'action.hover',
+                            }
+                          }}
                         >
                           <Settings fontSize="small" />
                         </IconButton>
@@ -1742,9 +1816,11 @@ const Agent: React.FC = () => {
                   minHeight: '64px'
                 }}
               >
-                  <Typography variant="h6" noWrap sx={{ fontWeight: 600, fontSize: '1.125rem', color: 'text.primary' }}>
-                   ✨ U-Probe Assistant
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+                    <Typography variant="h6" noWrap sx={{ fontWeight: 600, fontSize: '1.125rem', color: 'text.primary' }}>
+                     ✨ U-Probe Assistant
+                    </Typography>
+                  </Box>
                   {currentConversationId && (
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
                       <Tooltip title="Export">
@@ -1956,8 +2032,17 @@ const Agent: React.FC = () => {
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="Message U-Probe Assistant..."
+                    placeholder={hasAgentConfiguration ? "Message U-Probe Assistant..." : "Please configure Agent API Key first..."}
                     disabled={isLoading}
+                    onClick={() => {
+                      if (!hasAgentConfiguration) {
+                        openApiKeyDialog();
+                        setSnackbar({ open: true, message: 'Please configure Agent API Key first', severity: 'warning' });
+                      }
+                    }}
+                    InputProps={{
+                      readOnly: !hasAgentConfiguration,
+                    }}
                     variant="outlined"
                     sx={{
                       flex: 1,
@@ -2010,7 +2095,7 @@ const Agent: React.FC = () => {
                     <Button
                       variant="contained"
                       onClick={handleSendMessage}
-                      disabled={!inputValue.trim() || isLoading}
+                      disabled={isLoading || (hasAgentConfiguration && !inputValue.trim())}
                       sx={{
                         minWidth: 40,
                         width: 40,
@@ -2038,7 +2123,7 @@ const Agent: React.FC = () => {
       {/* API Key Configuration Dialog */}
       <Dialog
         open={showApiKeyDialog}
-        onClose={() => setShowApiKeyDialog(false)}
+        onClose={closeApiKeyDialog}
         maxWidth="sm"
         fullWidth
       >
@@ -2062,16 +2147,16 @@ const Agent: React.FC = () => {
             <TextField
               label="Model"
               fullWidth
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
+              value={tempModel}
+              onChange={(e) => setTempModel(e.target.value)}
               placeholder="gpt-5.4"
               helperText="Default model id is gpt-5.4; override with your provider’s id (e.g. gemini-…, anthropic/…)."
             />
             <TextField
               label="Proxy (Optional)"
               fullWidth
-              value={proxy}
-              onChange={(e) => setProxy(e.target.value)}
+              value={tempProxy}
+              onChange={(e) => setTempProxy(e.target.value)}
               placeholder="http://127.0.0.1:7890"
               helperText="E.g. http://127.0.0.1:7890, http://192.168.1.10:7890, https://proxy.example.com:3128. Must start with http:// or https://. With auth: http://user:pass@host:port"
             />
@@ -2081,7 +2166,7 @@ const Agent: React.FC = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowApiKeyDialog(false)}>Cancel</Button>
+          <Button onClick={closeApiKeyDialog}>Cancel</Button>
           <Button
             variant="contained"
             onClick={handleSaveApiKey}
