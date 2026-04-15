@@ -300,13 +300,16 @@ class ApiService {
     return api.post('/auth/send-verification-code', { email });
   }
 
-  static async registerWithCode(email: string, verification_code: string, password: string, username: string): Promise<{ access_token: string; token_type: string }> {
-    const response = await api.post('/auth/register-with-code', { 
-      email, 
-      verification_code,
-      password, 
-      username 
-    }) as { token: string; token_type: string; user_info: any };
+  static async registerWithCode(payload: {
+    email: string;
+    verification_code: string;
+    password: string;
+    username: string;
+    full_name: string;
+    department: string;
+    location: string;
+  }): Promise<{ access_token: string; token_type: string }> {
+    const response = await api.post('/auth/register-with-code', payload) as { token: string; token_type: string; user_info: any };
     
     const mappedResponse = {
       access_token: response.token,
