@@ -858,7 +858,7 @@ const DesignWorkflow: React.FC = () => {
       
       Papa.parse(file, {
         header: true,
-        skipEmptyLines: true, // 添加此行：自动跳过空行
+        skipEmptyLines: true, // omit blank lines when parsing CSV
         complete: (results: Papa.ParseResult<Record<string, string>>) => {
           try {
             if (results.data.length === 0) {
