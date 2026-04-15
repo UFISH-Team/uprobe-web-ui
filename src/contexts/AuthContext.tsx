@@ -21,7 +21,15 @@ interface AuthContextType {
   isLoading: boolean;
   login: (emailOrUsername: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (email: string, password: string, username: string) => Promise<void>;
-  registerWithCode: (email: string, verification_code: string, password: string, username: string) => Promise<void>;
+  registerWithCode: (payload: {
+    email: string;
+    verification_code: string;
+    password: string;
+    username: string;
+    full_name: string;
+    department: string;
+    location: string;
+  }) => Promise<void>;
   sendVerificationCode: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -82,9 +90,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const registerWithCode = async (email: string, verification_code: string, password: string, username: string) => {
+  const registerWithCode = async (payload: {
+    email: string;
+    verification_code: string;
+    password: string;
+    username: string;
+    full_name: string;
+    department: string;
+    location: string;
+  }) => {
     try {
-      const response = await ApiService.registerWithCode(email, verification_code, password, username);
+      const response = await ApiService.registerWithCode(payload);
       if (response.access_token) {
         setIsAuthenticated(true);
         localStorage.setItem('isAuthenticated', 'true');
