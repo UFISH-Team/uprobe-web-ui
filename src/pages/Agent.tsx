@@ -2051,7 +2051,7 @@ const Agent: React.FC = () => {
         <DialogContent>
           <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
-              label="OpenAI API Key"
+              label="API Key"
               type="password"
               fullWidth
               value={tempApiKey}
@@ -2065,7 +2065,7 @@ const Agent: React.FC = () => {
               value={model}
               onChange={(e) => setModel(e.target.value)}
               placeholder="gpt-5.4"
-              helperText="Uses OpenAI-compatible APIs (LiteLLM): any provider/model name your server supports, not only OpenAI. Default model id is gpt-5.4; override with your provider’s id (e.g. gemini-…, anthropic/…)."
+              helperText="Default model id is gpt-5.4; override with your provider’s id (e.g. gemini-…, anthropic/…)."
             />
             <TextField
               label="Proxy (Optional)"
@@ -2073,7 +2073,7 @@ const Agent: React.FC = () => {
               value={proxy}
               onChange={(e) => setProxy(e.target.value)}
               placeholder="http://127.0.0.1:7890"
-              helperText="e.g. http://127.0.0.1:7890, http://192.168.1.10:7890, https://proxy.example.com:3128. Must start with http:// or https://. With auth: http://user:pass@host:port"
+              helperText="E.g. http://127.0.0.1:7890, http://192.168.1.10:7890, https://proxy.example.com:3128. Must start with http:// or https://. With auth: http://user:pass@host:port"
             />
             <Alert severity="info">
               API Key will only be stored locally in your browser and will not be uploaded to the server. This configuration will be used each time you connect to the Agent.
