@@ -24,6 +24,7 @@ import {
   StepLabel,
   Autocomplete,
   Chip,
+  Grid,
 } from '@mui/material';
 import { 
   Visibility, 
@@ -32,6 +33,9 @@ import {
   Lock,
   Science,
   Person,
+  AccountBox,
+  Business,
+  LocationOn,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,16 +45,36 @@ const Auth = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const regOutlinedSx = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 1.5,
+      transition: 'all 0.2s ease',
+      '&:hover': { '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.main } },
+      '&.Mui-focused': { boxShadow: `0 0 0 2px ${theme.palette.primary.main}20` },
+    },
+  };
+  const regFieldSx = {
+    ...regOutlinedSx,
+    '& .MuiFormHelperText-root': {
+      mx: 0,
+      mt: 0.5,
+      fontSize: '0.75rem',
+      lineHeight: 1.35,
+    },
+  };
   const { login, registerWithCode, sendVerificationCode } = useAuth();
   
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [formData, setFormData] = useState({
     emailOrUsername: '',
     password: '',
-    username: '', // Changed from full_name
-    email: '',  // For registration only
-    password_confirm: '',  // Password confirmation
-    verification_code: ''  // Email verification code
+    username: '',
+    email: '',
+    password_confirm: '',
+    verification_code: '',
+    full_name: '',
+    department: '',
+    location: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
@@ -252,6 +276,18 @@ const Auth = () => {
           if (!formData.username || !formData.email || !formData.password || !formData.password_confirm) {
             throw new Error('Please fill in all fields');
           }
+          if (!formData.full_name.trim() || !formData.department.trim() || !formData.location.trim()) {
+            throw new Error('Please enter your full name, organization, and region');
+          }
+          if (formData.full_name.trim().length < 2) {
+            throw new Error('Full name must be at least 2 characters');
+          }
+          if (formData.department.trim().length < 2) {
+            throw new Error('Organization must be at least 2 characters');
+          }
+          if (formData.location.trim().length < 2) {
+            throw new Error('Region must be at least 2 characters');
+          }
           if (formData.username.length < 2) {
             throw new Error('Username must be at least 2 characters');
           }
@@ -280,7 +316,15 @@ const Auth = () => {
             throw new Error('Password must be at least 6 characters');
           }
         
-          await registerWithCode(formData.email, formData.verification_code, formData.password, formData.username);
+          await registerWithCode({
+            email: formData.email,
+            verification_code: formData.verification_code,
+            password: formData.password,
+            username: formData.username,
+            full_name: formData.full_name.trim(),
+            department: formData.department.trim(),
+            location: formData.location.trim(),
+          });
           navigate('/home');
         }
       }
@@ -305,7 +349,10 @@ const Auth = () => {
       username: '',
       email: '',
       password_confirm: '',
-      verification_code: ''
+      verification_code: '',
+      full_name: '',
+      department: '',
+      location: '',
     });
     setRegistrationStep(0);
     setVerificationCodeSent(false);
@@ -457,8 +504,12 @@ const Auth = () => {
               </Box>
             </Box>
 
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ textAlign: 'center', mb: 2.5 }}>
+            <CardContent
+              sx={{
+                p: !isLoginMode && registrationStep === 0 ? { xs: 2, sm: 2.25 } : 3,
+              }}
+            >
+              <Box sx={{ textAlign: 'center', mb: !isLoginMode && registrationStep === 0 ? 1.25 : 2.5 }}>
                 <Typography 
                   variant="h6" 
                   component="h2" 
@@ -492,7 +543,7 @@ const Auth = () => {
                   <Alert 
                     severity="error" 
                     sx={{ 
-                      mb: 3, 
+                      mb: !isLoginMode && registrationStep === 0 ? 1.5 : 3,
                       borderRadius: 2,
                       '& .MuiAlert-icon': {
                         fontSize: '1.2rem'
@@ -509,335 +560,330 @@ const Auth = () => {
               <Box component="form" onSubmit={handleSubmit}>
                 {!isLoginMode && registrationStep === 0 && (
                   <Fade in={true} timeout={600}>
-                    <Box>
-                  <TextField
-                    margin="normal"
-                    fullWidth
-                    id="username"
-                    label="Username"
-                    name="username"
-                    autoComplete="username"
-                    value={formData.username}
-                    onChange={handleChange}
-                        disabled={loading || sendingCode}
-                    error={Boolean(error)}
-                        sx={{ 
-                          mb: 2,
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            transition: 'all 0.3s ease',
-                            '&:hover': {
-                              '& .MuiOutlinedInput-notchedOutline': {
-                                borderColor: theme.palette.primary.main,
-                              }
-                            },
-                            '&.Mui-focused': {
-                              boxShadow: `0 0 0 2px ${theme.palette.primary.main}20`,
+                    <Grid container spacing={1.75} columnSpacing={{ xs: 0, sm: 2 }} sx={{ width: 1, mb: 3.5 }}>
+                      <Grid item xs={12}>
+                        <TextField
+                          margin="dense"
+                          size="small"
+                          fullWidth
+                          id="username"
+                          label="Username"
+                          name="username"
+                          autoComplete="username"
+                          value={formData.username}
+                          onChange={handleChange}
+                          disabled={loading || sendingCode}
+                          error={Boolean(error)}
+                          sx={regOutlinedSx}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <Person sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          margin="dense"
+                          size="small"
+                          fullWidth
+                          id="full_name"
+                          label="Full legal name"
+                          name="full_name"
+                          autoComplete="name"
+                          value={formData.full_name}
+                          onChange={handleChange}
+                          disabled={loading || sendingCode}
+                          error={Boolean(error)}
+                          helperText="Your real name as used for account records"
+                          sx={regFieldSx}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <AccountBox sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          margin="dense"
+                          size="small"
+                          fullWidth
+                          id="department"
+                          label="Organization / institution"
+                          name="department"
+                          value={formData.department}
+                          onChange={handleChange}
+                          disabled={loading || sendingCode}
+                          error={Boolean(error)}
+                          helperText="University, company, hospital, or lab"
+                          sx={regFieldSx}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <Business sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          margin="dense"
+                          size="small"
+                          fullWidth
+                          id="location"
+                          label="Region"
+                          name="location"
+                          value={formData.location}
+                          onChange={handleChange}
+                          disabled={loading || sendingCode}
+                          error={Boolean(error)}
+                          helperText="Country, province/state, or city"
+                          sx={regFieldSx}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <LocationOn sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Autocomplete
+                          freeSolo
+                          options={emailSuggestions}
+                          value={formData.email}
+                          onInputChange={(_, newInputValue) => {
+                            setFormData(prev => ({ ...prev, email: newInputValue }));
+                            const emailPrefix = newInputValue.split('@')[0];
+                            generateEmailSuggestions(emailPrefix);
+                            if (validateEmail(newInputValue)) {
+                              checkEmailSupport(newInputValue);
+                            } else {
+                              setEmailSupportInfo(null);
                             }
-                          }
-                        }}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <Person sx={{ color: theme.palette.text.secondary }} />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                      <Autocomplete
-                        freeSolo
-                        options={emailSuggestions}
-                        value={formData.email}
-                        onInputChange={(_, newInputValue) => {
-                          setFormData(prev => ({ ...prev, email: newInputValue }));
-                          const emailPrefix = newInputValue.split('@')[0];
-                          generateEmailSuggestions(emailPrefix);
-                          
-                          // Check email support status
-                          if (validateEmail(newInputValue)) {
-                            checkEmailSupport(newInputValue);
-                          } else {
-                            setEmailSupportInfo(null);
-                          }
-                          
-                          if (error) setError(null);
-                        }}
-                        renderInput={(params) => (
-                  <TextField
-                            {...params}
-                    margin="normal"
-                    fullWidth
-                            id="email"
-                            label="Email"
-                            name="email"
-                            type="email"
-                            autoComplete="email"
-                    autoFocus={!isMobile}
-                            disabled={loading || sendingCode}
-                    error={Boolean(error)}
-                            sx={{ 
-                              mb: 2,
-                              '& .MuiOutlinedInput-root': {
-                                borderRadius: 2,
-                                transition: 'all 0.3s ease',
-                                '&:hover': {
-                                  '& .MuiOutlinedInput-notchedOutline': {
-                                    borderColor: theme.palette.primary.main,
-                                  }
-                                },
-                                '&.Mui-focused': {
-                                  boxShadow: `0 0 0 2px ${theme.palette.primary.main}20`,
-                                }
-                              }
-                            }}
-                    InputProps={{
-                              ...params.InputProps,
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <Email sx={{ color: theme.palette.text.secondary }} />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                        )}
-                        renderOption={(props, option) => {
-                          const [localPart, domain] = option.split('@');
-                          const isPopularDomain = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', '163.com', '126.com', 'qq.com'].includes(domain);
-                          
-                          return (
-                            <Box 
-                              component="li" 
-                              {...props} 
-                              sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                py: 2,
-                                px: 3,
-                                '&:hover': {
-                                  backgroundColor: theme.palette.action.hover,
-                                }
+                            if (error) setError(null);
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              margin="dense"
+                              size="small"
+                              fullWidth
+                              id="email"
+                              label="Email"
+                              name="email"
+                              type="email"
+                              autoComplete="email"
+                              autoFocus={!isMobile}
+                              disabled={loading || sendingCode}
+                              error={Boolean(error)}
+                              sx={regOutlinedSx}
+                              InputProps={{
+                                ...params.InputProps,
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <Email sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
+                                  </InputAdornment>
+                                ),
                               }}
-                            >
-                              <Typography 
-                                variant="body1" 
-                                sx={{ 
-                                  flex: 1,
-                                  fontSize: '0.95rem',
-                                  fontWeight: 400,
-                                  letterSpacing: '0.01em'
+                            />
+                          )}
+                          renderOption={(props, option) => {
+                            const [localPart, domain] = option.split('@');
+                            const isPopularDomain = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', '163.com', '126.com', 'qq.com'].includes(domain);
+                            return (
+                              <Box
+                                component="li"
+                                {...props}
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  py: 1,
+                                  px: 2,
+                                  '&:hover': { backgroundColor: theme.palette.action.hover },
                                 }}
                               >
-                                <span style={{ color: theme.palette.text.primary }}>{localPart}</span>
-                                <span style={{ color: theme.palette.text.secondary }}>@{domain}</span>
-                              </Typography>
-                              {isPopularDomain && (
-                                <Box sx={{ 
-                                  width: 6, 
-                                  height: 6, 
-                                  borderRadius: '50%', 
-                                  backgroundColor: theme.palette.primary.main,
-                                  ml: 2
-                                }} />
-                              )}
-                            </Box>
-                          );
-                        }}
-                        PaperComponent={(props) => (
-                          <Box
-                            {...props}
-                            sx={{
-                              borderRadius: 2,
-                              boxShadow: theme.shadows[4],
-                              border: `1px solid ${theme.palette.divider}`,
-                              mt: 1,
-                              backgroundColor: theme.palette.background.paper,
-                              '& .MuiAutocomplete-listbox': {
-                                padding: 0,
-                                maxHeight: '200px'
-                              }
-                            }}
-                          />
-                        )}
-                        sx={{ mb: 2 }}
-                      />
-
-                      {/* Email support info display */}
+                                <Typography variant="body2" sx={{ flex: 1, fontSize: '0.875rem' }}>
+                                  <span style={{ color: theme.palette.text.primary }}>{localPart}</span>
+                                  <span style={{ color: theme.palette.text.secondary }}>@{domain}</span>
+                                </Typography>
+                                {isPopularDomain && (
+                                  <Box sx={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: theme.palette.primary.main, ml: 1 }} />
+                                )}
+                              </Box>
+                            );
+                          }}
+                          PaperComponent={(props) => (
+                            <Box
+                              {...props}
+                              sx={{
+                                borderRadius: 1.5,
+                                boxShadow: theme.shadows[3],
+                                border: `1px solid ${theme.palette.divider}`,
+                                mt: 0.5,
+                                backgroundColor: theme.palette.background.paper,
+                                '& .MuiAutocomplete-listbox': { padding: 0, maxHeight: '180px' },
+                              }}
+                            />
+                          )}
+                          sx={{ width: '100%' }}
+                        />
+                      </Grid>
                       {formData.email && validateEmail(formData.email) && emailSupportInfo && !checkingEmail && (
-                        <Box sx={{ mb: 1.5 }}>
-                            <Box sx={{ 
-                              p: 1.5, 
-                              borderRadius: 1.5, 
-                              backgroundColor: emailSupportInfo.smtp_info?.supported 
-                                ? theme.palette.success.main + '10'
-                                : theme.palette.warning.main + '10',
-                              border: `1px solid ${
-                                emailSupportInfo.smtp_info?.supported 
-                                  ? theme.palette.success.main + '30'
-                                  : theme.palette.warning.main + '30'
-                              }`
-                            }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Grid item xs={12}>
+                          <Box sx={{ mb: 0 }}>
+                            <Box
+                              sx={{
+                                p: 1,
+                                borderRadius: 1.25,
+                                backgroundColor: emailSupportInfo.smtp_info?.supported
+                                  ? theme.palette.success.main + '10'
+                                  : theme.palette.warning.main + '10',
+                                border: `1px solid ${
+                                  emailSupportInfo.smtp_info?.supported
+                                    ? theme.palette.success.main + '30'
+                                    : theme.palette.warning.main + '30'
+                                }`,
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                 {emailSupportInfo.smtp_info?.supported ? (
-                                  <Box sx={{ 
-                                    width: 14, 
-                                    height: 14, 
-                                    borderRadius: '50%', 
-                                    backgroundColor: theme.palette.success.main,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}>
-                                    <Typography sx={{ color: 'white', fontSize: '9px', fontWeight: 'bold' }}>✓</Typography>
+                                  <Box
+                                    sx={{
+                                      width: 12,
+                                      height: 12,
+                                      borderRadius: '50%',
+                                      backgroundColor: theme.palette.success.main,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <Typography sx={{ color: 'white', fontSize: '8px', fontWeight: 'bold' }}>✓</Typography>
                                   </Box>
                                 ) : (
-                                  <Box sx={{ 
-                                    width: 14, 
-                                    height: 14, 
-                                    borderRadius: '50%', 
-                                    backgroundColor: theme.palette.warning.main,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}>
-                                    <Typography sx={{ color: 'white', fontSize: '9px', fontWeight: 'bold' }}>!</Typography>
+                                  <Box
+                                    sx={{
+                                      width: 12,
+                                      height: 12,
+                                      borderRadius: '50%',
+                                      backgroundColor: theme.palette.warning.main,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <Typography sx={{ color: 'white', fontSize: '8px', fontWeight: 'bold' }}>!</Typography>
                                   </Box>
                                 )}
-                                <Typography 
-                                  variant="caption" 
-                                  sx={{ 
+                                <Typography
+                                  variant="caption"
+                                  sx={{
                                     fontWeight: 600,
-                                    fontSize: '0.8125rem',
-                                    color: emailSupportInfo.smtp_info?.supported 
-                                      ? theme.palette.success.dark 
-                                      : theme.palette.warning.dark
+                                    fontSize: '0.75rem',
+                                    color: emailSupportInfo.smtp_info?.supported
+                                      ? theme.palette.success.dark
+                                      : theme.palette.warning.dark,
                                   }}
                                 >
-                                  {emailSupportInfo.smtp_info?.supported 
-                                    ? `${emailSupportInfo.smtp_info.provider}` 
-                                    : 'Not supported'
-                                  }
+                                  {emailSupportInfo.smtp_info?.supported
+                                    ? `${emailSupportInfo.smtp_info.provider}`
+                                    : 'Not supported'}
                                 </Typography>
                               </Box>
                               {emailSupportInfo.send_capability?.mode === 'no_config' && (
-                                <Typography variant="caption" sx={{ 
-                                  color: theme.palette.info.main,
-                                  display: 'block',
-                                  mt: 0.5,
-                                  fontSize: '0.75rem'
-                                }}>
+                                <Typography variant="caption" sx={{ color: theme.palette.info.main, display: 'block', mt: 0.25, fontSize: '0.7rem' }}>
                                   Dev mode: Check server console
                                 </Typography>
                               )}
                             </Box>
-                        </Box>
+                          </Box>
+                        </Grid>
                       )}
-                  <TextField
-                    margin="normal"
-                    fullWidth
-                        name="password"
-                        label="Password"
-                        type={showPassword ? 'text' : 'password'}
-                        id="password"
-                        autoComplete="new-password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        disabled={loading || sendingCode}
-                        error={Boolean(error)}
-                        sx={{ 
-                          mb: 2,
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            transition: 'all 0.3s ease',
-                            '&:hover': {
-                              '& .MuiOutlinedInput-notchedOutline': {
-                                borderColor: theme.palette.primary.main,
-                              }
-                            },
-                            '&.Mui-focused': {
-                              boxShadow: `0 0 0 2px ${theme.palette.primary.main}20`,
-                            }
-                          }
-                        }}
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <Lock sx={{ color: theme.palette.text.secondary }} />
-                            </InputAdornment>
-                          ),
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <IconButton
-                                aria-label="toggle password visibility"
-                                onClick={() => setShowPassword(!showPassword)}
-                                edge="end"
-                                disabled={loading || sendingCode}
-                                sx={{
-                                  transition: 'transform 0.2s ease',
-                                  '&:hover': {
-                                    transform: 'scale(1.1)'
-                                  }
-                                }}
-                              >
-                                {showPassword ? <VisibilityOff /> : <Visibility />}
-                              </IconButton>
-                            </InputAdornment>
-                          ),
-                        }}
-                      />
-                      <TextField
-                        margin="normal"
-                        fullWidth
-                        name="password_confirm"
-                        label="Confirm Password"
-                        type={showPasswordConfirm ? 'text' : 'password'}
-                        id="password_confirm"
-                        autoComplete="new-password"
-                        value={formData.password_confirm}
-                        onChange={handleChange}
-                        disabled={loading || sendingCode}
-                        error={Boolean(error && formData.password !== formData.password_confirm)}
-                        sx={{ 
-                          mb: 2,
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            transition: 'all 0.3s ease',
-                            '&:hover': {
-                              '& .MuiOutlinedInput-notchedOutline': {
-                                borderColor: theme.palette.primary.main,
-                              }
-                            },
-                            '&.Mui-focused': {
-                              boxShadow: `0 0 0 2px ${theme.palette.primary.main}20`,
-                            }
-                          }
-                        }}
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <Lock sx={{ color: theme.palette.text.secondary }} />
-                            </InputAdornment>
-                          ),
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <IconButton
-                                aria-label="toggle password visibility"
-                                onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
-                                edge="end"
-                                disabled={loading || sendingCode}
-                                sx={{
-                                  transition: 'transform 0.2s ease',
-                                  '&:hover': {
-                                    transform: 'scale(1.1)'
-                                  }
-                                }}
-                              >
-                                {showPasswordConfirm ? <VisibilityOff /> : <Visibility />}
-                              </IconButton>
-                            </InputAdornment>
-                          ),
-                        }}
-                      />
-                    </Box>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          margin="dense"
+                          size="small"
+                          fullWidth
+                          name="password"
+                          label="Password"
+                          type={showPassword ? 'text' : 'password'}
+                          id="password"
+                          autoComplete="new-password"
+                          value={formData.password}
+                          onChange={handleChange}
+                          disabled={loading || sendingCode}
+                          error={Boolean(error)}
+                          sx={regOutlinedSx}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <Lock sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
+                              </InputAdornment>
+                            ),
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <IconButton
+                                  aria-label="toggle password visibility"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                  edge="end"
+                                  size="small"
+                                  disabled={loading || sendingCode}
+                                  sx={{ '&:hover': { transform: 'scale(1.05)' } }}
+                                >
+                                  {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                </IconButton>
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          margin="dense"
+                          size="small"
+                          fullWidth
+                          name="password_confirm"
+                          label="Confirm Password"
+                          type={showPasswordConfirm ? 'text' : 'password'}
+                          id="password_confirm"
+                          autoComplete="new-password"
+                          value={formData.password_confirm}
+                          onChange={handleChange}
+                          disabled={loading || sendingCode}
+                          error={Boolean(error && formData.password !== formData.password_confirm)}
+                          sx={regOutlinedSx}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <Lock sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
+                              </InputAdornment>
+                            ),
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <IconButton
+                                  aria-label="toggle password visibility"
+                                  onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                                  edge="end"
+                                  size="small"
+                                  disabled={loading || sendingCode}
+                                  sx={{ '&:hover': { transform: 'scale(1.05)' } }}
+                                >
+                                  {showPasswordConfirm ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                </IconButton>
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                      </Grid>
+                    </Grid>
                   </Fade>
                 )}
 
@@ -1017,14 +1063,15 @@ const Auth = () => {
                   type="submit"
                   fullWidth
                   variant="contained"
-                  size="large"
+                  size={!isLoginMode && registrationStep === 0 ? 'medium' : 'large'}
                   disabled={loading || sendingCode}
                   sx={{
-                    py: 1.25,
-                    mb: 2,
+                    mt: !isLoginMode && registrationStep === 0 ? 0.5 : 0,
+                    py: !isLoginMode && registrationStep === 0 ? 1.1 : 1.25,
+                    mb: !isLoginMode && registrationStep === 0 ? 1.75 : 2,
                     borderRadius: 2,
                     fontWeight: 600,
-                    fontSize: '0.9375rem',
+                    fontSize: !isLoginMode && registrationStep === 0 ? '0.9rem' : '0.9375rem',
                     background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                     '&:hover': {
                       background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`,
