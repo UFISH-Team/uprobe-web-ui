@@ -45,6 +45,7 @@ import {
   ChevronLeft,
 } from '@mui/icons-material';
 import ApiService from '../api';
+import { formatApiError } from '../utils/apiErrorMessage';
 
 interface Message {
   id: string;
@@ -109,7 +110,7 @@ const Agent: React.FC = () => {
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [tempApiKey, setTempApiKey] = useState('');
-  const [model, setModel] = useState('gpt-4');
+  const [model, setModel] = useState('gpt-5.4');
   const [proxy, setProxy] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' as 'success' | 'error' | 'info' | 'warning' });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -173,6 +174,7 @@ const Agent: React.FC = () => {
       })
       .catch((error) => {
         console.error('Failed to load conversations:', error);
+        setSnackbar({ open: true, message: formatApiError(error), severity: 'error' });
       });
   }, [loadConversations]);
 
@@ -197,6 +199,7 @@ const Agent: React.FC = () => {
           })
           .catch((error) => {
             console.error('Failed to load conversation:', error);
+            setSnackbar({ open: true, message: formatApiError(error), severity: 'error' });
             setMessages([]);
             setSessionId(null);
           });
@@ -259,7 +262,7 @@ const Agent: React.FC = () => {
       return created.id;
     } catch (error) {
       console.error('Failed to create conversation:', error);
-      setSnackbar({ open: true, message: 'Failed to create conversation', severity: 'error' });
+      setSnackbar({ open: true, message: formatApiError(error), severity: 'error' });
       return null;
     }
   };
@@ -273,6 +276,7 @@ const Agent: React.FC = () => {
       setSnackbar({ open: true, message: 'Agent session stopped', severity: 'info' });
     } catch (error) {
       console.error('Failed to stop session:', error);
+      setSnackbar({ open: true, message: formatApiError(error), severity: 'error' });
     }
   };
 
@@ -285,7 +289,7 @@ const Agent: React.FC = () => {
       setCurrentConversationId(created.id);
     } catch (error) {
       console.error('Failed to create conversation:', error);
-      setSnackbar({ open: true, message: 'Failed to create conversation', severity: 'error' });
+      setSnackbar({ open: true, message: formatApiError(error), severity: 'error' });
     }
   };
 
@@ -299,7 +303,7 @@ const Agent: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to delete conversation:', error);
-      setSnackbar({ open: true, message: 'Failed to delete conversation', severity: 'error' });
+      setSnackbar({ open: true, message: formatApiError(error), severity: 'error' });
     }
   };
 
@@ -324,7 +328,7 @@ const Agent: React.FC = () => {
         ));
       } catch (error) {
         console.error('Failed to rename conversation:', error);
-        setSnackbar({ open: true, message: 'Failed to rename conversation', severity: 'error' });
+        setSnackbar({ open: true, message: formatApiError(error), severity: 'error' });
       }
     }
     setEditingConversationId(null);
@@ -446,7 +450,7 @@ const Agent: React.FC = () => {
         }));
       } else {
         console.error('Failed to rewind message:', error);
-        setSnackbar({ open: true, message: 'Failed to re-execute', severity: 'error' });
+        setSnackbar({ open: true, message: formatApiError(error), severity: 'error' });
         // Remove pending message on failure
         setConversations(prev => prev.map(conv => {
           if (conv.id === currentConversationId) {
@@ -551,7 +555,7 @@ const Agent: React.FC = () => {
         }
       } else {
         console.error('Failed to send message:', error);
-        setSnackbar({ open: true, message: 'Failed to send message', severity: 'error' });
+        setSnackbar({ open: true, message: formatApiError(error), severity: 'error' });
       }
     } finally {
       abortControllerRef.current = null;
@@ -613,7 +617,7 @@ const Agent: React.FC = () => {
           delete updated[fileId];
           return updated;
         });
-        setSnackbar({ open: true, message: `Failed to upload ${file.name}`, severity: 'error' });
+        setSnackbar({ open: true, message: `${file.name}: ${formatApiError(err)}`, severity: 'error' });
       }
     }
     // reset input
@@ -629,7 +633,7 @@ const Agent: React.FC = () => {
       setMessages(refreshed.messages);
       setSessionId(refreshed.sessionId || null);
     } catch (e) {
-      setSnackbar({ open: true, message: 'Failed to delete attachment', severity: 'error' });
+      setSnackbar({ open: true, message: formatApiError(e), severity: 'error' });
     }
   };
 
@@ -663,6 +667,7 @@ const Agent: React.FC = () => {
         setSessionId(refreshed.sessionId || null);
       } catch (e) {
         console.error('Failed to stop session on cancel:', e);
+        setSnackbar({ open: true, message: formatApiError(e), severity: 'warning' });
       }
     }
   };
@@ -683,7 +688,7 @@ const Agent: React.FC = () => {
       setSessionId(refreshed.sessionId || null);
     } catch (error) {
       console.error('Failed to clear conversation:', error);
-      setSnackbar({ open: true, message: 'Failed to clear conversation', severity: 'error' });
+      setSnackbar({ open: true, message: formatApiError(error), severity: 'error' });
       return;
     }
     
@@ -764,7 +769,7 @@ const Agent: React.FC = () => {
         setSnackbar({ open: true, message: 'Request cancelled', severity: 'warning' });
       } else {
         console.error('Failed to regenerate:', error);
-        setSnackbar({ open: true, message: 'Failed to regenerate', severity: 'error' });
+        setSnackbar({ open: true, message: formatApiError(error), severity: 'error' });
       }
       setConversations(prev => prev.map(conv => {
         if (conv.id === currentConversationId) {
@@ -867,7 +872,7 @@ const Agent: React.FC = () => {
           delete updated[fileId];
           return updated;
         });
-        setSnackbar({ open: true, message: `Failed to upload ${file.name}`, severity: 'error' });
+        setSnackbar({ open: true, message: `${file.name}: ${formatApiError(err)}`, severity: 'error' });
       }
     }
   }, [currentConversationId, apiKey, model, proxy, refreshConversation]);
@@ -2059,16 +2064,16 @@ const Agent: React.FC = () => {
               fullWidth
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="gpt-4"
-              helperText="Select the OpenAI model to use"
+              placeholder="gpt-5.4"
+              helperText="Uses OpenAI-compatible APIs (LiteLLM): any provider/model name your server supports, not only OpenAI. Default model id is gpt-5.4; override with your provider’s id (e.g. gemini-…, anthropic/…)."
             />
             <TextField
               label="Proxy (Optional)"
               fullWidth
               value={proxy}
               onChange={(e) => setProxy(e.target.value)}
-              placeholder="http://localhost:7890"
-              helperText="Enter proxy address if needed"
+              placeholder="http://127.0.0.1:7890"
+              helperText="e.g. http://127.0.0.1:7890, http://192.168.1.10:7890, https://proxy.example.com:3128. Must start with http:// or https://. With auth: http://user:pass@host:port"
             />
             <Alert severity="info">
               API Key will only be stored locally in your browser and will not be uploaded to the server. This configuration will be used each time you connect to the Agent.
@@ -2092,14 +2097,21 @@ const Agent: React.FC = () => {
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={3000}
+        autoHideDuration={
+          snackbar.severity === 'error' ? 16000 :
+          snackbar.severity === 'warning' ? 8000 : 4000
+        }
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          sx={{
+            width: '100%',
+            maxWidth: 'min(92vw, 560px)',
+            '& .MuiAlert-message': { width: '100%', wordBreak: 'break-word', whiteSpace: 'pre-wrap' },
+          }}
         >
           {snackbar.message}
         </Alert>
