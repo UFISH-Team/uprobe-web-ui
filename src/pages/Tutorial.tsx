@@ -185,7 +185,7 @@ const Tutorial: React.FC = () => {
                   variant="text" 
                   startIcon={<MenuBook fontSize="small" />} 
                   endIcon={<OpenInNew sx={{ fontSize: 14, ml: 'auto', opacity: 0.5 }} />}
-                  href="https://uprobe.readthedocs.io/" 
+                  href="https://www.u-probe.org/docs/" 
                   target="_blank"
                   sx={{ justifyContent: 'flex-start', color: 'text.primary', '&:hover': { bgcolor: 'action.hover' }, px: 1, py: 0.5 }}
                 >
@@ -215,7 +215,7 @@ const Tutorial: React.FC = () => {
                   variant="text" 
                   startIcon={<Article fontSize="small" />} 
                   endIcon={<OpenInNew sx={{ fontSize: 14, ml: 'auto', opacity: 0.5 }} />}
-                  href="#" 
+                  href="https://www.biorxiv.org/content/10.64898/2026.04.12.717982v1" 
                   target="_blank"
                   sx={{ justifyContent: 'flex-start', color: 'text.primary', '&:hover': { bgcolor: 'action.hover' }, px: 1, py: 0.5 }}
                 >
