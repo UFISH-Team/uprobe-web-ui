@@ -2248,6 +2248,9 @@ const DesignWorkflow: React.FC = () => {
         />
         <Collapse in={expandedSections.probeType}>
           <CardContent>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              We are gradually adding more FISH methods as built-in probe types. Stay tuned!
+            </Alert>
             <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
               <FormControl fullWidth>
                 <InputLabel id="probe-type-label">Probe Type</InputLabel>

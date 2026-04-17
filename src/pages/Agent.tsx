@@ -1837,6 +1837,10 @@ const Agent: React.FC = () => {
                   )}
               </Box>
 
+              <Alert severity="warning" sx={{ borderRadius: 0, borderBottom: '1px solid', borderColor: 'divider' }}>
+                Agent interaction is currently under maintenance. Please deploy locally to use this feature.
+              </Alert>
+
                 {/* Message List */}
               <Box
                 sx={{
