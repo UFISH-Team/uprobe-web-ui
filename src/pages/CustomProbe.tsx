@@ -623,7 +623,7 @@ const CustomProbe: React.FC = () => {
   const [targetLength, setTargetLength] = useState<number | undefined>(undefined);
   const [targetSequence, setTargetSequence] = useState<string>('');
   const [targetConfig, setTargetConfig] = useState<TargetConfig>({
-    source: '' as TargetSource,
+    source: 'exon',
     sequence: '',
     length: targetLength || 50,
     attributes: {

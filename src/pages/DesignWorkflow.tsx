@@ -92,6 +92,16 @@ interface Target {
   [key: string]: string | number | undefined;  // Allow dynamic barcode fields
 }
 
+const GENOME_DISPLAY_MAP: Record<string, string> = {
+  hg38:   'Homo sapiens (Human): hg38',
+  hg19:   'Homo sapiens (Human): hg19',
+  GRCm39: 'Mus musculus (Mouse): GRCm39',
+  mm10:   'Mus musculus (Mouse): mm10',
+  dog:    'Canis lupus familiaris (Dog): dog',
+};
+
+const getGenomeLabel = (id: string) => GENOME_DISPLAY_MAP[id] ?? id;
+
 // Helper function to get probe type (DNA/RNA)
 const getProbeType = (customType?: CustomProbeType | null): 'DNA' | 'RNA' => {
   if (!customType) return 'RNA'; // Default for built-in types
@@ -2224,9 +2234,9 @@ const DesignWorkflow: React.FC = () => {
                 value={species}
                 onChange={(e) => setSpecies(e.target.value)}
               >
-                {speciesOptions.map((speciesOption, idx) => (
-                  <MenuItem key={idx} value={speciesOption}>
-                    {speciesOption}
+                {speciesOptions.map((speciesOption) => (
+                  <MenuItem key={speciesOption} value={speciesOption}>
+                    {getGenomeLabel(speciesOption)}
                   </MenuItem>
                 ))}
               </Select>
