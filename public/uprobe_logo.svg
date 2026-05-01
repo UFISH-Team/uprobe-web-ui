@@ -4,6 +4,9 @@
 	 viewBox="0 0 263.52 252.83" style="enable-background:new 0 0 263.52 252.83;" xml:space="preserve">
 <style type="text/css">
 	.st0{fill:#171C61;}
+	@media (prefers-color-scheme: dark) {
+		.st0{fill:#FFFFFF;}
+	}
 </style>
 <path class="st0" d="M219.69,163.89c2.11-6.15,5.92-11.86,7-18.29c3.81-22.69-1.61-43.43-21.46-61.45
 	c-3.39-3.08-6.61-6.23-10.82-8.82c-3.01-1.84-4.01-1.25-4.99,1.09c-1.74,4.15-5.14,7.42-9.75,10.07c-2.62,1.51-2.68,2.51,0.12,4.65
