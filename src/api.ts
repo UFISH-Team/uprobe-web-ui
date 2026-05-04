@@ -4,10 +4,16 @@ import { AUTH_CONFIG, getToken } from './utils';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
+export type AgentSseEvent =
+  | { event: 'delta'; agent: string; text: string }
+  | { event: 'tool'; agent: string; tools: string[] }
+  | { event: 'done'; message: string; thinking?: string[]; process?: unknown[] }
+  | { event: 'error'; detail: string };
+
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 600000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -367,8 +373,129 @@ class ApiService {
       proxy?: string;
     },
     signal?: AbortSignal
-  ): Promise<{ thinking: string[]; message: string }> {
+  ): Promise<{ thinking: string[]; message: string; process?: unknown[] }> {
     return api.post(`/agent/conversations/${conversationId}/message`, payload, { signal });
+  }
+
+  /** SSE events from POST …/message/stream or …/rewind/stream */
+  static consumeAgentMessageSse(
+    urlPath: string,
+    payload: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+    onEvent: (e: AgentSseEvent) => void
+  ): Promise<{ message: string; thinking: string[]; process: unknown[] }> {
+    const token = getToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return fetch(`${API_BASE_URL}${urlPath}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal,
+    }).then(async (res) => {
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+          const j = (await res.json()) as { detail?: unknown };
+          if (j?.detail != null) {
+            detail = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail);
+          }
+        } catch {
+          try {
+            detail = (await res.text()).slice(0, 500) || detail;
+          } catch {
+            /* ignore */
+          }
+        }
+        throw new Error(detail);
+      }
+      const reader = res.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let doneMessage = '';
+      let doneThinking: string[] = [];
+      let doneProcess: unknown[] = [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() ?? '';
+        for (const block of blocks) {
+          const lines = block.split('\n').filter((l) => l.length > 0);
+          for (const line of lines) {
+            const trimmed = line.trimStart();
+            if (!trimmed.startsWith('data:')) continue;
+            const jsonStr = trimmed.slice(5).trimStart();
+            let evt: AgentSseEvent;
+            try {
+              evt = JSON.parse(jsonStr) as AgentSseEvent;
+            } catch {
+              continue;
+            }
+            onEvent(evt);
+            if (evt.event === 'done') {
+              doneMessage = evt.message ?? '';
+              doneThinking = Array.isArray(evt.thinking) ? evt.thinking : [];
+              doneProcess = Array.isArray(evt.process) ? evt.process : [];
+            }
+            if (evt.event === 'error') {
+              throw new Error(evt.detail || 'Stream error');
+            }
+          }
+        }
+      }
+      return { message: doneMessage, thinking: doneThinking, process: doneProcess };
+    });
+  }
+
+  static streamAgentMessage(
+    conversationId: string,
+    payload: {
+      content: string;
+      attachment_ids?: string[];
+      api_key?: string;
+      model?: string;
+      proxy?: string;
+    },
+    signal: AbortSignal | undefined,
+    onEvent: (e: AgentSseEvent) => void
+  ): Promise<{ message: string; thinking: string[]; process: unknown[] }> {
+    return this.consumeAgentMessageSse(
+      `/agent/conversations/${conversationId}/message/stream`,
+      payload,
+      signal,
+      onEvent
+    );
+  }
+
+  static streamAgentRewind(
+    conversationId: string,
+    payload: {
+      user_turn_index: number;
+      content: string;
+      attachment_ids?: string[];
+      api_key?: string;
+      model?: string;
+      proxy?: string;
+    },
+    signal: AbortSignal | undefined,
+    onEvent: (e: AgentSseEvent) => void
+  ): Promise<{ message: string; thinking: string[]; process: unknown[] }> {
+    return this.consumeAgentMessageSse(
+      `/agent/conversations/${conversationId}/rewind/stream`,
+      payload,
+      signal,
+      onEvent
+    );
   }
 
   static async rewindAgentConversation(
@@ -382,7 +509,7 @@ class ApiService {
       proxy?: string;
     },
     signal?: AbortSignal
-  ): Promise<{ thinking: string[]; message: string }> {
+  ): Promise<{ thinking: string[]; message: string; process?: unknown[] }> {
     return api.post(`/agent/conversations/${conversationId}/rewind`, payload, { signal });
   }
 
