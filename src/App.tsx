@@ -1,6 +1,6 @@
 // App.tsx
 import React from 'react';
-import { AppBar, Toolbar, Button, Box, IconButton, useMediaQuery, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Typography, Tooltip } from '@mui/material';
+import { AppBar, Toolbar, Button, Box, IconButton, useMediaQuery, Drawer, Divider, List, ListItemButton, ListItemIcon, ListItemText, Typography, Tooltip } from '@mui/material';
 import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
@@ -13,6 +13,7 @@ import TutorialIcon from '@mui/icons-material/HelpOutline';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
+import ContactMailIcon from '@mui/icons-material/ContactMail';
 import { useThemeContext } from './contexts/ThemeContext';
 
 import Home from './pages/Home';
@@ -34,6 +35,9 @@ import NotFound from './components/common/NotFound';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+
+const CONTACT_EMAIL = 'jshn20001017@gmail.com';
+const CONTACT_MAILTO = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('U-Probe inquiry')}`;
 
 // Protected Route component
 const ProtectedRoute = () => {
@@ -138,6 +142,31 @@ function App() {
           </ListItemButton>
         );
       })}
+      <Divider sx={{ my: 1 }} />
+      <ListItemButton
+        component="a"
+        href={CONTACT_MAILTO}
+        onClick={() => {
+          if (isMobile) handleDrawerToggle();
+        }}
+        sx={{
+          borderRadius: 1.5,
+          py: 1.25,
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            backgroundColor: 'rgba(37, 99, 235, 0.08)',
+            transform: 'translateX(4px)',
+          },
+        }}
+      >
+        <ListItemIcon sx={{ minWidth: 36 }}>
+          <ContactMailIcon sx={{ color: 'primary.main', fontSize: '1.2rem' }} />
+        </ListItemIcon>
+        <ListItemText
+          primary="Contact"
+          primaryTypographyProps={{ fontWeight: 500, fontSize: '0.9rem' }}
+        />
+      </ListItemButton>
     </List>
   );
 
@@ -259,6 +288,25 @@ function App() {
               })}
             </Box>
           )}
+
+          <Tooltip title={`Contact us by email: ${CONTACT_EMAIL}`}>
+            <IconButton
+              component="a"
+              href={CONTACT_MAILTO}
+              size="small"
+              aria-label="Contact us by email"
+              sx={{
+                mr: 1,
+                color: 'text.secondary',
+                '&:hover': {
+                  backgroundColor: 'action.hover',
+                  color: 'primary.main',
+                },
+              }}
+            >
+              <ContactMailIcon sx={{ fontSize: '1.1rem' }} />
+            </IconButton>
+          </Tooltip>
 
           {/* Dark mode toggle */}
           <Tooltip title={mode === 'dark' ? 'Light Mode' : 'Dark Mode'}>
