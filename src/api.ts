@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ApiResponse, PaginatedResponse } from './types';
+import { ApiResponse } from './types';
 import { AUTH_CONFIG, getToken } from './utils';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -137,23 +137,6 @@ class ApiService {
     return mappedResponse;
   }
 
-  // Probe design related
-  static async getDesigns(params?: { page?: number; pageSize?: number }): Promise<PaginatedResponse<any>> {
-    return api.get('/designs', { params });
-  }
-
-  static async createDesign(data: any): Promise<ApiResponse<any>> {
-    return api.post('/designs', data);
-  }
-
-  static async updateDesign(id: string, data: any): Promise<ApiResponse<any>> {
-    return api.put(`/designs/${id}`, data);
-  }
-
-  static async deleteDesign(id: string): Promise<ApiResponse<void>> {
-    return api.delete(`/designs/${id}`);
-  }
-
   // Custom Probes
   static async getCustomProbes(): Promise<any[]> {
     return api.get('/custom_probes/');
@@ -185,39 +168,6 @@ class ApiService {
     return response.map(g => g.name);
   }
 
-  static async designRCA(data: any): Promise<Blob> {
-    const formData = new FormData();
-    formData.append('file', new Blob([JSON.stringify(data)], { type: 'text/yaml' }), 'workflow.yaml');
-    return api.post('/workflow/design_rca', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      responseType: 'blob',
-    });
-  }
-
-  static async designDNAFISH(data: any): Promise<Blob> {
-    const formData = new FormData();
-    formData.append('file', new Blob([JSON.stringify(data)], { type: 'text/yaml' }), 'workflow.yaml');
-    return api.post('/workflow/design_dnafish', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      responseType: 'blob',
-    });
-  }
-
-  static async designUProbe(data: any): Promise<Blob> {
-    const formData = new FormData();
-    formData.append('file', new Blob([JSON.stringify(data)], { type: 'text/yaml' }), 'workflow.yaml');
-    return api.post('/workflow/design_uprobe', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      responseType: 'blob',
-    });
-  }
-  
   // Genome related
   static async getGenomes(): Promise<{name: string, is_public: boolean}[]> {
     return api.get('/genome/');
@@ -613,18 +563,6 @@ class ApiService {
       rc_free: true
     });
     return { barcodes: result };
-  }
-
-  // File upload
-  static async uploadFile(file: File, type: string): Promise<ApiResponse<{ url: string }>> {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', type);
-    return api.post('/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
   }
 
   // Task submission

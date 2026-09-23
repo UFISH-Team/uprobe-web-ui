@@ -183,7 +183,7 @@ export const getAvatarUrl = (avatarUrl: string | null | undefined): string | nul
     return avatarUrl;
   }
   
-  // If relative path, add API server address
-  const API_BASE_URL = 'http://127.0.0.1:8000';
-  return `${API_BASE_URL}${avatarUrl}`;
+  // Resolve relative paths through the same API base used by the application.
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+  return `${apiBaseUrl.replace(/\/$/, '')}/${avatarUrl.replace(/^\//, '')}`;
 };
