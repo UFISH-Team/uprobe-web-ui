@@ -2154,10 +2154,10 @@ const DesignWorkflow: React.FC = () => {
         </Box>
         <Box ref={workflowScroll} sx={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 1, pb: 3, overscrollBehavior: 'contain' }}>
       <Box textAlign="center" sx={{ mb: 2, flexShrink: 0 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main', fontSize: { xs: 22, sm: 26, md: 30 }, lineHeight: 1.3 }} gutterBottom>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', fontSize: 24 }} gutterBottom>
           Ready to craft your perfect workflow? 🎨
         </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ fontSize: { xs: 14, sm: 16, md: 18 } }}>
+        <Typography variant="body1" color="text.primary" sx={{ fontSize: 17 }}>
           Follow the steps below to design your probe workflow
         </Typography>
       </Box>
