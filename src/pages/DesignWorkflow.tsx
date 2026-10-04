@@ -2126,14 +2126,6 @@ const DesignWorkflow: React.FC = () => {
         height: { xs: 'calc(100dvh - 56px)', sm: 'calc(100dvh - 60px)' },
         display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
       }}>
-      <Box textAlign="center" sx={{ mb: 2, flexShrink: 0 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }} gutterBottom>
-          Ready to craft your perfect workflow? 🎨
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Follow the steps below to design your probe workflow
-        </Typography>
-      </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'stretch', gap: { md: 3, lg: 4 }, flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <Box component="nav" aria-label="Workflow stages" sx={{ display: { xs: 'none', md: 'block' }, width: 208, flexShrink: 0, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
@@ -2161,6 +2153,15 @@ const DesignWorkflow: React.FC = () => {
           </Stepper>
         </Box>
         <Box ref={workflowScroll} sx={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 1, pb: 3, overscrollBehavior: 'contain' }}>
+      <Box textAlign="center" sx={{ mb: 2, flexShrink: 0 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main', fontSize: { xs: 22, sm: 26, md: 30 }, lineHeight: 1.3 }} gutterBottom>
+          Ready to craft your perfect workflow? 🎨
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ fontSize: { xs: 14, sm: 16, md: 18 } }}>
+          Follow the steps below to design your probe workflow
+        </Typography>
+      </Box>
+
           <FormControl size="small" fullWidth sx={{ display: { xs: 'flex', md: 'none' }, mb: 2, position: 'sticky', top: 8, zIndex: 5, bgcolor: 'background.paper', borderRadius: 1 }}>
             <InputLabel id="workflow-stage-label">Workflow stage</InputLabel>
             <Select labelId="workflow-stage-label" label="Workflow stage" value={getActiveSteps().some(step => step.id === activeSection) ? activeSection : 'species'} onChange={event => jumpToSection(event.target.value)}>
