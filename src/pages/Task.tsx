@@ -85,6 +85,29 @@ const Task: React.FC = () => {
     if (!task.raw_file) return;
     try {
       const blob = await ApiService.downloadTaskFile(task.id, task.raw_file);
+      if (task.raw_file.endsWith('.xlsx')) {
+        const JSZip = (await import('jszip')).default;
+        const zip = await JSZip.loadAsync(blob);
+        const parser = new DOMParser();
+        const stringsXml = await zip.file('xl/sharedStrings.xml')?.async('text');
+        const strings = stringsXml ? Array.from(parser.parseFromString(stringsXml, 'application/xml').getElementsByTagName('si')).map(si =>
+          Array.from(si.getElementsByTagName('t')).map(t => t.textContent ?? '').join('')) : [];
+        const sheetXml = await zip.file('xl/worksheets/sheet1.xml')?.async('text');
+        if (!sheetXml) throw new Error('Missing worksheet');
+        const rows = Array.from(parser.parseFromString(sheetXml, 'application/xml').getElementsByTagName('row')).slice(0, 101).map(row => {
+          const values: string[] = [];
+          for (const cell of Array.from(row.getElementsByTagName('c'))) {
+            const letters = (cell.getAttribute('r') ?? '').match(/^[A-Z]+/)?.[0] ?? 'A';
+            const index = Array.from(letters).reduce((n, letter) => n * 26 + letter.charCodeAt(0) - 64, 0) - 1;
+            while (values.length <= index) values.push('');
+            const value = cell.getElementsByTagName('v')[0]?.textContent ?? '';
+            values[index] = cell.getAttribute('t') === 's' ? strings[Number(value)] ?? '' : value;
+          }
+          return values;
+        });
+        setRawPreview({ task, rows });
+        return;
+      }
       const parsed = Papa.parse<string[]>(await blob.text(), { preview: 101, skipEmptyLines: true });
       setRawPreview({ task, rows: parsed.data });
     } catch {
