@@ -219,7 +219,7 @@ const Profile: React.FC = () => {
                     bottom: 0,
                     right: 0,
                     backgroundColor: theme.palette.primary.main,
-                    color: 'white',
+                    color: 'primary.contrastText',
                     '&:hover': {
                       backgroundColor: theme.palette.primary.dark,
                     }

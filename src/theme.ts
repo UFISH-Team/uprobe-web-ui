@@ -7,13 +7,15 @@ export const lightThemeOptions: ThemeOptions = {
       main: '#3b82f6',
       light: '#60a5fa',
       dark: '#2563eb',
-      contrastText: '#ffffff',
     },
+    // NOTE: `contrastText` is intentionally left to MUI so that
+    // `palette.getContrastText()` can pick the readable foreground.
+    // Hardcoding it here previously forced white text onto the cyan
+    // `secondary.main` (#06b6d4), which is only a 2.43:1 contrast ratio.
     secondary: {
       main: '#06b6d4',
       light: '#22d3ee',
       dark: '#0891b2',
-      contrastText: '#ffffff',
     },
     background: {
       default: '#f8fafc',
@@ -301,13 +303,12 @@ export const darkThemeOptions: ThemeOptions = {
       main: '#60a5fa',
       light: '#93c5fd',
       dark: '#3b82f6',
-      contrastText: '#0f172a',
     },
+    // See the note in `lightThemeOptions.palette.primary`.
     secondary: {
       main: '#22d3ee',
       light: '#67e8f9',
       dark: '#0891b2',
-      contrastText: '#0f172a',
     },
     background: {
       default: '#0f172a',

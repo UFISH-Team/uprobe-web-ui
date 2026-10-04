@@ -137,7 +137,7 @@ const Design: React.FC = () => {
                           width: 48,
                           height: 48,
                           borderRadius: '50%',
-                          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.9)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -157,7 +157,7 @@ const Design: React.FC = () => {
                           size="small"
                           sx={{
                             backgroundColor: option.color,
-                            color: 'white',
+                            color: theme.palette.getContrastText(option.color),
                             fontWeight: 600,
                           }}
                         />

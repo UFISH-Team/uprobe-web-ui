@@ -27,6 +27,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  alpha,
 } from '@mui/material';
 import {
   Send,
@@ -2073,10 +2074,11 @@ const Agent: React.FC = () => {
         <Paper 
           variant="outlined" 
           sx={{ 
-            backgroundColor: '#0f172a', 
-            color: '#e2e8f0', 
+            backgroundColor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc', 
+            color: theme.palette.mode === 'dark' ? '#e2e8f0' : '#0f172a', 
             overflowX: 'auto',
-            border: '1px solid #1e293b',
+            border: '1px solid',
+            borderColor: theme.palette.mode === 'dark' ? '#1e293b' : 'divider',
             borderRadius: 1.5,
             overflow: 'hidden'
           }}
@@ -2084,19 +2086,20 @@ const Agent: React.FC = () => {
           <Box sx={{ 
             px: 1.75, 
             py: 0.75, 
-            backgroundColor: '#1e293b', 
-            borderBottom: '1px solid #334155',
+            backgroundColor: theme.palette.mode === 'dark' ? '#1e293b' : 'grey.100', 
+            borderBottom: '1px solid',
+            borderColor: theme.palette.mode === 'dark' ? '#334155' : 'divider',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center'
           }}>
-            <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, fontSize: '0.6875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#94a3b8' : 'text.secondary', fontWeight: 600, fontSize: '0.6875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               {lang || 'code'}
             </Typography>
             <Button
               size="small"
               variant="text"
-              sx={{ color: '#cbd5e1', minWidth: 0, px: 0.75, py: 0.15, textTransform: 'none', fontSize: '0.7rem' }}
+              sx={{ color: theme.palette.mode === 'dark' ? '#cbd5e1' : 'text.primary', minWidth: 0, px: 0.75, py: 0.15, textTransform: 'none', fontSize: '0.7rem' }}
               onClick={() => navigator.clipboard?.writeText(code)}
             >
               Copy
@@ -2728,7 +2731,7 @@ const Agent: React.FC = () => {
                 sx={{
                   p: 1.25,
                   borderRadius: 2,
-                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.025)' : 'rgba(37,99,235,0.035)',
+                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.025)' : alpha(theme.palette.primary.main, 0.04),
                 }}
               >
                 <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.35 }}>
@@ -2818,7 +2821,7 @@ const Agent: React.FC = () => {
                       '&.Mui-focused fieldset': { 
                         borderColor: theme.palette.primary.main, 
                         borderWidth: 1.5,
-                        boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.1)'
+                        boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.15)}`
                       }
                     }
                   }}
@@ -2969,9 +2972,9 @@ const Agent: React.FC = () => {
                     sx={{ 
                       width: 24,
                       height: 24,
-                      color: '#ef4444',
+                      color: 'error.main',
                       '&:hover': { 
-                        color: '#dc2626', 
+                        color: 'error.dark', 
                         backgroundColor: 'rgba(239, 68, 68, 0.08)' 
                       }
                     }}
@@ -3175,12 +3178,12 @@ const Agent: React.FC = () => {
                             borderRadius: 1.5,
                             transition: 'background-color 0.15s ease',
                             backgroundColor: currentConversationId === conversation.id ? 
-                              'rgba(37, 99, 235, 0.08)' : 
+                              alpha(theme.palette.primary.main, 0.12) : 
                               'transparent',
                             '&:hover': {
                               backgroundColor: currentConversationId === conversation.id ? 
-                                'rgba(37, 99, 235, 0.12)' : 
-                                'rgba(148, 163, 184, 0.08)',
+                                alpha(theme.palette.primary.main, 0.18) : 
+                                alpha(theme.palette.text.primary, 0.06),
                               '& .action-icons': {
                                 opacity: 1
                               }
@@ -3237,7 +3240,7 @@ const Agent: React.FC = () => {
                                   color: 'text.secondary',
                                   '&:hover': { 
                                     color: 'primary.main',
-                                    backgroundColor: 'rgba(37, 99, 235, 0.1)'
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.12),
                                   }
                                 }}
                               >
@@ -3289,7 +3292,7 @@ const Agent: React.FC = () => {
                           fontWeight: 500,
                           transition: 'background-color 0.15s ease',
                           '&:hover': {
-                            backgroundColor: 'rgba(37, 99, 235, 0.08)'
+                            backgroundColor: alpha(theme.palette.primary.main, 0.1)
                           }
                         }}
                       >
@@ -3307,9 +3310,9 @@ const Agent: React.FC = () => {
                 <IconButton 
                   onClick={() => setSidebarCollapsed(false)}
                   sx={{ 
-                    backgroundColor: 'rgba(0,0,0,0.05)',
+                    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
                     '&:hover': {
-                      backgroundColor: 'rgba(0,0,0,0.08)'
+                      backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'
                     }
                   }}
                 >
@@ -3342,7 +3345,7 @@ const Agent: React.FC = () => {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    backgroundColor: 'rgba(37, 99, 235, 0.04)',
+                    backgroundColor: alpha(theme.palette.primary.main, 0.06),
                     border: `2px dashed ${theme.palette.primary.main}`,
                     borderRadius: 0,
                     zIndex: 1000,
@@ -3612,7 +3615,7 @@ const Agent: React.FC = () => {
                         paddingY: 0.75,
                         transition: 'all 0.15s ease',
                         '&.Mui-focused': {
-                          boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.1)',
+                          boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.15)}`,
                           '& fieldset': {
                             borderColor: theme.palette.primary.main,
                             borderWidth: 1.5
@@ -3660,11 +3663,11 @@ const Agent: React.FC = () => {
                         width: 40,
                         height: 40,
                         borderRadius: 1.5,
-                        background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
+                        background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                         boxShadow: 'none',
                         transition: 'all 0.15s ease',
                         '&:hover': {
-                          boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
+                          boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.3)}`
                         },
                         '&:disabled': {
                           background: theme.palette.action.disabledBackground,
@@ -3742,13 +3745,13 @@ const Agent: React.FC = () => {
               </Table>
             </TableContainer>
           ) : (
-            <Paper variant="outlined" sx={{ bgcolor: '#0f172a', color: '#e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
-              <Box sx={{ px: 1.5, py: 0.75, bgcolor: '#1e293b', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 700 }}>
+            <Paper variant="outlined" sx={{ bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc', color: theme.palette.mode === 'dark' ? '#e2e8f0' : '#0f172a', borderColor: theme.palette.mode === 'dark' ? '#1e293b' : 'divider', borderRadius: 2, overflow: 'hidden' }}>
+              <Box sx={{ px: 1.5, py: 0.75, bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : 'grey.100', borderBottom: '1px solid', borderColor: theme.palette.mode === 'dark' ? '#334155' : 'divider', display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="caption" sx={{ color: theme.palette.mode === 'dark' ? '#94a3b8' : 'text.secondary', fontWeight: 700 }}>
                   {artifactPreview.artifact ? artifactTypeLabel(artifactPreview.artifact) : 'TEXT'}
                 </Typography>
                 {artifactPreview.truncated ? (
-                  <Typography variant="caption" sx={{ color: '#fbbf24' }}>
+                  <Typography variant="caption" sx={{ color: 'warning.main' }}>
                     Preview truncated
                   </Typography>
                 ) : null}
@@ -3840,7 +3843,7 @@ const Agent: React.FC = () => {
             variant="contained"
             onClick={handleSaveApiKey}
             sx={{
-              background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)'
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`
             }}
           >
             Save

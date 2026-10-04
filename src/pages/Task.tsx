@@ -14,12 +14,14 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  useTheme,
 } from "@mui/material";
 import {
   Refresh as RefreshIcon,
   Add as AddIcon,
   Search as SearchIcon,
   Assignment as AssignmentIcon,
+  ContentCopy as ContentCopyIcon,
 } from "@mui/icons-material";
 import type { Task } from "../types";
 import ApiService from "../api";
@@ -65,6 +67,7 @@ const Task: React.FC = () => {
     content: "",
   });
   const navigate = useNavigate();
+  const theme = useTheme();
 
   useEffect(() => {
     fetchTasks();
@@ -465,12 +468,30 @@ const Task: React.FC = () => {
             sx={{
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
-              backgroundColor: '#f5f5f5',
+              backgroundColor: (theme.palette.mode === 'dark') ? '#0b1220' : '#f5f5f5',
+              color: (theme.palette.mode === 'dark') ? '#fca5a5' : 'text.primary',
+              border: '1px solid',
+              borderColor: (theme.palette.mode === 'dark') ? 'rgba(248, 113, 113, 0.35)' : 'divider',
               p: 2,
               borderRadius: 1,
               fontFamily: 'monospace',
+              fontSize: '0.8125rem',
+              lineHeight: 1.6,
               maxHeight: '60vh',
-              overflow: 'auto'
+              overflow: 'auto',
+              m: 0,
+              scrollbarColor: (theme.palette.mode === 'dark') ? '#475569 #1e293b' : undefined,
+              '&::-webkit-scrollbar': { width: '8px', height: '8px' },
+              '&::-webkit-scrollbar-track': {
+                background: (theme.palette.mode === 'dark') ? '#1e293b' : 'transparent',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: (theme.palette.mode === 'dark') ? '#475569' : '#cbd5e1',
+                borderRadius: '4px',
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                background: (theme.palette.mode === 'dark') ? '#64748b' : '#94a3b8',
+              },
             }}
           >
             {errorDialog.content}
@@ -478,6 +499,23 @@ const Task: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setErrorDialog({ ...errorDialog, open: false })}>Close</Button>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<ContentCopyIcon fontSize="small" />}
+            onClick={() => {
+              navigator.clipboard
+                .writeText(errorDialog.content)
+                .then(() =>
+                  setSnackbar({ open: true, message: 'Error details copied to clipboard', severity: 'success' })
+                )
+                .catch(() =>
+                  setSnackbar({ open: true, message: 'Failed to copy error details', severity: 'error' })
+                );
+            }}
+          >
+            Copy
+          </Button>
         </DialogActions>
       </Dialog>
 

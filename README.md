@@ -1,69 +1,59 @@
-# U-Probe Web (UI)
+# U-Probe Web UI
 
-Web interface for the U-Probe platform: interactive protocol design, genome management, and queued workflow execution with traceable outputs.
+React 18 + TypeScript + Vite frontend for probe design, genome management, tasks, and reports.
 
-## Stack
+## Local development
 
-- React 18 + TypeScript
-- Vite 5
-- MUI (Material UI) + Ant Design (selected components)
-- Zustand for client-side state
-- Axios for HTTP, JSZip for report handling
+Requires Node.js 18+, pnpm, and the U-Probe FastAPI backend.
 
-## Prerequisites
-
-- Node.js >= 18
-- pnpm (recommended) or npm
-- A running U-Probe HTTP backend (FastAPI)
-
-## Quick start
+Start the backend in WSL/Linux:
 
 ```bash
-cd uprobe-web-ui
-pnpm install
-pnpm run dev
+cd /path/to/U-Probe
+conda activate uprobe  # or your existing Python 3.10+ environment
+uprobe server --env development --host 127.0.0.1 --port 8005 --workers 1
 ```
 
-The dev server runs on `http://localhost:5173` by default.
+Ensure the backend `config.ini` uses local Linux data paths and `frontend_url = http://localhost:5173`.
 
-## Configuration
+Start the frontend in a separate Windows PowerShell terminal:
 
-Set the backend base URL via Vite env:
+```powershell
+cd D:\repos\uprobe-web-ui
+pnpm install  # first run or after dependency changes
+pnpm dev --host 127.0.0.1 --port 5173
+```
 
-- `VITE_API_BASE_URL`: backend URL (default: `http://127.0.0.1:8000`)
+Open http://localhost:5173. Frontend changes update automatically; backend development mode reloads Python changes.
 
-Example:
+## API connection
+
+The current `.env` uses:
+
+```dotenv
+VITE_API_BASE_URL=/api
+```
+
+Vite proxies `/api` to `http://127.0.0.1:8005` and removes the `/api` prefix. No configuration change is needed for the setup above. If the backend port changes, update `server.proxy` in `vite.config.ts` and restart Vite.
+
+- Connection check: http://localhost:5173/api/ should return `{"message":"Hello, World!"}`.
+- API docs: http://localhost:8005/docs. Use `POST /auth/register` to create a local test account without email verification.
+- If the proxy fails, first check http://localhost:8005/ from Windows.
+
+## Commands
 
 ```bash
-export VITE_API_BASE_URL="http://127.0.0.1:8000"
-pnpm dev
+pnpm dev      # development server
+pnpm build    # TypeScript check + production build
+pnpm lint     # ESLint
+pnpm preview  # preview built frontend; requires separate API routing
 ```
 
-## Scripts
+The `/api` proxy applies to the development server. Production hosting needs its own API proxy or `VITE_API_BASE_URL` set at build time.
 
-```bash
-pnpm dev      # start dev server
-pnpm build    # typecheck + production build
-pnpm preview  # preview production build
-pnpm lint     # eslint
-```
+## Source layout
 
-## What the UI provides
-
-- Authentication and session management
-- Task lifecycle management (queued/running/completed/failed) with error details
-- Result download and self-contained HTML report viewer
-- Genome browser and file operations (upload/list/metadata)
-- Custom probe type management
-
-## Project layout (high level)
-
-- `src/api.ts`: API client and interceptors
-- `src/store/`: Zustand stores (tasks, auth, etc.)
-- `src/pages/`: top-level routes
-- `src/components/`: reusable UI components
-
-## Notes for contributors
-
-- Prefer small, composable components and deterministic state updates.
-- Keep API contracts explicit (types in `src/types.ts`), and propagate backend error details to the UI.
+- `src/api.ts`: API client
+- `src/pages/`: pages
+- `src/components/`: shared components
+- `src/store/`: Zustand state

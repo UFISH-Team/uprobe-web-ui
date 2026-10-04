@@ -9,11 +9,23 @@ html, body {
   margin: 0;
   padding: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, sans-serif;
-  background-color: #fafbfc;
-  color: #0f172a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
+}
+
+/*
+ * `data-theme-mode` is set on <html> by src/contexts/ThemeContext.tsx.
+ * `color-scheme` keeps native UI (scrollbars, form controls, canvas) in step
+ * with the theme that CssBaseline applies.
+ */
+:root,
+:root[data-theme-mode='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme-mode='dark'] {
+  color-scheme: dark;
 }
 
 #root {
@@ -26,8 +38,9 @@ button {
   font-family: inherit;
 }
 
-/* Improve focus visibility */
+/* Improve focus visibility. The ring color comes from the active MUI theme
+ * (see CssBaseline in src/theme.ts) so it stays visible in both modes. */
 :focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--focus-ring-color, #2563eb);
   outline-offset: 2px;
 }

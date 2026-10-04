@@ -1,6 +1,6 @@
 // App.tsx
 import React from 'react';
-import { AppBar, Toolbar, Button, Box, IconButton, useMediaQuery, Drawer, Divider, List, ListItemButton, ListItemIcon, ListItemText, Typography, Tooltip } from '@mui/material';
+import { AppBar, Toolbar, Button, Box, IconButton, useMediaQuery, Drawer, Divider, List, ListItemButton, ListItemIcon, ListItemText, Typography, Tooltip, alpha } from '@mui/material';
 import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
@@ -105,15 +105,15 @@ function App() {
               mb: 0.75,
               py: 1.25,
               backgroundColor: isActive ? 'primary.main' : 'transparent',
-              color: isActive ? 'white' : 'text.primary',
+              color: isActive ? 'primary.contrastText' : 'text.primary',
               transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
               '&:hover': {
-                backgroundColor: isActive ? 'primary.dark' : 'rgba(37, 99, 235, 0.08)',
+                backgroundColor: isActive ? 'primary.dark' : alpha(theme.palette.primary.main, 0.08),
                 transform: 'translateX(4px)',
               },
               '&.Mui-selected': {
                 backgroundColor: 'primary.main',
-                color: 'white',
+                color: 'primary.contrastText',
                 '&:hover': {
                   backgroundColor: 'primary.dark',
                 },
@@ -126,7 +126,7 @@ function App() {
             <ListItemIcon sx={{ minWidth: 36 }}>
               <Icon 
                 sx={{ 
-                  color: isActive ? 'white' : 'primary.main',
+                  color: isActive ? 'primary.contrastText' : 'primary.main',
                   fontSize: '1.2rem',
                   transition: 'all 0.2s'
                 }} 
@@ -154,7 +154,7 @@ function App() {
           py: 1.25,
           transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
-            backgroundColor: 'rgba(37, 99, 235, 0.08)',
+            backgroundColor: alpha(theme.palette.primary.main, 0.08),
             transform: 'translateX(4px)',
           },
         }}
@@ -183,7 +183,7 @@ function App() {
               sx={{ 
                 mr: 2,
                 '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  backgroundColor: alpha(theme.palette.primary.main, 0.12),
                 }
               }}
             >
@@ -198,14 +198,15 @@ function App() {
                 height: 32,
                 borderRadius: '50%',
                 mr: 1.5,
-                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.15)',
+                boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.15)}`,
                 overflow: 'hidden',
                 position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: '#ffffff',
-                border: '2px solid rgba(37, 99, 235, 0.1)',
+                backgroundColor: 'background.paper',
+                border: '2px solid',
+                borderColor: alpha(theme.palette.primary.main, 0.1),
               }}
             >
               <Box
@@ -363,9 +364,9 @@ function App() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: '#ffffff',
-                  border: '2px solid rgba(37, 99, 235, 0.1)',
-                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.15)',
+                  backgroundColor: 'background.paper',
+                  border: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                  boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.15)}`,
                 }}
               >
                 <Box

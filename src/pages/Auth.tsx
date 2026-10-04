@@ -469,7 +469,7 @@ const Auth = () => {
             <Box
               sx={{
                 background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                color: 'white',
+                color: 'primary.contrastText',
                 py: 3,
                 px: 3,
                 textAlign: 'center',
@@ -766,7 +766,7 @@ const Auth = () => {
                                       justifyContent: 'center',
                                     }}
                                   >
-                                    <Typography sx={{ color: 'white', fontSize: '8px', fontWeight: 'bold' }}>✓</Typography>
+                                    <Typography sx={{ color: theme.palette.getContrastText(theme.palette.success.main), fontSize: '8px', fontWeight: 'bold' }}>✓</Typography>
                                   </Box>
                                 ) : (
                                   <Box
@@ -780,7 +780,7 @@ const Auth = () => {
                                       justifyContent: 'center',
                                     }}
                                   >
-                                    <Typography sx={{ color: 'white', fontSize: '8px', fontWeight: 'bold' }}>!</Typography>
+                                    <Typography sx={{ color: theme.palette.getContrastText(theme.palette.warning.main), fontSize: '8px', fontWeight: 'bold' }}>!</Typography>
                                   </Box>
                                 )}
                                 <Typography
@@ -1139,7 +1139,7 @@ const Auth = () => {
           <Typography 
             variant="caption" 
             sx={{ 
-              color: 'rgba(255, 255, 255, 0.7)',
+              color: 'text.secondary',
               fontSize: '0.75rem'
             }}
           >

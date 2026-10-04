@@ -32,6 +32,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [mode]);
 
+  // Mirror the mode onto <html> so plain CSS (e.g. src/index.css) can react to
+  // it via `color-scheme` and CSS variables. MUI's sx props cannot reach the
+  // document element, and CssBaseline only styles `body`.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme-mode', mode);
+    root.style.setProperty('--focus-ring-color', mode === 'dark' ? '#60a5fa' : '#2563eb');
+  }, [mode]);
+
   const toggleTheme = () => {
     setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
   };

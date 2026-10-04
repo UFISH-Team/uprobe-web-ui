@@ -8,6 +8,7 @@ import {
   useTheme,
   Grid,
   Paper,
+  alpha,
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { 
@@ -29,7 +30,7 @@ const Home: React.FC = () => {
       icon: <RocketLaunch />,
       path: '/design/designworkflow',
       color: theme.palette.primary.main,
-      bgColor: 'rgba(37, 99, 235, 0.1)',
+      bgColor: alpha(theme.palette.primary.main, 0.1),
     },
     {
       title: 'View Examples',
@@ -37,7 +38,7 @@ const Home: React.FC = () => {
       icon: <Visibility />,
       path: '/tutorial',
       color: theme.palette.secondary.main,
-      bgColor: 'rgba(8, 145, 178, 0.1)',
+      bgColor: alpha(theme.palette.secondary.main, 0.1),
     },
     {
       title: 'Upload Data',
@@ -45,7 +46,7 @@ const Home: React.FC = () => {
       icon: <CloudUpload />,
       path: '/genome',
       color: theme.palette.info.main,
-      bgColor: 'rgba(59, 130, 246, 0.1)',
+      bgColor: alpha(theme.palette.info.main, 0.1),
     }
   ];
 
@@ -63,7 +64,7 @@ const Home: React.FC = () => {
             <Paper
               elevation={0}
               sx={{
-                background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                 borderRadius: '50%',
                 width: { xs: 80, sm: 100 },
                 height: { xs: 80, sm: 100 },
@@ -80,7 +81,7 @@ const Home: React.FC = () => {
             >
               <Science sx={{ 
                 fontSize: { xs: 40, sm: 50 }, 
-                color: 'white' 
+                color: 'primary.contrastText'
               }} />
             </Paper>
           </Box>
@@ -92,7 +93,7 @@ const Home: React.FC = () => {
             sx={{ 
               fontWeight: 800,
               mb: 2,
-              background: 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)',
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
               backgroundClip: 'text',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
@@ -201,8 +202,8 @@ const Home: React.FC = () => {
           <Card
             sx={{
               mb: 4,
-              background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(8, 145, 178, 0.05) 100%)',
-              border: '1px solid rgba(37, 99, 235, 0.1)',
+              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
             }}
           >
             <CardContent sx={{ p: { xs: 3, sm: 4 } }}>

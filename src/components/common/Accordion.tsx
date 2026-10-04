@@ -40,8 +40,8 @@ export const AccordionSummary = styled((props: AccordionSummaryProps) => (
 }));
 
 
-export const AccordionDetails = styled(MuiAccordionDetails)(() => ({
+export const AccordionDetails = styled(MuiAccordionDetails)(({ theme }) => ({
   padding: 0,
-  borderTop: '1px solid rgba(0, 0, 0, .125)',
+  borderTop: `1px solid ${theme.palette.divider}`,
 }));
 

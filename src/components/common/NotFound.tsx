@@ -18,7 +18,7 @@ const NotFound: React.FC = () => {
         justifyContent: 'center',
         alignItems: 'center',
         textAlign: 'center',
-        bgcolor: '#f0f0f0',
+        bgcolor: 'background.default',
         padding: 2,
       }}
     >

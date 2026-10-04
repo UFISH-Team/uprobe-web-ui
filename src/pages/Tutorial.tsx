@@ -16,6 +16,7 @@ import {
   useTheme,
   useMediaQuery,
   Container,
+  alpha,
 } from '@mui/material';
 import {
   RocketLaunch,
@@ -73,8 +74,8 @@ const Tutorial: React.FC = () => {
     <Box
       component="pre"
       sx={{
-        backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#f5f5f5',
-        color: theme.palette.mode === 'dark' ? '#d4d4d4' : '#333333',
+        backgroundColor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+        color: theme.palette.mode === 'dark' ? '#e2e8f0' : '#0f172a',
         p: 2.5,
         borderRadius: 2,
         overflowX: 'auto',
@@ -82,6 +83,18 @@ const Tutorial: React.FC = () => {
         fontFamily: '"JetBrains Mono", "Fira Code", monospace',
         border: `1px solid ${theme.palette.divider}`,
         my: 2,
+        scrollbarColor: (theme.palette.mode === 'dark') ? '#475569 #1e293b' : undefined,
+        '&::-webkit-scrollbar': { height: '8px' },
+        '&::-webkit-scrollbar-track': {
+          background: (theme.palette.mode === 'dark') ? '#1e293b' : 'transparent',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          background: (theme.palette.mode === 'dark') ? '#475569' : '#cbd5e1',
+          borderRadius: '4px',
+        },
+        '&::-webkit-scrollbar-thumb:hover': {
+          background: (theme.palette.mode === 'dark') ? '#64748b' : '#94a3b8',
+        },
       }}
     >
       {children}
@@ -153,7 +166,7 @@ const Tutorial: React.FC = () => {
                     transition: 'all 0.2s',
                     '&.Mui-selected': {
                       color: 'primary.main',
-                      bgcolor: theme.palette.mode === 'dark' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(37, 99, 235, 0.05)',
+                      bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.18 : 0.08),
                       fontWeight: 600,
                     },
                     '&:hover:not(.Mui-selected)': {
@@ -407,10 +420,10 @@ const Tutorial: React.FC = () => {
               <Typography variant="h5" sx={{ mt: 5, mb: 2, fontWeight: 600 }}>Understanding Probe Parts</Typography>
               <Typography paragraph sx={{ color: 'text.secondary' }}>A probe is constructed by concatenating multiple "Parts". A Part can be:</Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 4 }}>
-                <Chip label="Target Sequence" sx={{ bgcolor: 'rgba(37, 99, 235, 0.1)', color: '#2563eb', fontWeight: 600, border: 'none' }} />
-                <Chip label="Barcode / Readout" sx={{ bgcolor: 'rgba(147, 51, 234, 0.1)', color: '#9333ea', fontWeight: 600, border: 'none' }} />
-                <Chip label="Fixed Sequence (e.g. Primer)" sx={{ bgcolor: 'rgba(234, 88, 12, 0.1)', color: '#ea580c', fontWeight: 600, border: 'none' }} />
-                <Chip label="Another Probe (Nested)" sx={{ bgcolor: 'rgba(22, 163, 74, 0.1)', color: '#16a34a', fontWeight: 600, border: 'none' }} />
+                <Chip label="Target Sequence" sx={{ bgcolor: alpha(theme.palette.primary.main, 0.12), color: theme.palette.mode === 'dark' ? '#93c5fd' : '#1d4ed8', fontWeight: 600, border: 'none' }} />
+                <Chip label="Barcode / Readout" sx={{ bgcolor: 'rgba(147, 51, 234, 0.12)', color: theme.palette.mode === 'dark' ? '#d8b4fe' : '#7e22ce', fontWeight: 600, border: 'none' }} />
+                <Chip label="Fixed Sequence (e.g. Primer)" sx={{ bgcolor: 'rgba(234, 88, 12, 0.12)', color: theme.palette.mode === 'dark' ? '#fdba74' : '#c2410c', fontWeight: 600, border: 'none' }} />
+                <Chip label="Another Probe (Nested)" sx={{ bgcolor: 'rgba(22, 163, 74, 0.12)', color: theme.palette.mode === 'dark' ? '#86efac' : '#15803d', fontWeight: 600, border: 'none' }} />
               </Box>
 
               <Typography variant="h5" sx={{ mt: 5, mb: 2, fontWeight: 600 }}>The DAG Architecture</Typography>
