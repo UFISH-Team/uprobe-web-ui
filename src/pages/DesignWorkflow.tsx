@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
+  Autocomplete,
   Snackbar, 
   Alert, 
   TextField, 
@@ -8,7 +9,8 @@ import {
   Typography, 
   Button, 
   Select, 
-  MenuItem, 
+  MenuItem,
+  Menu,
   InputLabel, 
   FormControl, 
   Grid, 
@@ -25,6 +27,7 @@ import {
   Stepper,
   Step,
   StepLabel,
+  StepButton,
   Card,
   CardContent,
   CardHeader,
@@ -45,6 +48,10 @@ import {
   Container
 } from '@mui/material';
 
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CloseIcon from '@mui/icons-material/Close';
@@ -112,7 +119,13 @@ const getProbeType = (customType?: CustomProbeType | null): 'DNA' | 'RNA' => {
 
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
-  const [barcodeOptions, setBarcodeOptions] = useState<string[]>([]);
+  const [barcodeLibrary, setBarcodeLibrary] = useState<{ name: string; sequence: string }[]>([]);
+  const [editingBarcode, setEditingBarcode] = useState<string | null>(null);
+  const [barcodeDraft, setBarcodeDraft] = useState('');
+  const [activeSection, setActiveSection] = useState('species');
+  const [showValidation, setShowValidation] = useState(false);
+  const scrollTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [barcodeMenuAnchor, setBarcodeMenuAnchor] = useState<HTMLElement | null>(null);
 
   // Helper functions to format probe and part names for display
   const formatProbeName = (probeName: string): string => {
@@ -164,7 +177,7 @@ const DesignWorkflow: React.FC = () => {
   const [sortOptions, setSortOptions] = useState<SortOption[]>([]);
   const [showPostProcess, setShowPostProcess] = useState(true);
   const [overlapThreshold, setOverlapThreshold] = useState(0);
-  const [barcodeFromFile, setBarcodeFromFile] = useState<{[key: string]: boolean}>({});
+
   
   // Post-processing feature states
   const [enableBasicFilter, setEnableBasicFilter] = useState(true);
@@ -238,13 +251,6 @@ const DesignWorkflow: React.FC = () => {
     setEqualSpaceConfig(newConfig);
   };
   
-  // New states for barcode modes
-  interface BarcodeMode {
-    [key: string]: 'builtin' | 'auto' | 'manual' | 'file';
-  }
-  const [barcodeModes, setBarcodeModes] = useState<BarcodeMode>({});
-  
-
   // Function to validate barcode length
   const validateBarcodeLength = (barcode: string, expectedLength: number): boolean => {
     return barcode.length === expectedLength;
@@ -340,100 +346,6 @@ const DesignWorkflow: React.FC = () => {
   // Add loading state for barcode generation
   const [generatingBarcodes, setGeneratingBarcodes] = useState<{[key: string]: boolean}>({});
 
-  // Function to handle barcode mode change
-  const handleBarcodeModeChange = async (barcodeKey: string, mode: 'builtin' | 'auto' | 'manual' | 'file') => {
-    setBarcodeModes(prev => ({ ...prev, [barcodeKey]: mode }));
-    
-  };
-
-
-  // Function to generate barcodes for all targets
-  const generateBarcodesForAllTargets = async (barcodeKey: string) => {
-    const loadingKey = `target_all_${barcodeKey}`;
-    setGeneratingBarcodes(prev => ({ ...prev, [loadingKey]: true }));
-    
-    try {
-      const barcodeIndex = parseInt(barcodeKey.replace('barcode', '')) - 1;
-      const targetsNeedingBarcodes = targetList; // Generate for all targets, including empty ones
-      
-      if (targetsNeedingBarcodes.length === 0) {
-        setAlert(true, 'No targets found', 'error');
-        return;
-      }
-      
-      // Get expected length for this barcode type
-      let expectedLength = 12; // Default fallback
-      if (selectedCustomType?.barcodeConfig) {
-        const config = selectedCustomType.barcodeConfig;
-        const barcodeConfigKey = `barcode${barcodeIndex + 1}`;
-        if (config.barcodes && config.barcodes[barcodeConfigKey]) {
-          expectedLength = config.barcodes[barcodeConfigKey].length || config.default_length || 12;
-        } else {
-          expectedLength = config.default_length || 12;
-        }
-      }
-      
-      let generatedBarcodes: string[] = [];
-      
-      try {
-        // Use quick generation by default
-        const quickResult = await ApiService.generateQuickBarcode({
-          num_barcodes: targetsNeedingBarcodes.length,
-          length: expectedLength,
-          alphabet: 'ACTG',
-          rc_free: true,
-          gc_limits: [40, 60]
-        });
-        generatedBarcodes = quickResult;
-      } catch (apiError) {
-        console.warn('API barcode generation failed, falling back to local generation:', apiError);
-        
-        // Fallback to local generation
-        const bases = ['A', 'T', 'G', 'C'];
-        generatedBarcodes = [];
-        
-        for (let i = 0; i < targetsNeedingBarcodes.length; i++) {
-          let sequence = '';
-          for (let j = 0; j < expectedLength; j++) {
-            sequence += bases[Math.floor(Math.random() * bases.length)];
-          }
-          generatedBarcodes.push(sequence);
-        }
-        
-        // Don't show alert here, we'll show it at the end
-      }
-      
-      if (generatedBarcodes.length !== targetsNeedingBarcodes.length) {
-        throw new Error(`Expected ${targetsNeedingBarcodes.length} barcodes, but got ${generatedBarcodes.length}`);
-      }
-      
-      // Validate all generated barcodes
-      const invalidBarcodes = generatedBarcodes.filter(barcode => !validateBarcodeLength(barcode, expectedLength));
-      if (invalidBarcodes.length > 0) {
-        throw new Error(`${invalidBarcodes.length} generated barcodes have incorrect length`);
-      }
-      
-      // Assign unique barcodes to all targets
-      const updatedTargetList = targetList.map((target, index) => ({
-        ...target,
-        [barcodeKey]: generatedBarcodes[index]
-      }));
-      
-      setTargetList(updatedTargetList);
-      
-      // Show appropriate success message
-      if (generatedBarcodes.length > 0) {
-        setAlert(true, `Successfully generated ${targetList.length} unique barcodes for all targets`, 'success');
-      }
-      
-    } catch (error) {
-      console.error('Failed to generate barcodes:', error);
-      setAlert(true, `Batch barcode generation failed: ${error instanceof Error ? error.message : String(error)}. Please try again or generate individually.`, 'error');
-    } finally {
-      setGeneratingBarcodes(prev => ({ ...prev, [loadingKey]: false }));
-    }
-  };
-
   // Function to auto-generate barcode for specific item
   const autoGenerateBarcodeForItem = async (itemIndex: number, barcodeKey: string) => {
     const loadingKey = `target_${itemIndex}_${barcodeKey}`;
@@ -455,30 +367,51 @@ const DesignWorkflow: React.FC = () => {
     }
   };
 
-  // Function to validate manual barcode input
-  const validateManualBarcode = (barcode: string, barcodeKey: string): boolean => {
-    if (!selectedCustomType?.barcodeConfig) return true;
-    
-    const config = selectedCustomType.barcodeConfig;
-    
-    let expectedLength = config.default_length || 12;
-    if (config.barcodes && config.barcodes[barcodeKey]) {
-      expectedLength = config.barcodes[barcodeKey].length || expectedLength;
-    }
-    
-    return validateBarcodeLength(barcode, expectedLength);
+  const validateManualBarcode = (barcode: string, barcodeKey: string): boolean =>
+    /^[ACGT]+$/.test(barcode) && barcode.length === getExpectedBarcodeLength(barcodeKey);
+
+  const importBarcodeLibrary = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: 'greedy',
+      transformHeader: header => header.replace(/^\uFEFF/, '').trim(),
+      complete: results => {
+        try {
+          if (results.errors.length) throw new Error(results.errors[0].message);
+          const fields = results.meta.fields || [];
+          if (fields.length !== 2 || !fields.includes('name') || !fields.includes('sequence')) {
+            throw new Error('CSV must contain exactly two columns: name,sequence');
+          }
+          if (!results.data.length) throw new Error('Barcode library is empty');
+          const names = new Set<string>();
+          const entries = results.data.map((row, index) => {
+            const name = row.name.trim();
+            const sequence = row.sequence.trim().toUpperCase();
+            if (!name || !/^[ACGT]+$/.test(sequence)) throw new Error(`Row ${index + 2}: name and a valid A/C/G/T sequence are required`);
+            if (names.has(name)) throw new Error(`Row ${index + 2}: duplicate name "${name}"`);
+            names.add(name);
+            return { name, sequence };
+          });
+          setBarcodeLibrary(entries);
+          setAlert(true, `Imported ${entries.length} barcodes. Existing target values are preserved.`, 'success');
+        } catch (error) {
+          setAlert(true, error instanceof Error ? error.message : 'Could not import barcode library', 'error');
+        }
+      },
+      error: error => setAlert(true, error.message, 'error')
+    });
   };
 
-  // Function to handle manual barcode input with validation
-  const handleManualBarcodeInput = (itemIndex: number, barcodeKey: string, value: string) => {
-    const isValid = validateManualBarcode(value, barcodeKey);
-    
-    if (!isValid && value.length > 0) {
-      const expectedLength = getExpectedBarcodeLength(barcodeKey);
-      setAlert(true, `Barcode length mismatch. Expected length: ${expectedLength}, actual length: ${value.length}`, 'error');
-    }
-    
-    updateTarget(itemIndex, barcodeKey as keyof Target, value);
+  const downloadBarcodeTemplate = () => {
+    const url = URL.createObjectURL(new Blob(['name,sequence\nBC001,ATCGATCGATCG\nBC002,TGCATGCATGCA\n'], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'barcode-library-template.csv';
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   // Helper function to get expected barcode length
@@ -539,19 +472,6 @@ const DesignWorkflow: React.FC = () => {
       }
     };
     fetchSpeciesOptions();
-  }, []);
-
-  // Fetch barcode options on mount
-  useEffect(() => {
-    const fetchBarcodeOptions = async () => {
-      try {
-        const barcodeResponse = await ApiService.getBarcodeOptions();
-        setBarcodeOptions(barcodeResponse);
-      } catch (error) {
-        console.error('Error fetching barcode options:', error);
-      }
-    };
-    fetchBarcodeOptions();
   }, []);
 
   const loadCustomProbeTypes = async () => {
@@ -854,8 +774,8 @@ const DesignWorkflow: React.FC = () => {
 
   const handleResetTargetList = () => {
     setTargetList([{ target: '', sequence: '' }]);
-    setBarcodeFromFile({});
-    setBarcodeModes({});
+
+
     setGeneratingBarcodes({});
     setAlert(true, 'Target list has been reset', 'success');
   };
@@ -879,20 +799,6 @@ const DesignWorkflow: React.FC = () => {
             const headers = Object.keys(results.data[0]);
             const barcodeColumns = headers.filter(h => h.startsWith('barcode'));
             
-            // Update which barcodes are from file
-            const newBarcodeFromFile: {[key: string]: boolean} = {};
-            const newBarcodeModes: BarcodeMode = {};
-            if (selectedCustomType?.barcodeCount) {
-              for (let i = 1; i <= selectedCustomType.barcodeCount; i++) {
-                const barcodeKey = `barcode${i}`;
-                const isFromFile = barcodeColumns.includes(barcodeKey);
-                newBarcodeFromFile[barcodeKey] = isFromFile;
-                newBarcodeModes[barcodeKey] = isFromFile ? 'file' : 'builtin';
-              }
-            }
-            setBarcodeFromFile(newBarcodeFromFile);
-            setBarcodeModes(newBarcodeModes);
-
             const parsedData = results.data.map((row, index) => {
               // Validate required fields
               if (!row['target']) {
@@ -950,8 +856,8 @@ const DesignWorkflow: React.FC = () => {
     setShowCustomProbeTypes(false);
     
     // Reset barcode modes when changing probe type
-    setBarcodeModes({});
-    setBarcodeFromFile({});
+
+
     setGeneratingBarcodes({});
     
     // Find custom probe type
@@ -1416,33 +1322,27 @@ const DesignWorkflow: React.FC = () => {
   }, [selectedCustomType]);
 
   const getActiveSteps = () => {
-    const steps = [
-      { label: 'Species', completed: !!species },
-      { label: 'Probe Type', completed: !!probeType }
+    const errors = validateForm();
+    const targetErrors = errors.filter(error => error.startsWith('please add at least') || error.startsWith('some target barcodes'));
+    const parameterErrors = errors.filter(error => !targetErrors.includes(error) && error !== 'please select species' && error !== 'please select probe type');
+    return [
+      { id: 'species', label: 'Species', summary: species || 'Select a genome', completed: !!species, optional: false },
+      { id: 'probeType', label: 'Probe Type', summary: selectedCustomType?.name || probeType || 'Select a probe type', completed: !!probeType, optional: false },
+      ...(selectedCustomType ? [{ id: 'parameters', label: 'Probe Parameters', summary: parameterErrors.length ? 'Configuration needed' : `${minLength} bp · overlap ${overlap}`, completed: !parameterErrors.length, optional: false }] : []),
+      { id: 'geneMap', label: 'Targets', summary: `${targetList.filter(target => target.target.trim()).length} targets${targetErrors.length ? ' · incomplete' : ''}`, completed: !targetErrors.length, optional: false },
+      { id: 'postProcessing', label: 'Post Processing', summary: [enableBasicFilter && 'Filtering', enableAvoidOtp && 'Avoid OTP', enableEqualSpace && 'Equal spacing'].filter(Boolean).join(' · ') || 'Default', completed: true, optional: true },
+      { id: 'taskName', label: 'Task Name', summary: taskName.trim() || 'Auto-generated', completed: true, optional: true }
     ];
+  };
 
-    if (selectedCustomType) {
-      steps.push({ label: 'Custom Probe Parameters', completed: true });
-    }
-
-    if (probeType) {
-      const hasInput = targetList.length > 0 && targetList[0].target !== '';
-      steps.push(
-        { label: 'Target Input', completed: hasInput }
-      );
-    }
-
-    steps.push({ 
-      label: 'Post Processing', 
-      completed: sortOptions.length > 0 || overlapThreshold !== 20 
-    });
-
-    steps.push({ 
-      label: 'Task Name', 
-      completed: true // Task name is optional, so always completed
-    });
-
-    return steps;
+  const jumpToSection = (id: string) => {
+    setActiveSection(id);
+    setExpandedSections(previous => ({ ...previous, [id === 'parameters' ? 'probeType' : id]: true }));
+    if (id === 'postProcessing') setShowPostProcess(true);
+    clearTimeout(scrollTimer.current);
+    scrollTimer.current = setTimeout(() => {
+      document.getElementById(`design-${id}`)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    }, 350);
   };
 
   // Helper function to filter out disabled attributes
@@ -1619,16 +1519,15 @@ const DesignWorkflow: React.FC = () => {
         
         for (let i = 1; i <= selectedCustomType.barcodeCount; i++) {
           const barcodeKey = `barcode${i}`;
-          const mode = barcodeModes[barcodeKey] || 'builtin';
           const barcodeValue = (item as any)[barcodeKey];
           
           // Check if barcode is missing when required
-          if (mode !== 'builtin' && !barcodeValue) {
+          if (!barcodeValue) {
             return true;
           }
           
           // Check barcode length validation for non-builtin modes
-          if (barcodeValue && mode !== 'builtin' && !validateManualBarcode(barcodeValue, barcodeKey)) {
+          if (barcodeValue && !validateManualBarcode(barcodeValue, barcodeKey)) {
             return true;
           }
         }
@@ -2097,6 +1996,8 @@ const DesignWorkflow: React.FC = () => {
       // Validate form before submission
       const validationErrors = validateForm();
       if (validationErrors.length > 0) {
+        setShowValidation(true);
+        jumpToSection(getActiveSteps().find(step => !step.completed)?.id || 'probeType');
         setAlert(true, `please complete the following information:\n${validationErrors.join('\n')}`, 'error');
         return;
       }
@@ -2189,9 +2090,34 @@ const DesignWorkflow: React.FC = () => {
   };
 
 
+  useEffect(() => {
+    const ids = ['species', 'probeType', ...(selectedCustomType && expandedSections.probeType ? ['parameters'] : []), 'geneMap', 'postProcessing', 'taskName'];
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        let current = ids[0];
+        for (const id of ids) {
+          const element = document.getElementById(`design-${id}`);
+          if (element && element.getBoundingClientRect().top <= 160) current = id;
+        }
+        setActiveSection(current);
+      });
+    };
+    document.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    update();
+    return () => {
+      document.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+      cancelAnimationFrame(frame);
+      clearTimeout(scrollTimer.current);
+    };
+  }, [selectedCustomType, expandedSections.probeType]);
+
   return (
     <Container
-      maxWidth="xl" 
+      maxWidth={false}
       sx={{ 
         width: '100%',
         px: { xs: 2, sm: 3, md: 4 },
@@ -2206,16 +2132,41 @@ const DesignWorkflow: React.FC = () => {
         </Typography>
       </Box>
 
-      <Stepper activeStep={-1} alternativeLabel sx={{ mb: 4 }}>
-        {getActiveSteps().map((step, index) => (
-          <Step key={index} completed={step.completed}>
-            <StepLabel>{step.label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: { md: 3, lg: 4 } }}>
+        <Box component="nav" aria-label="Workflow stages" sx={{ display: { xs: 'none', md: 'block' }, width: 208, flexShrink: 0, position: 'sticky', top: 88, maxHeight: 'calc(100vh - 112px)', overflowY: 'auto', overflowX: 'hidden' }}>
+          <Typography variant="overline" color="text.secondary" sx={{ pl: 1.5 }}>Workflow stages</Typography>
+          <Stepper nonLinear orientation="vertical" activeStep={getActiveSteps().findIndex(step => step.id === activeSection)} sx={{ mt: 1,
+            '& .MuiStepConnector-line': { borderColor: 'divider', minHeight: 16 },
+            '& .MuiStepIcon-root': { fontSize: 22 },
+            '& .MuiStepButton-root': { m: 0, px: 1.5, py: 1, width: '100%', borderRadius: 1.5 },
+            '& .MuiStepConnector-root': { ml: '22px' },
+            '& .MuiStepLabel-root': { minWidth: 0, width: '100%' },
+            '& .MuiStepLabel-labelContainer': { minWidth: 0 },
+            '& .MuiStepLabel-label': { overflowWrap: 'anywhere' }
+          }}>
+            {getActiveSteps().map(step => (
+              <Step key={step.id} completed={step.completed && !step.optional}>
+                <StepButton onClick={() => jumpToSection(step.id)} aria-current={activeSection === step.id ? 'location' : undefined}
+                  sx={{ bgcolor: activeSection === step.id ? 'action.selected' : 'transparent', '&:hover': { bgcolor: 'action.hover' } }}>
+                  <StepLabel error={showValidation && !step.completed}>
+                    <Typography variant="body2" sx={{ fontWeight: activeSection === step.id ? 600 : 500 }}>{step.label}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 144, overflow: 'hidden', textOverflow: 'ellipsis' }}>{step.summary}</Typography>
+                  </StepLabel>
+                </StepButton>
+              </Step>
+            ))}
+          </Stepper>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <FormControl size="small" fullWidth sx={{ display: { xs: 'flex', md: 'none' }, mb: 2, position: 'sticky', top: 8, zIndex: 5, bgcolor: 'background.paper', borderRadius: 1 }}>
+            <InputLabel id="workflow-stage-label">Workflow stage</InputLabel>
+            <Select labelId="workflow-stage-label" label="Workflow stage" value={getActiveSteps().some(step => step.id === activeSection) ? activeSection : 'species'} onChange={event => jumpToSection(event.target.value)}>
+              {getActiveSteps().map(step => <MenuItem key={step.id} value={step.id}>{step.label}{showValidation && !step.completed ? ' · needs attention' : ''}</MenuItem>)}
+            </Select>
+          </FormControl>
 
       {/* Species Option */}
-      <Card sx={{ mb: 3 }}>
+      <Card id="design-species" sx={{ mb: 3, scrollMarginTop: 104 }}>
         <CardHeader 
           title="🌍 Species Option" 
           subheader="Choose the species genome to design your probes"
@@ -2246,7 +2197,7 @@ const DesignWorkflow: React.FC = () => {
       </Card>
 
       {/* Probe Type */}
-      <Card sx={{ mb: 3 }}>
+      <Card id="design-probeType" sx={{ mb: 3, scrollMarginTop: 104 }}>
         <CardHeader 
           title="🔬 Probe Type" 
           subheader="Choose from existing probe types or use a custom design from history"
@@ -2311,7 +2262,7 @@ const DesignWorkflow: React.FC = () => {
 
             {/* Custom Probe Parameters Section */}
             {selectedCustomType && (
-              <Box sx={{ mt: 3 }}>
+              <Box id="design-parameters" sx={{ mt: 3, scrollMarginTop: 104 }}>
                 <Card variant="outlined" sx={{ 
                   backgroundColor: 'background.paper',
                   boxShadow: 'none'
@@ -2568,7 +2519,7 @@ const DesignWorkflow: React.FC = () => {
       </Card>
 
       {/* Targets */}
-      <Card sx={{ mb: 3 }}>
+      <Card id="design-geneMap" sx={{ mb: 3, scrollMarginTop: 104 }}>
         <CardHeader 
           title="🎯 Targets" 
           subheader="Input target names and select barcodes according to your probe type configuration."
@@ -2611,64 +2562,47 @@ const DesignWorkflow: React.FC = () => {
               <em>Note: You can leave sequence or barcodes empty in the CSV and configure them later in the UI.</em>
             </Typography>
 
-            {/* Global Barcode Configuration */}
             {!!selectedCustomType?.barcodeCount && (
-              <Paper variant="outlined" sx={{ p: 2, mb: 3, backgroundColor: 'grey.50' }}>
-                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
-                  🔧 Barcode Configuration
-                </Typography>
-                <Grid container spacing={2}>
-                  {Array.from({ length: selectedCustomType.barcodeCount }).map((_, barcodeIndex) => {
-                    const barcodeKey = `barcode${barcodeIndex + 1}`;
-                    const currentMode = barcodeModes[barcodeKey] || 'builtin';
-                    return (
-                      <Grid item xs={12} sm={6} md={4} key={barcodeIndex}>
-                        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
-                            Barcode {barcodeIndex + 1} ({getExpectedBarcodeLength(barcodeKey)}bp)
-                          </Typography>
-                          
-                          <Stack spacing={1}>
-                            {/* Mode Selector */}
-                            <FormControl size="small" fullWidth>
-                              <InputLabel>Mode</InputLabel>
-                              <Select
-                                value={currentMode}
-                                onChange={(e) => handleBarcodeModeChange(barcodeKey, e.target.value as any)}
-                                disabled={generatingBarcodes[`target_all_${barcodeKey}`]}
-                              >
-                                <MenuItem value="builtin">Builtin</MenuItem>
-                                <MenuItem value="auto">Auto Generate</MenuItem>
-                                <MenuItem value="manual">Manual Input</MenuItem>
-                                {barcodeFromFile[barcodeKey] && <MenuItem value="file">From File</MenuItem>}
-                              </Select>
-                            </FormControl>
-
-
-                            {/* Batch Generate Button (only for auto mode) */}
-                            {currentMode === 'auto' && (
-                              <Button
-                                size="small"
-                                variant="contained"
-                                onClick={() => generateBarcodesForAllTargets(barcodeKey)}
-                                disabled={generatingBarcodes[`target_all_${barcodeKey}`]}
-                                sx={{ fontSize: '0.75rem' }}
-                              >
-                                {generatingBarcodes[`target_all_${barcodeKey}`] ? 'Generating...' : 'Generate for All'}
-                              </Button>
-                            )}
-                          </Stack>
-                        </Box>
-                      </Grid>
-                    );
-                  })}
-                </Grid>
-              </Paper>
+              <Box sx={{ mb: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Barcodes</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    · {barcodeLibrary.length ? `${barcodeLibrary.length} available` : 'No library imported'}
+                  </Typography>
+                </Stack>
+                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 'auto' }}>
+                  <Tooltip title="Import a shared CSV library with name,sequence columns. Double-click a BC cell to edit, use the arrow to select, or ↻ to generate. Only matching-length library sequences are shown." arrow>
+                    <IconButton size="small" aria-label="Barcode configuration help" sx={{ color: 'text.secondary' }}>
+                      <HelpOutlineIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </Tooltip>
+                  <Button size="small" component="label" startIcon={<FileUploadOutlinedIcon sx={{ fontSize: 18 }} />}
+                    sx={{ px: 1.5, py: 0.5, borderRadius: 1.5, textTransform: 'none', fontWeight: 600, backgroundColor: 'action.hover', '&:hover': { backgroundColor: 'action.selected' } }}>
+                    Import library
+                    <input type="file" hidden accept=".csv" onChange={importBarcodeLibrary} />
+                  </Button>
+                  <Tooltip title="More barcode options">
+                    <IconButton size="small" aria-label="More barcode options" aria-haspopup="menu"
+                      aria-controls={barcodeMenuAnchor ? 'barcode-library-menu' : undefined}
+                      aria-expanded={Boolean(barcodeMenuAnchor)}
+                      onClick={event => setBarcodeMenuAnchor(event.currentTarget)} sx={{ color: 'text.secondary' }}>
+                      <MoreHorizIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Menu id="barcode-library-menu" anchorEl={barcodeMenuAnchor} open={Boolean(barcodeMenuAnchor)} onClose={() => setBarcodeMenuAnchor(null)}>
+                    <MenuItem onClick={() => { downloadBarcodeTemplate(); setBarcodeMenuAnchor(null); }}>
+                      <DownloadIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> Download CSV template
+                    </MenuItem>
+                  </Menu>
+                </Stack>
+              </Box>
             )}
 
+            <Box sx={{ overflowX: 'auto' }}>
+            <Box sx={{ minWidth: selectedCustomType?.barcodeCount ? 620 + selectedCustomType.barcodeCount * 240 : 600 }}>
             {targetList.map((item, index) => (
                   <Grid container spacing={2} key={index} alignItems="center" sx={{ mb: 1 }}>
-                    <Grid item xs={selectedCustomType?.barcodeCount ? 3 : 5}>
+                    <Grid item xs sx={{ minWidth: 180 }}>
                       <TextField
                         fullWidth
                         label={`Target ${index + 1}`}
@@ -2676,7 +2610,7 @@ const DesignWorkflow: React.FC = () => {
                         onChange={(e) => updateTarget(index, 'target', e.target.value)}
                       />
                     </Grid>
-                    <Grid item xs={selectedCustomType?.barcodeCount ? 3 : 5}>
+                    <Grid item xs sx={{ minWidth: 180 }}>
                       <TextField
                         fullWidth
                         label="Sequence (Optional)"
@@ -2692,82 +2626,78 @@ const DesignWorkflow: React.FC = () => {
                     {selectedCustomType?.barcodeCount ? (
                       Array.from({ length: selectedCustomType.barcodeCount }).map((_, barcodeIndex) => {
                         const barcodeKey = `barcode${barcodeIndex + 1}`;
-                        const currentMode = barcodeModes[barcodeKey] || 'builtin';
-                        const barcodeGridSize = Math.floor(4 / selectedCustomType.barcodeCount); // 4 columns for barcodes
+                        const value = String(item[barcodeKey] || '');
+                        const cellKey = `${index}_${barcodeKey}`;
+                        const editing = editingBarcode === cellKey;
+                        const invalid = value.length > 0 && !validateManualBarcode(value, barcodeKey);
+                        const options = barcodeLibrary.filter(entry => entry.sequence.length === getExpectedBarcodeLength(barcodeKey));
+                        const saveEdit = () => {
+                          updateTarget(index, barcodeKey as keyof Target, barcodeDraft.trim().toUpperCase());
+                          setEditingBarcode(null);
+                        };
                         return (
-                          <Grid item xs={barcodeGridSize} key={barcodeIndex}>
-                            {/* Simplified Barcode Input Field */}
-                            {(currentMode === 'file' || barcodeFromFile[barcodeKey]) ? (
-                              <TextField
-                                fullWidth
-                                label={`BC${barcodeIndex + 1}`}
-                                value={(item as any)[barcodeKey] || ''}
-                                onChange={(e) => handleManualBarcodeInput(index, barcodeKey, e.target.value)}
-                                size="small"
-                                error={!validateManualBarcode((item as any)[barcodeKey] || '', barcodeKey) && ((item as any)[barcodeKey] || '').length > 0}
-                                helperText={!validateManualBarcode((item as any)[barcodeKey] || '', barcodeKey) && ((item as any)[barcodeKey] || '').length > 0 ? `Expected: ${getExpectedBarcodeLength(barcodeKey)}bp` : ''}
-                              />
-                            ) : currentMode === 'manual' ? (
-                              <TextField
-                                fullWidth
-                                label={`BC${barcodeIndex + 1}`}
-                                value={(item as any)[barcodeKey] || ''}
-                                onChange={(e) => handleManualBarcodeInput(index, barcodeKey, e.target.value)}
-                                size="small"
-                                placeholder={`${getExpectedBarcodeLength(barcodeKey)}bp`}
-                                error={!validateManualBarcode((item as any)[barcodeKey] || '', barcodeKey) && ((item as any)[barcodeKey] || '').length > 0}
-                                helperText={!validateManualBarcode((item as any)[barcodeKey] || '', barcodeKey) && ((item as any)[barcodeKey] || '').length > 0 ? `Expected: ${getExpectedBarcodeLength(barcodeKey)}bp` : ''}
-                              />
-                            ) : currentMode === 'auto' ? (
-                              <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Grid item key={barcodeIndex} sx={{ width: 240, flexShrink: 0 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              {editing ? (
                                 <TextField
-                                  fullWidth
-                                  label={`BC${barcodeIndex + 1}`}
-                                  value={(item as any)[barcodeKey] || ''}
-                                  onChange={(e) => handleManualBarcodeInput(index, barcodeKey, e.target.value)}
-                                  size="small"
-                                  error={!validateManualBarcode((item as any)[barcodeKey] || '', barcodeKey) && ((item as any)[barcodeKey] || '').length > 0}
+                                  autoFocus fullWidth size="small"
+                                  label={`BC${barcodeIndex + 1} · ${getExpectedBarcodeLength(barcodeKey)} bp`}
+                                  value={barcodeDraft}
+                                  onChange={event => setBarcodeDraft(event.target.value)}
+                                  onBlur={saveEdit}
+                                  onKeyDown={event => {
+                                    if (event.key === 'Enter') { event.preventDefault(); saveEdit(); }
+                                    if (event.key === 'Escape') { event.preventDefault(); setEditingBarcode(null); }
+                                  }}
+                                  inputProps={{ style: { fontFamily: 'monospace' } }}
                                 />
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  onClick={() => autoGenerateBarcodeForItem(index, barcodeKey)}
-                                  disabled={generatingBarcodes[`target_${index}_${barcodeKey}`]}
-                                  sx={{ minWidth: '40px', fontSize: '0.7rem', px: 1 }}
-                                >
-                                  {generatingBarcodes[`target_${index}_${barcodeKey}`] ? '...' : 'Gen'}
-                                </Button>
-                              </Box>
-                            ) : (
-                              <FormControl fullWidth size="small">
-                                <InputLabel>BC{barcodeIndex + 1}</InputLabel>
-                                <Select
-                                  value={(item as any)[barcodeKey] || ''}
-                                  onChange={(e) => updateTarget(index, barcodeKey as keyof Target, e.target.value)}
-                                >
-                                  <MenuItem value="">
-                                    <em>None</em>
-                                  </MenuItem>
-                                  {barcodeOptions.map((barcode, idx) => (
-                                    <MenuItem key={idx} value={barcode}>
-                                      {barcode}
-                                    </MenuItem>
-                                  ))}
-                                </Select>
-                              </FormControl>
-                            )}
+                              ) : (
+                                <Autocomplete
+                                  fullWidth size="small" options={options}
+                                  value={options.find(entry => entry.sequence === value) || (value ? { name: '', sequence: value } : null)}
+                                  getOptionLabel={entry => entry.sequence}
+                                  filterOptions={(entries, state) => entries.filter(entry => `${entry.name} ${entry.sequence}`.toLowerCase().includes(state.inputValue.toLowerCase()))}
+                                  renderOption={(props, entry) => <li {...props} key={entry.name}>{entry.name} · {entry.sequence}</li>}
+                                  isOptionEqualToValue={(option, selected) => option.sequence === selected.sequence}
+                                  onChange={(_, entry) => updateTarget(index, barcodeKey as keyof Target, entry?.sequence || '')}
+                                  noOptionsText={barcodeLibrary.length ? 'No barcodes with matching length' : 'Import a barcode library first'}
+                                  renderInput={params => (
+                                    <TextField {...params}
+                                      label={`BC${barcodeIndex + 1} · ${getExpectedBarcodeLength(barcodeKey)} bp`}
+                                      placeholder="Double-click to edit"
+                                      onDoubleClick={() => { setBarcodeDraft(value); setEditingBarcode(cellKey); }}
+                                      onKeyDown={event => {
+                                        if (event.key === 'F2') { event.preventDefault(); setBarcodeDraft(value); setEditingBarcode(cellKey); }
+                                      }}
+                                      error={invalid}
+                                      helperText={invalid ? `Use ${getExpectedBarcodeLength(barcodeKey)} A/C/G/T bases` : ''}
+                                      inputProps={{ ...params.inputProps, style: { fontFamily: 'monospace' } }}
+                                    />
+                                  )}
+                                />
+                              )}
+                              <Tooltip title="Generate barcode for this cell">
+                                <span><IconButton size="small" aria-label={`Generate BC${barcodeIndex + 1} for target ${index + 1}`}
+                                  disabled={editing || generatingBarcodes[`target_${index}_${barcodeKey}`]}
+                                  onClick={() => autoGenerateBarcodeForItem(index, barcodeKey)}>
+                                  {generatingBarcodes[`target_${index}_${barcodeKey}`] ? <CircularProgress size={16} /> : <AutorenewIcon fontSize="small" />}
+                                </IconButton></span>
+                              </Tooltip>
+                            </Box>
                           </Grid>
                         );
                       })
                     ) : null}
 
-                    <Grid item xs={2}>
-                      <IconButton onClick={() => removeTarget(index)}>
+                    <Grid item sx={{ width: 48 }}>
+                      <IconButton onClick={() => { setEditingBarcode(null); removeTarget(index); }}>
                         <DeleteIcon />
                       </IconButton>
                     </Grid>
                   </Grid>
                 ))}
+            </Box>
+            </Box>
                 <Button
                   variant="outlined"
                   startIcon={<AddIcon />}
@@ -2781,7 +2711,7 @@ const DesignWorkflow: React.FC = () => {
       </Card>
 
       {/* Post Processing Step */}
-      <Card sx={{ mb: 3 }}>
+      <Card id="design-postProcessing" sx={{ mb: 3, scrollMarginTop: 104 }}>
         <CardHeader
           title="🛠️ Post Processing"
           subheader="Configure processing options for optimal probe selection"
@@ -3243,7 +3173,7 @@ const DesignWorkflow: React.FC = () => {
       </Card>
 
       {/* Task Name */}
-      <Card sx={{ mb: 3 }}>
+      <Card id="design-taskName" sx={{ mb: 3, scrollMarginTop: 104 }}>
         <CardHeader 
           title="📝 Task Name" 
           subheader="Give your task a unique name to easily identify it (optional - will auto-generate if empty)"
@@ -3289,6 +3219,9 @@ const DesignWorkflow: React.FC = () => {
         </Box>
       )}
       
+
+        </Box>
+      </Box>
 
       {/* Alert */}
       <Snackbar open={alertOpen} autoHideDuration={6000} onClose={handleAlertClose}>

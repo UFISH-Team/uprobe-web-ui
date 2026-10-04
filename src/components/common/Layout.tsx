@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { Box, Container } from '@mui/material';
 
 interface LayoutProps {
@@ -14,6 +15,7 @@ const Layout: React.FC<LayoutProps> = ({
   padding = 3,
   fullWidth = false
 }) => {
+  const isDesignWorkflow = useLocation().pathname === '/design/designworkflow';
   return (
     <Box
       sx={{
@@ -22,11 +24,11 @@ const Layout: React.FC<LayoutProps> = ({
         width: '100%',
       }}
     >
-      {fullWidth ? (
+      {fullWidth || isDesignWorkflow ? (
         <Box
           sx={{
-            py: { xs: 2, sm: 3, md: padding },
-            px: { xs: 2, sm: 3, md: 3 },
+            py: isDesignWorkflow ? 0 : { xs: 2, sm: 3, md: padding },
+            px: isDesignWorkflow ? 0 : { xs: 2, sm: 3, md: 3 },
             width: '100%',
           }}
         >
