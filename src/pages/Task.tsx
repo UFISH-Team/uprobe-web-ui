@@ -29,6 +29,7 @@ import { useNavigate } from "react-router-dom";
 import useTaskStore from "../store/taskStore";
 import TaskStatistics from '../components/task/TaskStatistics';
 import TaskTable from '../components/task/TaskTable';
+import Papa from 'papaparse';
 
 
 const Task: React.FC = () => {
@@ -67,16 +68,28 @@ const Task: React.FC = () => {
     content: "",
   });
   const navigate = useNavigate();
+  const [rawPreview, setRawPreview] = useState<{ task: Task; rows: string[][] } | null>(null);
   const theme = useTheme();
 
   useEffect(() => {
     fetchTasks();
-    const refreshInterval = setInterval(fetchTasks, 30000);
+    const refreshInterval = setInterval(fetchTasks, 10000);
     return () => clearInterval(refreshInterval);
   }, [fetchTasks]);
 
   const handleCreateTask = () => {
     navigate('/design');
+  };
+
+  const handleViewRaw = async (task: Task) => {
+    if (!task.raw_file) return;
+    try {
+      const blob = await ApiService.downloadTaskFile(task.id, task.raw_file);
+      const parsed = Papa.parse<string[]>(await blob.text(), { preview: 101, skipEmptyLines: true });
+      setRawPreview({ task, rows: parsed.data });
+    } catch {
+      setSnackbar({ open: true, message: 'Failed to load raw candidates. Please try again.', severity: 'error' });
+    }
   };
 
   const handleViewReport = async (task: Task) => {
@@ -435,8 +448,29 @@ const Task: React.FC = () => {
         onDownloadResult={handleDownloadResult}
         onDeleteTask={handleDeleteTask}
         onViewReport={handleViewReport}
+        onViewRaw={handleViewRaw}
         onViewError={handleViewError}
       />
+
+      {tasks.some(task => task.status === 'completed' && task.no_filtered_probes) && (
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          Some tasks have no probes passing post-processing. Use View raw to inspect unfiltered candidates; raw candidates are not passing probes.
+        </Alert>
+      )}
+
+      <Dialog open={rawPreview !== null} onClose={() => setRawPreview(null)} maxWidth="xl" fullWidth>
+        <DialogTitle>Raw candidates — {rawPreview?.task.name}</DialogTitle>
+        <DialogContent dividers>
+          <Alert severity="warning" sx={{ mb: 2 }}>No probes passed post-processing. These are unfiltered candidates, shown for troubleshooting only. Preview displays up to 100 rows.</Alert>
+          <Box sx={{ overflow: 'auto', maxHeight: '60vh' }}>
+            <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead><tr>{rawPreview?.rows[0]?.map((cell, i) => <th key={i} style={{ padding: 8, textAlign: 'left', whiteSpace: 'nowrap' }}>{cell}</th>)}</tr></thead>
+              <tbody>{rawPreview?.rows.slice(1).map((row, i) => <tr key={i}>{row.map((cell, j) => <td key={j} style={{ padding: 8, borderTop: '1px solid #ddd', whiteSpace: 'nowrap' }}>{cell}</td>)}</tr>)}</tbody>
+            </table>
+          </Box>
+        </DialogContent>
+        <DialogActions><Button onClick={() => setRawPreview(null)}>Close</Button></DialogActions>
+      </Dialog>
 
       <Snackbar
         open={snackbar.open}

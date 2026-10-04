@@ -60,7 +60,7 @@ const AccountMenu = () => {
 
   const menuItems = [
     {
-      label: 'My Profile',
+      label: 'Profile',
       icon: <Person />,
       path: 'profile',
       description: 'Manage your personal information'

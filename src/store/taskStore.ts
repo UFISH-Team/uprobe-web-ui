@@ -47,7 +47,9 @@ const useTaskStore = create<TaskState>((set, get) => ({
           parameters: task.parameters || {},
           result_url: task.result_url || '',
           yaml_content: task.yaml_content || '',
-          error_message: task.error_message || ''
+          error_message: task.error_message || '',
+          no_filtered_probes: task.no_filtered_probes ?? false,
+          raw_file: task.raw_file || undefined
         }));
         
         set({ tasks: apiTasks, isLoading: false });

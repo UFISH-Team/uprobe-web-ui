@@ -15,6 +15,7 @@ import {
   Stack,
   Tooltip,
   styled,
+  Button,
 } from '@mui/material';
 import {
   PauseCircle as PauseCircleIcon,
@@ -66,6 +67,7 @@ interface TaskTableProps {
   onDownloadResult: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onViewReport: (task: Task) => void;
+  onViewRaw: (task: Task) => void;
   onViewError?: (task: Task) => void;
 }
 
@@ -169,6 +171,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
   onDeleteTask,
   onRerunTask,
   onViewReport,
+  onViewRaw,
   onViewError,
 }) => {
   return (
@@ -244,9 +247,9 @@ const TaskTable: React.FC<TaskTableProps> = ({
                 </TableCell>
                 <TableCell>
                   <Chip
-                    icon={statusIcons[task.status as keyof typeof statusIcons]}
-                    label={task.status === "pending" ? "Queued" : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
-                    color={getStatusColor(task.status)}
+                    icon={task.no_filtered_probes && task.status === 'completed' ? <ErrorOutlineIcon fontSize="small" /> : statusIcons[task.status as keyof typeof statusIcons]}
+                    label={task.no_filtered_probes && task.status === 'completed' ? 'No passing probes' : task.status === "pending" ? "Queued" : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                    color={task.no_filtered_probes && task.status === 'completed' ? 'warning' : getStatusColor(task.status)}
                     size="small"
                   />
                 </TableCell>
@@ -319,11 +322,13 @@ const TaskTable: React.FC<TaskTableProps> = ({
                     )}
                     {task.status === "completed" && task.result_url && (
                       <>
-                        <Tooltip title="View Report">
+                        {task.no_filtered_probes ? (
+                          <Button size="small" color="warning" onClick={() => onViewRaw(task)} disabled={!task.raw_file}>View raw</Button>
+                        ) : <Tooltip title="View Report">
                           <IconButton size="small" onClick={() => onViewReport(task)}>
                             <VisibilityIcon fontSize="small" />
                           </IconButton>
-                        </Tooltip>
+                        </Tooltip>}
                         <Tooltip title="Download Results">
                           <IconButton size="small" onClick={() => onDownloadResult(task.id)}>
                             <DownloadIcon fontSize="small" />

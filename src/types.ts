@@ -17,6 +17,8 @@ export interface Task {
   result_url?: string;
   yaml_content?: string;
   error_message?: string;
+  no_filtered_probes?: boolean;
+  raw_file?: string;
 }
 
 export const statusColors = {
