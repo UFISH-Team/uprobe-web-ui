@@ -97,7 +97,7 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 700, mx: 'auto' }}>
+    <Box sx={{ p: 3, width: '100%', mx: 'auto' }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>

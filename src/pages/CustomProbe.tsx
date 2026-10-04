@@ -1870,7 +1870,7 @@ const CustomProbe: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
+    <Container maxWidth={false} sx={{ py: 3 }}>
       <StyledContainer>
         {/* Fixed Snackbar for alerts */}
         <Snackbar

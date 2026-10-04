@@ -125,6 +125,7 @@ const DesignWorkflow: React.FC = () => {
   const [activeSection, setActiveSection] = useState('species');
   const [showValidation, setShowValidation] = useState(false);
   const scrollTimer = useRef<ReturnType<typeof setTimeout>>();
+  const workflowScroll = useRef<HTMLDivElement>(null);
   const [barcodeMenuAnchor, setBarcodeMenuAnchor] = useState<HTMLElement | null>(null);
 
   // Helper functions to format probe and part names for display
@@ -2099,7 +2100,7 @@ const DesignWorkflow: React.FC = () => {
         let current = ids[0];
         for (const id of ids) {
           const element = document.getElementById(`design-${id}`);
-          if (element && element.getBoundingClientRect().top <= 160) current = id;
+          if (element && element.getBoundingClientRect().top <= (workflowScroll.current?.getBoundingClientRect().top || 0) + 56) current = id;
         }
         setActiveSection(current);
       });
@@ -2121,10 +2122,12 @@ const DesignWorkflow: React.FC = () => {
       sx={{ 
         width: '100%',
         px: { xs: 2, sm: 3, md: 4 },
-        py: 3,
+        py: 2,
+        height: { xs: 'calc(100dvh - 56px)', sm: 'calc(100dvh - 60px)' },
+        display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
       }}>
-      <Box textAlign="center" mb={4}>
-        <Typography variant="h3" sx={{ mt: 2 }} gutterBottom>
+      <Box textAlign="center" sx={{ mb: 2, flexShrink: 0 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700 }} gutterBottom>
           Ready to craft your perfect workflow? 🎨
         </Typography>
         <Typography variant="body1" color="text.secondary">
@@ -2132,8 +2135,8 @@ const DesignWorkflow: React.FC = () => {
         </Typography>
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: { md: 3, lg: 4 } }}>
-        <Box component="nav" aria-label="Workflow stages" sx={{ display: { xs: 'none', md: 'block' }, width: 208, flexShrink: 0, position: 'sticky', top: 88, maxHeight: 'calc(100vh - 112px)', overflowY: 'auto', overflowX: 'hidden' }}>
+      <Box sx={{ display: 'flex', alignItems: 'stretch', gap: { md: 3, lg: 4 }, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <Box component="nav" aria-label="Workflow stages" sx={{ display: { xs: 'none', md: 'block' }, width: 208, flexShrink: 0, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
           <Typography variant="overline" color="text.secondary" sx={{ pl: 1.5 }}>Workflow stages</Typography>
           <Stepper nonLinear orientation="vertical" activeStep={getActiveSteps().findIndex(step => step.id === activeSection)} sx={{ mt: 1,
             '& .MuiStepConnector-line': { borderColor: 'divider', minHeight: 16 },
@@ -2157,7 +2160,7 @@ const DesignWorkflow: React.FC = () => {
             ))}
           </Stepper>
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box ref={workflowScroll} sx={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 1, pb: 3, overscrollBehavior: 'contain' }}>
           <FormControl size="small" fullWidth sx={{ display: { xs: 'flex', md: 'none' }, mb: 2, position: 'sticky', top: 8, zIndex: 5, bgcolor: 'background.paper', borderRadius: 1 }}>
             <InputLabel id="workflow-stage-label">Workflow stage</InputLabel>
             <Select labelId="workflow-stage-label" label="Workflow stage" value={getActiveSteps().some(step => step.id === activeSection) ? activeSection : 'species'} onChange={event => jumpToSection(event.target.value)}>
@@ -2166,7 +2169,7 @@ const DesignWorkflow: React.FC = () => {
           </FormControl>
 
       {/* Species Option */}
-      <Card id="design-species" sx={{ mb: 3, scrollMarginTop: 104 }}>
+      <Card id="design-species" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
           title="🌍 Species Option" 
           subheader="Choose the species genome to design your probes"
@@ -2197,7 +2200,7 @@ const DesignWorkflow: React.FC = () => {
       </Card>
 
       {/* Probe Type */}
-      <Card id="design-probeType" sx={{ mb: 3, scrollMarginTop: 104 }}>
+      <Card id="design-probeType" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
           title="🔬 Probe Type" 
           subheader="Choose from existing probe types or use a custom design from history"
@@ -2262,7 +2265,7 @@ const DesignWorkflow: React.FC = () => {
 
             {/* Custom Probe Parameters Section */}
             {selectedCustomType && (
-              <Box id="design-parameters" sx={{ mt: 3, scrollMarginTop: 104 }}>
+              <Box id="design-parameters" sx={{ mt: 3, scrollMarginTop: 16 }}>
                 <Card variant="outlined" sx={{ 
                   backgroundColor: 'background.paper',
                   boxShadow: 'none'
@@ -2519,7 +2522,7 @@ const DesignWorkflow: React.FC = () => {
       </Card>
 
       {/* Targets */}
-      <Card id="design-geneMap" sx={{ mb: 3, scrollMarginTop: 104 }}>
+      <Card id="design-geneMap" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
           title="🎯 Targets" 
           subheader="Input target names and select barcodes according to your probe type configuration."
@@ -2711,7 +2714,7 @@ const DesignWorkflow: React.FC = () => {
       </Card>
 
       {/* Post Processing Step */}
-      <Card id="design-postProcessing" sx={{ mb: 3, scrollMarginTop: 104 }}>
+      <Card id="design-postProcessing" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader
           title="🛠️ Post Processing"
           subheader="Configure processing options for optimal probe selection"
@@ -3173,7 +3176,7 @@ const DesignWorkflow: React.FC = () => {
       </Card>
 
       {/* Task Name */}
-      <Card id="design-taskName" sx={{ mb: 3, scrollMarginTop: 104 }}>
+      <Card id="design-taskName" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
           title="📝 Task Name" 
           subheader="Give your task a unique name to easily identify it (optional - will auto-generate if empty)"

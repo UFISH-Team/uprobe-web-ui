@@ -109,7 +109,7 @@ const Tutorial: React.FC = () => {
       flexDirection: 'column'
     }}>
       {/* Main Content Area */}
-      <Container maxWidth="xl" sx={{ flexGrow: 1, py: { xs: 3, md: 4 }, display: 'flex', flexDirection: 'column' }}>
+      <Container maxWidth={false} sx={{ flexGrow: 1, py: { xs: 3, md: 4 }, display: 'flex', flexDirection: 'column' }}>
         <Paper 
           elevation={0} 
           sx={{ 
