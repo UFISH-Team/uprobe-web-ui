@@ -1927,7 +1927,7 @@ const CustomProbe: React.FC = () => {
 
         <Typography variant="h3" gutterBottom align="center" sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
           <DnaIcon color="primary" fontSize="large" />
-          Create Your Own Probe Type
+          Create Your Own Probe Structure
         </Typography>
         
         {/* History Dialog */}
@@ -1939,7 +1939,7 @@ const CustomProbe: React.FC = () => {
         >
           <DialogTitle>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">Saved Probe Groups</Typography>
+              <Typography variant="h6">Saved Probe Structures</Typography>
               <IconButton onClick={() => setShowHistory(false)}>
                 <CloseIcon />
               </IconButton>
@@ -2344,7 +2344,7 @@ const CustomProbe: React.FC = () => {
             <SectionTitle sx={{ mb: 0 }}>
               <SettingsIcon color="primary" />
               <Typography variant="h5" component="h2">
-                Probe Type Design
+                Probe Structure Design
               </Typography>
             </SectionTitle>
             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -2365,11 +2365,14 @@ const CustomProbe: React.FC = () => {
             </Box>
           </Box>
 
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Assemble probe parts in order, then configure attributes for each part or the complete probe. Save the structure to use it in a design workflow.
+          </Typography>
           {/* Probe Group Name */}
           <Box sx={{ mb: 3 }}>
             <TextField
               fullWidth
-              label="Probe Group Name"
+              label="Probe Structure Name"
               value={probeGroup.name}
               onChange={handleProbeGroupNameChange}
               onFocus={() => {
@@ -3094,7 +3097,7 @@ const CustomProbe: React.FC = () => {
               }}
             >
               <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600, color: theme.palette.info.dark }}>
-                🔍 How to Design Your Probe Type:
+                🔍 How to Design Your Probe Structure:
               </Typography>
               <ol style={{ margin: 0, paddingLeft: '1.5rem' }}>
                 <li>Configure target sequence attributes by clicking the "Configure Target Attributes" button</li>
@@ -3103,7 +3106,7 @@ const CustomProbe: React.FC = () => {
                 <li>Click the checkmark button to mark a probe as complete when finished</li>
                 <li>Add new probes using the "Add Probe" button at the top</li>
                 <li>Use completed probes as sources for new probes to create complex designs</li>
-                <li>Name and save your probe group when finished</li>
+                <li>Name and save your probe structure when finished</li>
               </ol>
             </Paper>
       </StyledContainer>

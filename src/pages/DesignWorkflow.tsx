@@ -114,7 +114,7 @@ const GENOME_DISPLAY_MAP: Record<string, string> = {
 
 const getGenomeLabel = (id: string) => GENOME_DISPLAY_MAP[id] ?? id;
 
-// Helper function to get probe type (DNA/RNA)
+// Helper function to get probe structure (DNA/RNA)
 const getProbeType = (customType?: CustomProbeType | null): 'DNA' | 'RNA' => {
   if (!customType) return 'RNA'; // Default for built-in types
   
@@ -221,12 +221,12 @@ const DesignWorkflow: React.FC = () => {
   }
   const [equalSpaceConfig, setEqualSpaceConfig] = useDraftState<EqualSpaceConfig>("workflow.equalSpaceConfig", {});
   
-  // Helper function to check if current probe type is DNA
+  // Helper function to check if current probe structure is DNA
   const isCurrentProbeDna = (): boolean => {
     return selectedCustomType ? getProbeType(selectedCustomType) === 'DNA' : false;
   };
   
-  // Helper function to check if OTP and Equal Space should be enabled for current probe type
+  // Helper function to check if OTP and Equal Space should be enabled for current probe structure
   const shouldEnableDnaFeatures = (): boolean => {
     return isCurrentProbeDna();
   };
@@ -682,17 +682,17 @@ const DesignWorkflow: React.FC = () => {
         }
         setBuiltinProbeTypes(builtinTypes);
       } catch (err) {
-        console.error('Error loading builtin probe types:', err);
+        console.error('Error loading builtin probe structures:', err);
       }
 
     } catch (error) {
-      console.error('Error loading custom probe types:', error);
+      console.error('Error loading custom probe structures:', error);
     } finally {
       setIsLoadingCustomTypes(false);
     }
   };
 
-  // Add this useEffect to load custom probe types
+  // Add this useEffect to load custom probe structures
   useEffect(() => {
     loadCustomProbeTypes();
   }, []);
@@ -807,7 +807,7 @@ const DesignWorkflow: React.FC = () => {
     setProbeType(type);
     setShowCustomProbeTypes(false);
     
-    // Reset barcode modes when changing probe type
+    // Reset barcode modes when changing probe structure
 
 
     setGeneratingBarcodes({});
@@ -836,15 +836,15 @@ const DesignWorkflow: React.FC = () => {
     window.URL.revokeObjectURL(url);
   };
 
-  // Function to handle deleting a custom probe type
+  // Function to handle deleting a custom probe structure
   const handleDelete = async (typeId: string) => {
     try {
       await ApiService.deleteCustomProbe(typeId);
       loadCustomProbeTypes();
-      setAlert(true, 'Custom probe type deleted successfully', 'success');
+      setAlert(true, 'Custom probe structure deleted successfully', 'success');
     } catch (error) {
       console.error('Failed to delete custom probe:', error);
-      setAlert(true, 'Failed to delete custom probe type', 'error');
+      setAlert(true, 'Failed to delete custom probe structure', 'error');
     }
   };
 
@@ -1113,7 +1113,7 @@ const DesignWorkflow: React.FC = () => {
     }
   }, [selectedCustomType?.id]);
 
-  // when probe type changes, update DNA-specific features
+  // when probe structure changes, update DNA-specific features
   useEffect(() => {
     if (defaultsTemplate.current === selectedCustomType?.id) return;
     defaultsTemplate.current = selectedCustomType?.id;
@@ -1133,10 +1133,10 @@ const DesignWorkflow: React.FC = () => {
   const getActiveSteps = () => {
     const errors = validateForm();
     const targetErrors = errors.filter(error => error.startsWith('please add at least') || error.startsWith('some target barcodes'));
-    const parameterErrors = errors.filter(error => !targetErrors.includes(error) && error !== 'please select species' && error !== 'please select probe type');
+    const parameterErrors = errors.filter(error => !targetErrors.includes(error) && error !== 'please select species' && error !== 'please select probe structure');
     return [
       { id: 'species', label: 'Species', summary: species || 'Select a genome', completed: !!species, optional: false },
-      { id: 'probeType', label: 'Probe Type', summary: selectedCustomType?.name || probeType || 'Select a probe type', completed: !!probeType, optional: false },
+      { id: 'probeType', label: 'Probe Structure', summary: selectedCustomType?.name || probeType || 'Select a probe structure', completed: !!probeType, optional: false },
       ...(selectedCustomType ? [{ id: 'parameters', label: 'Probe Parameters', summary: parameterErrors.length ? 'Configuration needed' : `${minLength} bp · overlap ${overlap}`, completed: !parameterErrors.length, optional: false }] : []),
       { id: 'geneMap', label: 'Targets', summary: `${targetList.filter(target => target.target.trim()).length} targets${targetErrors.length ? ' · incomplete' : ''}`, completed: !targetErrors.length, optional: false },
       { id: 'postProcessing', label: 'Post Processing', summary: [enableBasicFilter && 'Filtering', enableAvoidOtp && 'Avoid OTP', enableEqualSpace && 'Equal spacing'].filter(Boolean).join(' · ') || 'Default', completed: true, optional: true },
@@ -1298,7 +1298,7 @@ const DesignWorkflow: React.FC = () => {
     }
     
     if (!probeType) {
-      errors.push('please select probe type');
+      errors.push('please select probe structure');
     }
     
     const hasValidTargets = targetList.some(item => item.target.trim() !== '');
@@ -1445,7 +1445,7 @@ const DesignWorkflow: React.FC = () => {
       }
     };
     
-    // Add custom probe type parameters if selected (probes section - third from last)
+    // Add custom probe structure parameters if selected (probes section - third from last)
     if (selectedCustomType) {
       // Extract only the actual probe configurations from yamlContent
       const yamlContent = selectedCustomType.yamlContent;
@@ -1638,7 +1638,7 @@ const DesignWorkflow: React.FC = () => {
     // Add report config
     const summaryConfig: any = {};
     
-    // Determine probe type: DNA (source is genome) or RNA (source is not genome)
+    // Determine probe structure: DNA (source is genome) or RNA (source is not genome)
     const probeSource = selectedCustomType?.targetConfig?.source || 
                        (probeType === 'DNA-FISH' ? 'genome' : 'exon');
     const isDnaProbe = probeSource === 'genome';
@@ -1859,10 +1859,10 @@ const DesignWorkflow: React.FC = () => {
         <Box ref={workflowScroll} sx={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 1, pb: 3, overscrollBehavior: 'contain' }}>
       <Box sx={{ mb: 3, flexShrink: 0 }}>
         <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', fontSize: 24 }} gutterBottom>
-          Design probes
+          Design Probes
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Choose a genome and probe type, add targets, then review your filters.
+          Choose a genome and probe structure, add targets, then review your filters.
         </Typography>
       </Box>
 
@@ -1904,10 +1904,10 @@ const DesignWorkflow: React.FC = () => {
         </Collapse>
       </Card>
 
-      {/* Probe Type */}
+      {/* Probe Structure */}
       <Card id="design-probeType" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
-          title="Probe type" 
+          title="Probe structure" 
           subheader={probeType || "Select a built-in or saved design"}
           action={
             <IconButton onClick={() => toggleSection('probeType')}>
@@ -1919,7 +1919,7 @@ const DesignWorkflow: React.FC = () => {
           <CardContent>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
               <FormControl fullWidth>
-                <InputLabel id="probe-type-label">Probe Type</InputLabel>
+                <InputLabel id="probe-type-label">Probe Structure</InputLabel>
                 <Select
                   labelId="probe-type-label"
                   value={probeType}
@@ -1951,7 +1951,7 @@ const DesignWorkflow: React.FC = () => {
                 </Select>
                 {isLoadingCustomTypes && (
                   <FormHelperText>
-                    Loading custom probe types...
+                    Loading custom probe structures...
                   </FormHelperText>
                 )}
               </FormControl>
@@ -1961,7 +1961,7 @@ const DesignWorkflow: React.FC = () => {
                 onClick={() => setShowCustomProbeTypes(true)}
                 disabled={isLoadingCustomTypes}
               >
-                Saved designs
+                Saved structures
               </Button>
             </Box>
 
@@ -2631,10 +2631,10 @@ const DesignWorkflow: React.FC = () => {
             <TextField
               fullWidth
               label="Task Name (Optional)"
-              placeholder={probeType ? `Auto-generated: ${generateAutoTaskName()}` : "Select probe type first"}
+              placeholder={probeType ? `Auto-generated: ${generateAutoTaskName()}` : "Select probe structure first"}
               value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
-              helperText="Leave empty to auto-generate based on probe type and timestamp"
+              helperText="Leave empty to auto-generate based on probe structure and timestamp"
             />
           </CardContent>
         </Collapse>
@@ -2643,7 +2643,7 @@ const DesignWorkflow: React.FC = () => {
       {/* Submit button and progress bar */}
       <Box sx={{ position: 'sticky', bottom: 0, zIndex: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap', p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2, boxShadow: '0 -4px 18px rgba(15,23,42,0.04)' }}>
         <Box>
-          <Typography variant="body2" fontWeight={600}>{probeType || 'Select a probe type'} · {targetList.filter(item => item.target.trim()).length} targets</Typography>
+          <Typography variant="body2" fontWeight={600}>{probeType || 'Select a probe structure'} · {targetList.filter(item => item.target.trim()).length} targets</Typography>
           <Typography variant="caption" color="text.secondary">{species ? getGenomeLabel(species) : 'Select a genome'} · Review your configuration before submitting</Typography>
         </Box>
         <Button
@@ -2675,7 +2675,7 @@ const DesignWorkflow: React.FC = () => {
         </Alert>
       </Snackbar>
 
-      {/* Custom Probe Types Dialog */}
+      {/* Custom Probe Structures Dialog */}
       <Dialog
         open={showCustomProbeTypes}
         onClose={() => setShowCustomProbeTypes(false)}
@@ -2684,7 +2684,7 @@ const DesignWorkflow: React.FC = () => {
       >
         <DialogTitle>
           <Box display="flex" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6">Custom Probe Types</Typography>
+            <Typography variant="h6">Custom Probe Structures</Typography>
             <IconButton onClick={() => setShowCustomProbeTypes(false)}>
               <CloseIcon />
             </IconButton>
@@ -2693,7 +2693,7 @@ const DesignWorkflow: React.FC = () => {
         <DialogContent>
           {customProbeTypes.length === 0 ? (
             <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
-              No custom probe types available
+              No custom probe structures available
             </Typography>
           ) : (
             <List>
@@ -2944,4 +2944,5 @@ const DesignWorkflow: React.FC = () => {
 };
 
 export default DesignWorkflow;
+
 
