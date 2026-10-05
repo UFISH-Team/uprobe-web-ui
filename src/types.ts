@@ -203,7 +203,7 @@ export const extractParametersFromYaml = (yamlContent: string) => {
   }
 
   // Extract overlap from extracts section
-  if (parsed.extracts && parsed.extracts.target_region && parsed.extracts.target_region.overlap) {
+  if (parsed.extracts && parsed.extracts.target_region && parsed.extracts.target_region.overlap !== undefined) {
     parameters.overlap = parsed.extracts.target_region.overlap;
   }
 

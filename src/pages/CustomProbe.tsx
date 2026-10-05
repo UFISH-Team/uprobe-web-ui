@@ -55,13 +55,18 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import FormatColorTextIcon from '@mui/icons-material/FormatColorText';
 import CategoryIcon from '@mui/icons-material/Category';
 import ApiService from '../api';
+import { useNavigate } from 'react-router-dom';
+import { parseYamlContent } from '../types';
+import { validateProbeDependencies, restoreTemplate } from '../utils/probeConfig';
+import { useDraftState } from '../utils/useDraftState';
 
 // Styled components
 const StyledContainer = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(3),
   margin: "0 auto",
   borderRadius: theme.shape.borderRadius,
-  boxShadow: theme.shadows[3],
+  boxShadow: 'none',
+  border: `1px solid ${theme.palette.divider}`,
   [theme.breakpoints.up('sm')]: {
     padding: theme.spacing(4),
   }
@@ -616,13 +621,14 @@ const convertProbesToYAML = (probes: Probe[], _targetLength: number, barcodes: {
 };
 
 const CustomProbe: React.FC = () => {
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
   // Target sequence state
-  const [targetLength, setTargetLength] = useState<number | undefined>(undefined);
-  const [targetSequence, setTargetSequence] = useState<string>('');
-  const [targetConfig, setTargetConfig] = useState<TargetConfig>({
+  const [targetLength, setTargetLength] = useDraftState<number | undefined>("custom.targetLength", undefined);
+  const [targetSequence, setTargetSequence] = useDraftState<string>("custom.targetSequence", '');
+  const [targetConfig, setTargetConfig] = useDraftState<TargetConfig>("custom.targetConfig", {
     source: 'exon',
     sequence: '',
     length: targetLength || 50,
@@ -632,16 +638,16 @@ const CustomProbe: React.FC = () => {
       tm: { min: 60, max: 75, enabled: false },
       self_match: { max: 4, enabled: false },
       mapped_genes: { max: 5, aligner: 'Bowtie2' as AlignerType, enabled: false },
-      kmer_count: { kmer_len: 35, aligner: 'Bowtie2' as AlignerType, enabled: false },
+      kmer_count: { kmer_len: 35, aligner: 'Jellyfish' as AlignerType, enabled: false },
       mapped_sites: { aligner: 'Bowtie2' as AlignerType, enabled: false }
     }
   });
 
   // Available aligners
-  const availableAligners: AlignerType[] = ['BLAST', 'Bowtie2', 'MMseqs2'];
+  const availableAligners = (tab: number): AlignerType[] => tab === 5 ? ['Jellyfish'] : ['Bowtie2'];
   
   // Probes state
-  const [probes, setProbes] = useState<Probe[]>([
+  const [probes, setProbes] = useDraftState<Probe[]>("custom.probes", [
     { 
       id: '1', 
       parts: [], 
@@ -652,14 +658,14 @@ const CustomProbe: React.FC = () => {
         tm: { min: 60, max: 75, enabled: false },
         self_match: { max: 4, enabled: false },
         mapped_genes: { max: 5, aligner: 'Bowtie2', enabled: false },
-        kmer_count: { kmer_len: 15, aligner: 'BLAST', enabled: false },
+        kmer_count: { kmer_len: 15, aligner: 'Jellyfish', enabled: false },
         mapped_sites: { aligner: 'Bowtie2', enabled: false }
       }
     }
   ]);
   
   // Probe group state
-  const [probeGroup, setProbeGroup] = useState<ProbeGroup>({
+  const [probeGroup, setProbeGroup] = useDraftState<ProbeGroup>("custom.probeGroup", {
     id: Date.now().toString(),
     name: `Probe_${Math.floor(Math.random() * 10000)}`,
     probes: probes,
@@ -697,14 +703,14 @@ const CustomProbe: React.FC = () => {
   // const [showAttributes, setShowAttributes] = useState<Record<string, boolean>>({});
   
   // Simple barcode state for backward compatibility and YAML export
-  const [barcodes, setBarcodes] = useState<{[key: string]: string}>({
+  const [barcodes, setBarcodes] = useDraftState<{[key: string]: string}>("custom.barcodes", {
   });
   
   // Barcode length management
-  const [barcodeLengths, setBarcodeLengths] = useState<{[key: string]: number}>({
+  const [barcodeLengths, setBarcodeLengths] = useDraftState<{[key: string]: number}>("custom.barcodeLengths", {
   });
   
-  const [defaultBarcodeLength, setDefaultBarcodeLength] = useState<number>(12);
+  const [defaultBarcodeLength, setDefaultBarcodeLength] = useDraftState<number>("custom.defaultBarcodeLength", 12);
   
   // State for editing part attributes
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
@@ -742,15 +748,15 @@ const CustomProbe: React.FC = () => {
       fold_score: { max: 40, enabled: false },
       tm: { min: 60, max: 75, enabled: false },
       self_match: { max: 4, enabled: false },
-      mapped_genes: { max: 5, aligner: 'BLAST', enabled: false },
-      kmer_count: { kmer_len: 15, aligner: 'BLAST', enabled: false },
-      mapped_sites: { aligner: 'BLAST', enabled: false }
+      mapped_genes: { max: 5, aligner: 'Bowtie2', enabled: false },
+      kmer_count: { kmer_len: 15, aligner: 'Jellyfish', enabled: false },
+      mapped_sites: { aligner: 'Bowtie2', enabled: false }
     }
   });
   
   // Generate random sequence as Target when targetLength changes
   useEffect(() => {
-    generateRandomSequence(targetLength || 50);
+    if (targetSequence.length !== (targetLength ?? 50)) generateRandomSequence(targetLength ?? 50);
   }, [targetLength]);
 
   // Load saved probe groups on mount
@@ -1011,9 +1017,9 @@ const CustomProbe: React.FC = () => {
           fold_score: { max: 40, enabled: false },
           tm: { min: 60, max: 75, enabled: false },
           self_match: { max: 4, enabled: false },
-          mapped_genes: { max: 5, aligner: 'BLAST', enabled: false },
-          kmer_count: { kmer_len: 15, aligner: 'BLAST', enabled: false },
-        mapped_sites: { aligner: 'BLAST', enabled: false }
+          mapped_genes: { max: 5, aligner: 'Bowtie2', enabled: false },
+          kmer_count: { kmer_len: 15, aligner: 'Jellyfish', enabled: false },
+        mapped_sites: { aligner: 'Bowtie2', enabled: false }
         };
       }
       
@@ -1082,9 +1088,9 @@ const CustomProbe: React.FC = () => {
           fold_score: { max: 40, enabled: false },
           tm: { min: 60, max: 75, enabled: false },
           self_match: { max: 4, enabled: false },
-          mapped_genes: { max: 5, aligner: 'BLAST', enabled: false },
-          kmer_count: { kmer_len: 15, aligner: 'BLAST', enabled: false },
-        mapped_sites: { aligner: 'BLAST', enabled: false }
+          mapped_genes: { max: 5, aligner: 'Bowtie2', enabled: false },
+          kmer_count: { kmer_len: 15, aligner: 'Jellyfish', enabled: false },
+        mapped_sites: { aligner: 'Bowtie2', enabled: false }
         };
       }
       
@@ -1218,9 +1224,9 @@ const CustomProbe: React.FC = () => {
         fold_score: { max: 40, enabled: false },
         tm: { min: 60, max: 75, enabled: false },
         self_match: { max: 4, enabled: false },
-        mapped_genes: { max: 5, aligner: 'BLAST', enabled: false },
-        kmer_count: { kmer_len: 15, aligner: 'BLAST', enabled: false },
-        mapped_sites: { aligner: 'BLAST', enabled: false }
+        mapped_genes: { max: 5, aligner: 'Bowtie2', enabled: false },
+        kmer_count: { kmer_len: 15, aligner: 'Jellyfish', enabled: false },
+        mapped_sites: { aligner: 'Bowtie2', enabled: false }
       }
     });
     
@@ -1399,6 +1405,12 @@ const CustomProbe: React.FC = () => {
   const validateAttributes = (attributes: any, context: string): string[] => {
     const errors: string[] = [];
     if (!attributes) return errors;
+    for (const [name, attr] of Object.entries(attributes) as [string, any][]) {
+      if (!attr?.enabled) continue;
+      if (attr.min !== undefined && attr.max !== undefined && Number(attr.min) > Number(attr.max)) errors.push(`${context}: ${name} minimum exceeds maximum.`);
+      const expected = name === 'kmer_count' ? 'jellyfish' : ['mapped_genes','mapped_sites'].includes(name) ? 'bowtie2' : null;
+      if (expected && attr.aligner?.toLowerCase() !== expected) errors.push(`${context}: ${name} requires ${expected}.`);
+    }
 
     if (attributes.gc_content?.enabled) {
       if (attributes.gc_content.min === undefined || attributes.gc_content.min === '' || isNaN(Number(attributes.gc_content.min)) || 
@@ -1447,7 +1459,7 @@ const CustomProbe: React.FC = () => {
   };
 
   // Save probe group
-  const saveProbeGroup = async () => {
+  const saveProbeGroup = async (useAfterSave = false) => {
     if (!probeGroup.name.trim()) {
       showAlert('Please enter a name for the probe group', 'error');
       return;
@@ -1464,6 +1476,9 @@ const CustomProbe: React.FC = () => {
       showAlert(`Cannot save probe group. ${incompleteProbes.length} probe(s) are not marked as complete.`, 'error');
       return;
     }
+
+    const dependencyError = validateProbeDependencies(probes);
+    if (dependencyError) { showAlert(dependencyError, 'error'); return; }
 
     // Validate attributes
     let validationErrors: string[] = [];
@@ -1493,7 +1508,11 @@ const CustomProbe: React.FC = () => {
       });
     });
 
-    const yamlContent = convertProbesToYAML(probes, targetLength || 50, barcodes, barcodeLengths, targetConfig);
+    const previousConfig = parseYamlContent(probeGroup.yamlContent) || {};
+    const generatedConfig = parseYamlContent(convertProbesToYAML(probes, targetLength ?? 50, barcodes, barcodeLengths, targetConfig));
+    const mergedConfig = { ...previousConfig, ...generatedConfig };
+    try { restoreTemplate(mergedConfig); } catch (error) { showAlert(String(error), 'error'); return; }
+    const yamlContent = yaml.dump(mergedConfig);
 
     const updatedGroup: ProbeGroup = {
       ...probeGroup,
@@ -1513,6 +1532,7 @@ const CustomProbe: React.FC = () => {
       setSavedProbeGroups(groups);
       setProbeGroup(updatedGroup);
       showAlert('Probe group saved successfully!', 'success');
+      if (useAfterSave) navigate('/design/designworkflow?template=' + encodeURIComponent(updatedGroup.name));
     } catch (error: any) {
       console.error('Failed to save probe group:', error);
       showAlert(error?.response?.data?.detail || 'Failed to save probe group', 'error');
@@ -1534,7 +1554,12 @@ const CustomProbe: React.FC = () => {
       showAlert('YAML file downloaded successfully!', 'success');
     } else {
       setProbeGroup(group);
-      setProbes(group.probes);
+      setProbes(JSON.parse(JSON.stringify(group.probes)));
+      const config = parseYamlContent(group.yamlContent) || {};
+      const entries = config.barcodes?.barcodes || config.barcode_config?.barcodes || {};
+      setBarcodes(Object.fromEntries(Object.keys(entries).map(key => [key, ''])));
+      setBarcodeLengths(Object.fromEntries(Object.entries(entries).filter(([, value]) => typeof (value as any)?.length === 'number').map(([key, value]) => [key, (value as any).length])));
+      setDefaultBarcodeLength(config.barcodes?.default_length ?? config.barcode_config?.default_length ?? 12);
       if (group.targetConfig) {
         setTargetConfig(group.targetConfig);
         setTargetLength(group.targetConfig.length || 50);
@@ -1775,7 +1800,7 @@ const CustomProbe: React.FC = () => {
                       label="Aligner"
                       onChange={(e) => onChange('mapped_genes.aligner', e.target.value)}
                     >
-                      {availableAligners.map((aligner) => (
+                      {availableAligners(attributeTab).map((aligner) => (
                         <MenuItem key={aligner} value={aligner}>
                           {aligner}
                         </MenuItem>
@@ -1819,7 +1844,7 @@ const CustomProbe: React.FC = () => {
                       label="Aligner"
                       onChange={(e) => onChange('kmer_count.aligner', e.target.value)}
                     >
-                      {availableAligners.map((aligner) => (
+                      {availableAligners(attributeTab).map((aligner) => (
                         <MenuItem key={aligner} value={aligner}>
                           {aligner}
                         </MenuItem>
@@ -1853,7 +1878,7 @@ const CustomProbe: React.FC = () => {
                       label="Aligner"
                       onChange={(e) => onChange('mapped_sites.aligner', e.target.value)}
                     >
-                      {availableAligners.map((aligner) => (
+                      {availableAligners(attributeTab).map((aligner) => (
                         <MenuItem key={aligner} value={aligner}>
                           {aligner}
                         </MenuItem>
@@ -2362,11 +2387,12 @@ const CustomProbe: React.FC = () => {
               variant="contained"
               color="primary"
               startIcon={<SaveIcon />}
-              onClick={saveProbeGroup}
+              onClick={() => void saveProbeGroup()}
               disabled={!probeGroup.name.trim()}
             >
-              Save Probe Group
+              Save template
             </Button>
+            <Button variant="outlined" sx={{ ml: 1 }} disabled={!probeGroup.name.trim()} onClick={() => void saveProbeGroup(true)}>Save and use</Button>
           </Box>
           
           {/* Probes overview section */}
@@ -2754,9 +2780,9 @@ const CustomProbe: React.FC = () => {
                                   fold_score: { max: 40, enabled: false },
                                   tm: { min: 60, max: 75, enabled: false },
                                   self_match: { max: 4, enabled: false },
-                                  mapped_genes: { max: 5, aligner: 'BLAST' as AlignerType, enabled: false },
-                                  kmer_count: { kmer_len: 15, aligner: 'BLAST' as AlignerType, enabled: false },
-                                  mapped_sites: { aligner: 'BLAST' as AlignerType, enabled: false }
+                                  mapped_genes: { max: 5, aligner: 'Bowtie2' as AlignerType, enabled: false },
+                                  kmer_count: { kmer_len: 15, aligner: 'Jellyfish' as AlignerType, enabled: false },
+                                  mapped_sites: { aligner: 'Bowtie2' as AlignerType, enabled: false }
                                 }, (field, value) => handlePartAttributeChange(index, idx, field, value))}
                                 
                                 <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>

@@ -66,6 +66,8 @@ import SequenceFilters from '../components/SequenceFilters';
 import AttributeTable from '../components/AttributeTable';
 
 import YAML from 'yaml';
+import { restoreTemplate, exportAttribute } from '../utils/probeConfig';
+import { useDraftState } from '../utils/useDraftState';
 import { AttributeFilter, parseAttributeFilter, buildAttributeFilter } from '../utils/attributeFilters';
 
 
@@ -190,17 +192,17 @@ const DesignWorkflow: React.FC = () => {
   const [currentProbeName, setCurrentProbeName] = useState<string>('');
   const [currentPartName, setCurrentPartName] = useState<string>('');
   const [editingAttribute, setEditingAttribute] = useState<AttributeValue | null>(null);
-  const [sortOptions, setSortOptions] = useState<SortOption[]>([]);
+  const [sortOptions, setSortOptions] = useDraftState<SortOption[]>("workflow.sortOptions", []);
   const [showPostProcess, setShowPostProcess] = useState(true);
-  const [overlapThreshold, setOverlapThreshold] = useState(0);
+  const [overlapThreshold, setOverlapThreshold] = useDraftState("workflow.overlapThreshold", 0);
 
   
   // Post-processing feature states
-  const [enableBasicFilter, setEnableBasicFilter] = useState(true);
-  const [enableAvoidOtp, setEnableAvoidOtp] = useState(false);
-  const [enableEqualSpace, setEnableEqualSpace] = useState(false);
-  const [enableRemoveOverlap, setEnableRemoveOverlap] = useState(false);
-  const [enableSorting, setEnableSorting] = useState(true);
+  const [enableBasicFilter, setEnableBasicFilter] = useDraftState("workflow.enableBasicFilter", true);
+  const [enableAvoidOtp, setEnableAvoidOtp] = useDraftState("workflow.enableAvoidOtp", false);
+  const [enableEqualSpace, setEnableEqualSpace] = useDraftState("workflow.enableEqualSpace", false);
+  const [enableRemoveOverlap, setEnableRemoveOverlap] = useDraftState("workflow.enableRemoveOverlap", false);
+  const [enableSorting, setEnableSorting] = useDraftState("workflow.enableSorting", true);
   
   // avoid_otp configuration interface
   interface AvoidOtpConfig {
@@ -209,7 +211,7 @@ const DesignWorkflow: React.FC = () => {
       density_thresh: number;
     };
   }
-  const [avoidOtpConfig, setAvoidOtpConfig] = useState<AvoidOtpConfig>({});
+  const [avoidOtpConfig, setAvoidOtpConfig] = useDraftState<AvoidOtpConfig>("workflow.avoidOtpConfig", {});
   
   // equal_space configuration interface
   interface EqualSpaceConfig {
@@ -217,7 +219,7 @@ const DesignWorkflow: React.FC = () => {
       number_desired: number;
     };
   }
-  const [equalSpaceConfig, setEqualSpaceConfig] = useState<EqualSpaceConfig>({});
+  const [equalSpaceConfig, setEqualSpaceConfig] = useDraftState<EqualSpaceConfig>("workflow.equalSpaceConfig", {});
   
   // Helper function to check if current probe type is DNA
   const isCurrentProbeDna = (): boolean => {
@@ -461,6 +463,11 @@ const DesignWorkflow: React.FC = () => {
   } = useDesignStore();
 
   const navigate = useNavigate();
+  const handoffConsumed = useRef(false);
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('template');
+    if (requested) setProbeType(requested);
+  }, [setProbeType]);
 
 
 
@@ -524,7 +531,7 @@ const DesignWorkflow: React.FC = () => {
           
           // Parse target config
           const targetLength = typedConfig.extracts?.target_region?.length || 100;
-          const overlap = typedConfig.extracts?.target_region?.overlap || 20;
+          const overlap = typedConfig.extracts?.target_region?.overlap ?? 20;
           const source = typedConfig.extracts?.target_region?.source || 'exon';
           
           const targetConfig: any = {
@@ -690,84 +697,22 @@ const DesignWorkflow: React.FC = () => {
     loadCustomProbeTypes();
   }, []);
 
-  // Add a new useEffect to handle probe type selection when custom types are loaded
+  const selectTemplate = (type: CustomProbeType) => {
+    const parsed = YAML.parse(type.yamlContent);
+    if (!parsed || typeof parsed !== 'object') throw new Error('Invalid probe template');
+    const restored = type.type === 'builtin' ? type : { ...type, ...restoreTemplate(parsed), barcodeConfig: extractParametersFromYaml(type.yamlContent)?.barcodeConfig };
+    setSelectedCustomType(restored);
+    setMinLength(restored.targetConfig?.length ?? restored.targetLength ?? 100);
+    setOverlap(restored.overlap ?? parsed.extracts?.target_region?.overlap ?? 20);
+  };
   useEffect(() => {
-    if (!isLoadingCustomTypes && probeType) {
-      const allTypes = [...builtinProbeTypes, ...customProbeTypes];
-      const customType = allTypes.find(t => t.name === probeType);
-      if (customType) {
-        if (customType.type === 'builtin') {
-          setSelectedCustomType(customType);
-          if (customType.targetLength) setMinLength(customType.targetLength);
-          if (customType.overlap) setOverlap(customType.overlap);
-        } else {
-          const parameters = extractParametersFromYaml(customType.yamlContent);
-          console.log('Debug - UseEffect - Extracted parameters:', parameters);
-          
-        // Helper to enable attributes
-        const enableAttributes = (attrs: any) => {
-          if (!attrs) return attrs;
-          const enabledAttrs: any = {};
-          for (const [key, val] of Object.entries(attrs)) {
-            enabledAttrs[key] = { ...(val as any), enabled: true };
-          }
-          return enabledAttrs;
-        };
-
-        let targetConfig = null;
-        if (parameters?.target_sequence) {
-          targetConfig = {
-            source: parameters.target_sequence.source,
-            sequence: parameters.target_sequence.sequence,
-            length: parameters.target_sequence.length,
-            attributes: enableAttributes(parameters.target_sequence.attributes)
-          };
-        }
-        
-        const probes = parameters?.probes || customType.probes || {};
-        const enabledProbes: any = {};
-        for (const [probeName, probe] of Object.entries(probes)) {
-          enabledProbes[probeName] = { ...probe as any };
-          if ((probe as any).attributes) {
-            enabledProbes[probeName].attributes = enableAttributes((probe as any).attributes);
-          }
-          if ((probe as any).parts) {
-            enabledProbes[probeName].parts = {};
-            for (const [partName, part] of Object.entries((probe as any).parts)) {
-              enabledProbes[probeName].parts[partName] = { ...part as any };
-              if ((part as any).attributes) {
-                enabledProbes[probeName].parts[partName].attributes = enableAttributes((part as any).attributes);
-              }
-            }
-          }
-        }
-        
-        const updatedCustomType = {
-          ...customType,
-          extraFilters: { ...customType.extraFilters, ...Object.fromEntries(Object.entries(YAML.parse(customType.yamlContent)?.post_process?.filters || {}).filter(([, rule]) => (rule as WorkflowFilter).type === 'sequence_pattern')) } as Record<string, WorkflowFilter>,
-          targetLength: parameters?.targetLength || customType.targetLength,
-          barcodeCount: parameters?.barcodeCount || parameters?.barcodeConfig?.count || customType.barcodeCount,
-          probes: enabledProbes,
-          targetConfig: targetConfig || customType.targetConfig,
-          barcodeConfig: parameters?.barcodeConfig || customType.barcodeConfig
-        };
-          
-          console.log('Debug - UseEffect - Updated custom type:', updatedCustomType);
-          setSelectedCustomType(updatedCustomType);
-          
-          if (customType.targetLength) {
-            setMinLength(customType.targetLength);
-          } else if (parameters?.targetLength) {
-            setMinLength(parameters.targetLength);
-          }
-          
-          if (parameters?.overlap) {
-            setOverlap(parameters.overlap);
-          }
-        }
-      }
+    if (isLoadingCustomTypes || !probeType) return;
+    const type = [...builtinProbeTypes, ...customProbeTypes].find(item => item.name === probeType);
+    const handoff = new URLSearchParams(window.location.search).get('template');
+    if (type && (selectedCustomType?.id !== type.id || (handoff === type.name && !handoffConsumed.current))) {
+      try { selectTemplate(type); handoffConsumed.current = true; } catch (error) { setAlert(true, String(error), 'error'); }
     }
-  }, [isLoadingCustomTypes, probeType, customProbeTypes, builtinProbeTypes, setMinLength, setOverlap, setSelectedCustomType]);
+  }, [isLoadingCustomTypes, probeType, customProbeTypes, builtinProbeTypes]);
 
   useEffect(() => {
     if (selectedCustomType?.probes) {
@@ -777,7 +722,7 @@ const DesignWorkflow: React.FC = () => {
       }
       setExpandedProbes(allProbesExpanded);
     }
-  }, [selectedCustomType]);
+  }, [selectedCustomType?.id]);
 
   const handleResetTargetList = () => {
     setTargetList([{ target: '', sequence: '' }]);
@@ -867,91 +812,8 @@ const DesignWorkflow: React.FC = () => {
 
     setGeneratingBarcodes({});
     
-    // Find custom probe type
-    const allTypes = [...builtinProbeTypes, ...customProbeTypes];
-    const customType = allTypes.find(t => t.name === type);
-    if (customType) {
-      if (customType.type === 'builtin') {
-        setSelectedCustomType(customType);
-        if (customType.targetLength) setMinLength(customType.targetLength);
-        if (customType.overlap) setOverlap(customType.overlap);
-      } else {
-        const parameters = extractParametersFromYaml(customType.yamlContent);
-        console.log('Debug - Extracted parameters:', parameters);
-        
-        // Helper to enable attributes
-        const enableAttributes = (attrs: any) => {
-          if (!attrs) return attrs;
-          const enabledAttrs: any = {};
-          for (const [key, val] of Object.entries(attrs)) {
-            enabledAttrs[key] = { ...(val as any), enabled: true };
-          }
-          return enabledAttrs;
-        };
-        
-        let targetConfig = null;
-        if (parameters?.target_sequence) {
-          targetConfig = {
-            source: parameters.target_sequence.source,
-            sequence: parameters.target_sequence.sequence,
-            length: parameters.target_sequence.length,
-            attributes: enableAttributes(parameters.target_sequence.attributes)
-          };
-        }
-        
-        const probes = parameters?.probes || customType.probes || {};
-        const enabledProbes: any = {};
-        for (const [probeName, probe] of Object.entries(probes)) {
-          enabledProbes[probeName] = { ...probe as any };
-          if ((probe as any).attributes) {
-            enabledProbes[probeName].attributes = enableAttributes((probe as any).attributes);
-          }
-          if ((probe as any).parts) {
-            enabledProbes[probeName].parts = {};
-            for (const [partName, part] of Object.entries((probe as any).parts)) {
-              enabledProbes[probeName].parts[partName] = { ...part as any };
-              if ((part as any).attributes) {
-                enabledProbes[probeName].parts[partName].attributes = enableAttributes((part as any).attributes);
-              }
-            }
-          }
-        }
-        
-        const updatedCustomType = {
-          ...customType,
-          extraFilters: { ...customType.extraFilters, ...Object.fromEntries(Object.entries(YAML.parse(customType.yamlContent)?.post_process?.filters || {}).filter(([, rule]) => (rule as WorkflowFilter).type === 'sequence_pattern')) } as Record<string, WorkflowFilter>,
-          targetLength: parameters?.targetLength || customType.targetLength,
-          barcodeCount: parameters?.barcodeCount || parameters?.barcodeConfig?.count || customType.barcodeCount,
-          probes: enabledProbes,
-          targetConfig: targetConfig || customType.targetConfig,
-          barcodeConfig: parameters?.barcodeConfig || customType.barcodeConfig
-        };
-        
-        console.log('Debug - Updated custom type:', updatedCustomType);
-        setSelectedCustomType(updatedCustomType);
-        
-        // Set default target length from YAML or custom type
-        if (customType.targetLength) {
-          setMinLength(customType.targetLength);
-        } else if (parameters?.targetLength) {
-          setMinLength(parameters.targetLength);
-        } else {
-          setMinLength(100);
-        }
-        
-        // Set default overlap if specified in YAML
-        if (parameters?.overlap) {
-          setOverlap(parameters.overlap);
-        } else {
-          setOverlap(20);
-        }
-      }
-    } else {
-      console.log('Debug - Custom type not found');
-      setSelectedCustomType(null);
-      setMinLength(100);
-      setOverlap(20);
-    }
+    // The selection effect loads both built-in and custom templates.
+    if (![...builtinProbeTypes, ...customProbeTypes].some(item => item.name === type)) setSelectedCustomType(null);
   };
 
   const toggleSection = (section: string) => {
@@ -1229,8 +1091,11 @@ const DesignWorkflow: React.FC = () => {
     return categories;
   };
 
+  const [draftTemplateId, setDraftTemplateId] = useDraftState<string | undefined>('workflow.templateId', undefined);
+  const defaultsTemplate = useRef(draftTemplateId);
   // Load defaults only when the type changes, preserving subsequent user edits.
   useEffect(() => {
+    if (defaultsTemplate.current === selectedCustomType?.id) return;
     const defaults = selectedCustomType?.sortDefaults || [];
     setSortOptions(defaults.map(option => ({ ...option })));
     setEnableSorting(defaults.length > 0);
@@ -1239,6 +1104,7 @@ const DesignWorkflow: React.FC = () => {
 
   // Missing remove_overlap means disabled, matching the backend configuration.
   useEffect(() => {
+    if (defaultsTemplate.current === selectedCustomType?.id) return;
     const config = selectedCustomType?.yamlContent ? YAML.parse(selectedCustomType.yamlContent) : null;
     const removeOverlap = config?.post_process?.remove_overlap;
     setEnableRemoveOverlap(!!removeOverlap && typeof removeOverlap === 'object');
@@ -1249,6 +1115,9 @@ const DesignWorkflow: React.FC = () => {
 
   // when probe type changes, update DNA-specific features
   useEffect(() => {
+    if (defaultsTemplate.current === selectedCustomType?.id) return;
+    defaultsTemplate.current = selectedCustomType?.id;
+    setDraftTemplateId(selectedCustomType?.id);
     const isDnaProbe = shouldEnableDnaFeatures();
     if (isDnaProbe) {
       // DNA probe: enable OTP and Equal Space by default
@@ -1259,7 +1128,7 @@ const DesignWorkflow: React.FC = () => {
       setEnableAvoidOtp(false);
       setEnableEqualSpace(false);
     }
-  }, [selectedCustomType]);
+  }, [selectedCustomType?.id]);
 
   const getActiveSteps = () => {
     const errors = validateForm();
@@ -1389,20 +1258,7 @@ const DesignWorkflow: React.FC = () => {
   };
 
   // Helper function to map attribute names to types
-  const getAttributeType = (attrName: string): string => {
-    const typeMapping: Record<string, string> = {
-      'gcContent': 'gc_content',
-      'foldScore': 'fold_score',
-      'tm': 'annealing_temperature',
-      'selfMatch': 'self_match',
-      'mappedGenes': 'mapped_genes',
-      'kmerCount': 'kmer_count',
-      'mappedSites': 'mapped_sites'
-    };
-    return typeMapping[attrName] || attrName;
-  };
 
-  // Helper function to get snake_case attribute name for keys
   const getSnakeCaseAttrName = (attrName: string): string => {
     const mapping: Record<string, string> = {
       'gcContent': 'gc_content',
@@ -1505,11 +1361,11 @@ const DesignWorkflow: React.FC = () => {
                 errors.push(`${context}: ${attrName} minimum exceeds maximum.`);
               }
             }
-            if ((attrName === 'kmerCount' || attrName === 'kmer_count') && (!Number.isInteger(Number(attrValue.kmer_len)) || Number(attrValue.kmer_len) < 1)) {
+            if (((attrName === 'kmerCount' || attrName === 'kmer_count') || attrName === 'kmer_count') && (!Number.isInteger(Number(attrValue.kmer_len)) || Number(attrValue.kmer_len) < 1)) {
               errors.push(`${context}: ${attrName} requires a positive k-mer length.`);
             }
 
-            if (attrName === 'mappedGenes' || attrName === 'mapped_genes' || attrName === 'kmerCount' || attrName === 'kmer_count' || attrName === 'mappedSites' || attrName === 'mapped_sites') {
+            if ((attrName === 'mappedGenes' || attrName === 'mapped_genes') || attrName === 'mapped_genes' || (attrName === 'kmerCount' || attrName === 'kmer_count') || attrName === 'kmer_count' || (attrName === 'mappedSites' || attrName === 'mapped_sites') || attrName === 'mapped_sites') {
               if (!attrValue.aligner) {
                 errors.push(`${context}: ${attrName} requires an aligner.`);
               }
@@ -1630,28 +1486,7 @@ const DesignWorkflow: React.FC = () => {
         Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
           if (attrValue.enabled) {
             const attributeKey = attrValue.originalName || `target_${getSnakeCaseAttrName(attrName)}`;
-            const attr: any = {
-              target: 'target_region',
-              type: getAttributeType(attrName)
-            };
-            
-            if (attrValue.aligner) {
-              attr.aligner = attrValue.aligner.toLowerCase();
-            }
-            if (attrValue.aligner && (attrName === 'mappedGenes')) {
-              attr.min_mapq = 30;
-            }
-            if (attrValue.aligner && (attrName === 'mappedSites')) {
-              attr.aligner = attrValue.aligner;
-            }
-            // Add specific attribute parameters
-            if (attrName === 'kmerCount' && attrValue.kmer_len) {
-              attr.kmer_len = attrValue.kmer_len;
-              attr.threads = 10;
-              attr.size = '1G';
-            }
-            
-            attributes[attributeKey] = attr;
+            attributes[attributeKey] = exportAttribute(attrValue, attrName, 'target_region');
           }
         });
       }
@@ -1666,28 +1501,7 @@ const DesignWorkflow: React.FC = () => {
             Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
               if (attrValue.enabled) {
                 const attributeKey = attrValue.originalName || `${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`;
-                const attr: any = {
-                  target: formattedProbeName.replace(/probe(\d+)/, 'probe_$1'), // Use probe_1 format in target
-                  type: getAttributeType(attrName)
-                };
-                
-                if (attrValue.aligner) {
-                  attr.aligner = attrValue.aligner.toLowerCase();
-                }
-                if (attrValue.aligner && (attrName === 'mappedGenes')) {
-                  attr.min_mapq = 30;
-                }
-                if (attrValue.aligner && (attrName === 'mappedSites')) {
-                  attr.aligner = 'bowtie2';
-                }
-                if (attrName === 'kmerCount' && attrValue.kmer_len) {
-                  attr.aligner = 'jellyfish';
-                  attr.kmer_len = attrValue.kmer_len;
-                  attr.threads = 10;
-                  attr.size = '1G';
-                }
-                
-                attributes[attributeKey] = attr;
+                attributes[attributeKey] = exportAttribute(attrValue, attrName, probeName);
               }
             });
           }
@@ -1701,27 +1515,7 @@ const DesignWorkflow: React.FC = () => {
                 Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
                   if (attrValue.enabled) {
                     const attributeKey = attrValue.originalName || `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`;
-                    const attr: any = {
-                      target: `${formattedProbeName.replace(/probe(\d+)/, 'probe_$1')}.${formattedPartName}`, // Use dot separator
-                      type: getAttributeType(attrName)
-                    };
-                    
-                    if (attrValue.aligner) {
-                      attr.aligner = attrValue.aligner.toLowerCase();
-                    }
-                    if (attrValue.aligner && (attrName === 'mappedGenes')) {
-                      attr.min_mapq = 30;
-                    }
-                    if (attrValue.aligner && (attrName === 'mappedSites')) {
-                      attr.aligner = attrValue.aligner;
-                    }
-                    if (attrName === 'kmerCount' && attrValue.kmer_len) {
-                      attr.kmer_len = attrValue.kmer_len;
-                      attr.threads = 10;
-                      attr.size = '1G';
-                    }
-                    
-                    attributes[attributeKey] = attr;
+                    attributes[attributeKey] = exportAttribute(attrValue, attrName, `${probeName}.${partName}`);
                   }
                 });
               }
@@ -1745,7 +1539,7 @@ const DesignWorkflow: React.FC = () => {
         if (rule.type !== 'sequence_pattern') continue;
         rule.exclude_patterns = rule.exclude_patterns?.map(pattern => pattern.trim()).filter(Boolean);
         if (!rule.target || !rule.exclude_patterns?.length) throw new Error('Sequence exclusions require a target and at least one pattern.');
-        rule.exclude_patterns.forEach(pattern => new RegExp(pattern, 'i'));
+        // Expressions are interpreted by the backend Python regex engine.
       }
       
       // Target region filtering
@@ -2171,6 +1965,9 @@ const DesignWorkflow: React.FC = () => {
               </Button>
             </Box>
 
+            {selectedCustomType && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+              {selectedCustomType.type === 'builtin' ? 'Built-in template' : 'Saved template'} · Changes apply to this task; the saved template remains unchanged.
+            </Typography>}
             {/* Custom Probe Parameters Section */}
             {selectedCustomType && (
               <Box id="design-parameters" sx={{ mt: 3, scrollMarginTop: 16 }}>
@@ -3101,10 +2898,7 @@ const DesignWorkflow: React.FC = () => {
                         aligner: e.target.value as 'blast' | 'bowtie2' | 'mmseqs2' | 'jellyfish'
                       } : null)}
                     >
-                      <MenuItem value="blast">BLAST</MenuItem>
-                      <MenuItem value="bowtie2">Bowtie2</MenuItem>
-                      <MenuItem value="mmseqs2">MMseqs2</MenuItem>
-                      <MenuItem value="jellyfish">Jellyfish</MenuItem>
+                      {['kmerCount','kmer_count'].includes(editingAttribute.name) ? <MenuItem value="jellyfish">Jellyfish</MenuItem> : <MenuItem value="bowtie2">Bowtie2</MenuItem>}
                     </Select>
                   </FormControl>
                 </Grid>

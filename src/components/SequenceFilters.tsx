@@ -40,7 +40,7 @@ export default function SequenceFilters({ targets, filters, onChange }: Props) {
           <Stack spacing={1}>
             {patterns.map((pattern, index) => {
               let error = '';
-              try { if (pattern) new RegExp(pattern, 'i'); } catch { error = 'Invalid regular expression'; }
+              // Backend validation uses Python regex syntax.
               return <Stack key={index} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="flex-start">
                 <TextField select size="small" label="Sequence" value={rule.target || ''} sx={{ width: { xs: '100%', sm: 220 }, flexShrink: 0 }} onChange={event => update(name, { ...rule, target: event.target.value })}>
                   {[...new Set([...targets, ...(rule.target ? [rule.target] : [])])].map(target => <MenuItem key={target} value={target}>{target}</MenuItem>)}
