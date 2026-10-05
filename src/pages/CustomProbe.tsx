@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import yaml from 'js-yaml';
 import { 
   Box, 
@@ -41,7 +41,6 @@ import FlipIcon from '@mui/icons-material/Flip';
 import ScienceIcon from '@mui/icons-material/Science';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DnaIcon from '@mui/icons-material/Biotech';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -55,6 +54,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import FormatColorTextIcon from '@mui/icons-material/FormatColorText';
 import CategoryIcon from '@mui/icons-material/Category';
 import ApiService from '../api';
+import StructureCanvas from '../components/StructureCanvas';
 import { useNavigate } from 'react-router-dom';
 import { parseYamlContent } from '../types';
 import { validateProbeDependencies, restoreTemplate } from '../utils/probeConfig';
@@ -446,7 +446,7 @@ const convertProbesToYAML = (probes: Probe[], _targetLength: number, barcodes: {
   const targetYaml: YAMLTarget = {
     target_sequence: {
       source: targetConfig.source,
-      sequence: targetConfig.sequence,
+      sequence: '',
       length: targetConfig.length,
       attributes: {
         gc_content: targetConfig.attributes.gc_content?.enabled ? {
@@ -622,6 +622,16 @@ const convertProbesToYAML = (probes: Probe[], _targetLength: number, barcodes: {
 
 const CustomProbe: React.FC = () => {
   const navigate = useNavigate();
+  const [selectedCanvasPart, setSelectedCanvasPart] = useState<string | null>(null);
+  const groupColors = useRef<Record<string,string>>({});
+  const groupColor = (id: string) => {
+    const palette = ['#4477AA','#AA66AA','#228877','#CC8844','#6677BB','#AA6677'];
+    groupColors.current[id] ||= palette[Object.keys(groupColors.current).length % palette.length];
+    return groupColors.current[id];
+  };
+  const partSummary = (part: ProbePart) => part.source === 'fixed' ? part.sequence :
+    `${part.source === 'target' ? `Target ${part.startPos}–${part.endPos}` : part.source === 'barcode' ? part.label : 'Probe reference'} · ${part.sequence.length} nt${part.isReverseComplement ? ' · RC' : ''}`;
+
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
@@ -756,7 +766,7 @@ const CustomProbe: React.FC = () => {
   
   // Generate random sequence as Target when targetLength changes
   useEffect(() => {
-    if (targetSequence.length !== (targetLength ?? 50)) generateRandomSequence(targetLength ?? 50);
+    if (!/^N*$/.test(targetSequence) || targetSequence.length !== (targetLength ?? 50)) generateRandomSequence(targetLength ?? 50);
   }, [targetLength]);
 
   // Load saved probe groups on mount
@@ -774,19 +784,12 @@ const CustomProbe: React.FC = () => {
   }, []);
   
   const generateRandomSequence = (length: number) => {
-    const bases = ['A', 'T', 'G', 'C'];
-    let sequence = '';
-    for (let i = 0; i < length; i++) {
-      sequence += bases[Math.floor(Math.random() * bases.length)];
-    }
+    // Internal length placeholder only; never exported as a target sequence.
+    const sequence = 'N'.repeat(Math.max(1, length));
     setTargetSequence(sequence);
-    setTargetConfig(prev => ({
-      ...prev,
-      sequence,
-      length
-    }));
+    setTargetConfig(prev => ({ ...prev, sequence: '', length }));
   };
-  
+
   // Add function to generate random barcode
   const generateRandomBarcode = (length: number) => {
     const bases = ['A', 'C', 'G', 'T'];
@@ -1292,6 +1295,9 @@ const CustomProbe: React.FC = () => {
       [newProbeId]: true
     }));
     
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.getElementById(`structure-${newProbeId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
     showAlert('New probe added!', 'info');
   };
   
@@ -2116,16 +2122,6 @@ const CustomProbe: React.FC = () => {
             {/* Regenerate Button and Attributes Button */}
             <Grid item xs={12} sm={4}>
               <Box sx={{ display: 'flex', gap: 1 }}>
-                <Tooltip title="Generate a new random sequence">
-                  <Button 
-                    variant="outlined" 
-                    startIcon={<RefreshIcon />}
-                    onClick={() => generateRandomSequence(targetLength || 50)}
-                  >
-                    Regenerate
-                  </Button>
-                </Tooltip>
-                
                 <Tooltip title="Edit target attributes">
                   <Button
                     variant="outlined"
@@ -2142,11 +2138,12 @@ const CustomProbe: React.FC = () => {
             {/* Sequence Display */}
             <Grid item xs={12}>
               <Typography variant="subtitle2" gutterBottom>
-                Target Sequence ({targetSequence.length} bp):
+                Target span · {targetLength ?? 50} nt
               </Typography>
               <SequenceDisplay>
-                {targetSequence}
+                5′ ───── target_region · positions 1–{targetLength ?? 50} ───── 3′
               </SequenceDisplay>
+              <Typography variant="caption" color="text.secondary">A structural placeholder. Actual bases are supplied when the design task runs.</Typography>
             </Grid>
             
             {/* Display active target attributes as chips */}
@@ -2386,28 +2383,24 @@ const CustomProbe: React.FC = () => {
               size="small"
               sx={{ mb: 1 }}
             />
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<SaveIcon />}
-              onClick={() => void saveProbeGroup()}
-              disabled={!probeGroup.name.trim()}
-            >
-              Save template
-            </Button>
-            <Button variant="outlined" sx={{ ml: 1 }} disabled={!probeGroup.name.trim()} onClick={() => void saveProbeGroup(true)}>Save and use</Button>
           </Box>
           
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+            {probes.map((probe, index) => <Button key={probe.id} size="small" variant={activeProbeIndex === index ? 'contained' : 'outlined'} onClick={() => { setActiveProbeIndex(index); setExpandedCards(previous => ({ ...previous, [probe.id]: true })); document.getElementById(`structure-${probe.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} sx={{ textTransform: 'none', bgcolor: activeProbeIndex === index ? groupColor(probe.id) : 'transparent', color: activeProbeIndex === index ? 'white' : groupColor(probe.id), borderColor: groupColor(probe.id), '&:hover': { bgcolor: alpha(groupColor(probe.id), 0.15), color: groupColor(probe.id) } }}>{probe.name || `Probe ${index + 1}`} · {probe.parts.length} parts</Button>)}
+          </Box>
+          <StructureCanvas probes={probes} color={groupColor} selected={selectedCanvasPart}
+            onSelect={(index, partId) => { setActiveProbeIndex(index); setSelectedCanvasPart(partId); setExpandedCards(previous => ({ ...previous, [probes[index].id]: true })); }}
+            onEdit={partId => { setSelectedCanvasPart(partId); toggleEditPartAttributes(partId); }} />
           {/* Probes overview section */}
           <Box sx={{ mb: 4 }}>
             {probes.map((probe, index) => (
-              <ProbeCard key={probe.id} variant="outlined">
-                <ProbeCardHeader>
+              <ProbeCard key={probe.id} id={`structure-${probe.id}`} variant="outlined" sx={{ borderColor: alpha(groupColor(probe.id), 0.35), borderLeft: `4px solid ${groupColor(probe.id)}`, boxShadow: 'none' }}>
+                <ProbeCardHeader sx={{ bgcolor: alpha(groupColor(probe.id), 0.07) }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <DnaIcon color={probe.isComplete ? "success" : "primary"} fontSize="small" />
                     <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="subtitle1" component="h3">
+                        <Typography variant="subtitle1" component="h3" sx={{ color: groupColor(probe.id), fontWeight: 600 }}>
                           Probe_{index + 1}
                           {probe.name && ` - ${probe.name}`}
                         </Typography>
@@ -2515,7 +2508,7 @@ const CustomProbe: React.FC = () => {
                   <CardContent>
                     <Box sx={{ mb: 1 }}>
                       <Typography variant="subtitle2" gutterBottom>
-                        Sequence:
+                        Structure · 5′ → 3′
                       </Typography>
                       
                       {probe.parts.length === 0 ? (
@@ -2526,8 +2519,8 @@ const CustomProbe: React.FC = () => {
                         <>
                           <SequenceDisplay sx={{ mb: 1 }}>
                             {probe.parts.map((part, idx) => (
-                              <ProbePart key={idx} partType={part.source}>
-                                {part.sequence}
+                              <ProbePart key={part.id || idx} partType={part.source} onClick={() => { setSelectedCanvasPart(part.id); toggleEditPartAttributes(part.id); }} role="button" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleEditPartAttributes(part.id); } }} sx={{ bgcolor: alpha(groupColor(probe.id), 0.12), color: 'text.primary', border: '1px solid', borderColor: alpha(groupColor(probe.id), 0.3), cursor: 'pointer', mx: 0.5, my: 0.5, px: 1.5, py: 1, borderRadius: 1.5, '&:hover': { bgcolor: alpha(groupColor(probe.id), 0.22) } }}>
+                                <Typography component="span" variant="body2" fontWeight={600}>Part {idx + 1}</Typography> · {partSummary(part)}
                               </ProbePart>
                             ))}
                           </SequenceDisplay>
@@ -2735,7 +2728,7 @@ const CustomProbe: React.FC = () => {
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis'
                               }}>
-                                {part.sequence}
+                                {partSummary(part)}
                               </Typography>
                               
                               <Box sx={{ display: 'flex', gap: 1 }}>
@@ -3104,11 +3097,15 @@ const CustomProbe: React.FC = () => {
                 <li>Design each probe by adding parts from the target sequence or external sources</li>
                 <li>Set attributes for individual parts and whole probes using the attribute buttons</li>
                 <li>Click the checkmark button to mark a probe as complete when finished</li>
-                <li>Add new probes using the "Add Probe" button at the top</li>
+                <li>Add new probes using the "Add Probe" button in the bottom action bar or at the top</li>
                 <li>Use completed probes as sources for new probes to create complex designs</li>
                 <li>Name and save your probe structure when finished</li>
               </ol>
             </Paper>
+        <Box sx={{ position: 'sticky', bottom: 0, zIndex: 5, bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider', p: 2, mt: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+          <Box><Typography variant="body2" fontWeight={600}>{probeGroup.name || 'Unnamed structure'}</Typography><Typography variant="caption" color="text.secondary">{probes.filter(probe => probe.isComplete).length} / {probes.length} probes complete</Typography></Box>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}><Button variant="outlined" startIcon={<AddIcon />} onClick={addProbe}>Add Probe</Button><Button variant="outlined" disabled={!probeGroup.name.trim()} onClick={() => void saveProbeGroup()}>Save structure</Button><Button variant="contained" disableElevation disabled={!probeGroup.name.trim()} onClick={() => void saveProbeGroup(true)}>Save and use</Button></Box>
+        </Box>
       </StyledContainer>
     </Container>
   );
