@@ -63,6 +63,7 @@ import useDesignStore from '../store/designStore';
 import ApiService from '../api';
 import { CustomProbeType, WorkflowFilter, extractParametersFromYaml } from '../types';
 import SequenceFilters from '../components/SequenceFilters';
+import AttributeTable from '../components/AttributeTable';
 
 import YAML from 'yaml';
 import { AttributeFilter, parseAttributeFilter, buildAttributeFilter } from '../utils/attributeFilters';
@@ -1099,46 +1100,25 @@ const DesignWorkflow: React.FC = () => {
     });
   };
 
-  // Add new function to format attribute value display
-  const formatAttributeValue = (attrValue: any) => {
-    if (typeof attrValue === 'object') {
-      if (attrValue.threshold !== undefined) {
-        return `${attrValue.threshold}%`;
-      }
-      return `${attrValue.min}% <= value <= ${attrValue.max}%`;
-    }
-    return attrValue;
-  };
-
-  // Modify the renderAttributeChip function
-  const renderAttributeChip = (probeName: string, partName: string | null, attrName: string, attrValue: any) => {
-    if (!attrValue?.enabled) return null;
-
-    const chipKey = partName ? `${probeName}-${partName}-${attrName}` : `${probeName}-${attrName}`;
-    
-    const handleDelete = () => {
-      if (partName) {
-        handleDeleteAttribute('part', attrName, probeName, partName);
+  const renderAttributeTable = (scope: 'target' | 'probe' | 'part', attributes: Record<string, any>, probeName = '', partName = '') => <AttributeTable
+    attributes={attributes}
+    onChange={(name, value) => {
+      if (!selectedCustomType) return;
+      if (scope === 'target') {
+        setSelectedCustomType({ ...selectedCustomType, targetConfig: { ...selectedCustomType.targetConfig!, attributes: { ...attributes, [name]: value } } });
       } else {
-        handleDeleteAttribute('probe', attrName, probeName);
+        const probe = selectedCustomType.probes![probeName];
+        const updated = scope === 'probe' ? { ...probe, attributes: { ...attributes, [name]: value } } :
+          { ...probe, parts: { ...probe.parts, [partName]: { ...probe.parts![partName], attributes: { ...attributes, [name]: value } } } };
+        setSelectedCustomType({ ...selectedCustomType, probes: { ...selectedCustomType.probes, [probeName]: updated } });
       }
-    };
-
-    const chipProps = {
-      key: chipKey,
-      size: "small" as const,
-      variant: "outlined" as const,
-      sx: { height: 20, fontSize: '0.7rem', cursor: 'pointer' },
-      onClick: () => handleAttributeClick(probeName, partName, attrName, attrValue),
-      onDelete: handleDelete
-    };
-
-    const condition = buildAttributeFilter(attrValue, attrValue.originalName || attrName, attrName === 'gcContent' || attrName === 'gc_content');
-    return <Chip {...chipProps} label={`${attrName}: ${condition || 'Calculated only'}`} color="primary" />;
-
-  };
-
-
+    }}
+    onEdit={(name, value) => {
+      if (scope === 'target') { setCurrentAttributeType('target'); handleEditAttribute({ name, ...value }); }
+      else handleAttributeClick(probeName, scope === 'part' ? partName : null, name, value);
+    }}
+    onDelete={name => handleDeleteAttribute(scope, name, probeName, partName)}
+  />;
 
   const handleAddSortOption = () => {
     setSortOptions([...sortOptions, { category: '', field: '', order: 'asc' }]);
@@ -2230,11 +2210,11 @@ const DesignWorkflow: React.FC = () => {
                         </Tooltip>
                       </Box>
                       
-                      <Grid container spacing={3} sx={{ mb: 3 }}>
+                      <Grid container spacing={2} sx={{ mb: 3 }}>
                         <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
-                            label="Target Length"
+                            label="Target length"
                             type="number"
                             value={selectedCustomType.targetLength}
                             onChange={(e) => {
@@ -2255,7 +2235,7 @@ const DesignWorkflow: React.FC = () => {
                         <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
-                            label="Overlap"
+                            label="Candidate overlap"
                             type="number"
                             value={selectedCustomType.overlap}
                             onChange={(e) => {
@@ -2275,60 +2255,8 @@ const DesignWorkflow: React.FC = () => {
                         </Grid>
                       </Grid>
 
-                      {selectedCustomType.targetConfig?.attributes && (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {Object.entries(selectedCustomType.targetConfig.attributes).map(([attrName, attrValue]) => (
-                            <Chip
-                              key={attrName}
-                              size="small"
-                              variant="outlined"
-                              sx={{ height: 20, fontSize: '0.7rem', cursor: 'pointer' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCurrentAttributeType('target');
-                                  handleEditAttribute({
-                                    name: attrName,
-                                    ...attrValue
-                                  });
-                                }}
-                                onDelete={() => handleDeleteAttribute('target', attrName)}
-                              label={
-                                attrValue.filterEnabled === false ? `${attrName}: Calculated only` :
-                                attrValue.filterExpression !== undefined ? attrValue.filterExpression :
-                                attrName === 'gcContent' ? `GC: ${attrValue.min}%-${attrValue.max}%` :
-                                attrName === 'gc_content' ? `GC: ${attrValue.min}%-${attrValue.max}%` :
-                                attrName === 'foldScore' ? `Fold: max ${attrValue.max}` :
-                                attrName === 'fold_score' ? `Fold: max ${attrValue.max}` :
-                                attrName === 'tm' ? `Tm: ${attrValue.min}°C-${attrValue.max}°C` :
-                                attrName === 'selfMatch' ? `Self: max ${attrValue.max}` :
-                                attrName === 'self_match' ? `Self: max ${attrValue.max}` :
-                                attrName === 'mappedGenes' ? `Map: max ${attrValue.max}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
-                                attrName === 'mapped_genes' ? `Map: max ${attrValue.max}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
-                                attrName === 'kmerCount' ? `Kmer: ${attrValue.kmer_len}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
-                                attrName === 'kmer_count' ? `Kmer: ${attrValue.kmer_len}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
-                                attrName === 'mappedSites' ? `Sites${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
-                                attrName === 'mapped_sites' ? `Sites${attrValue.aligner ? ` (${attrValue.aligner})` : ''}` :
-                                `${attrName}: ${formatAttributeValue(attrValue)}`
-                              }
-                              color={
-                                attrName === 'gcContent' || attrName === 'gc_content' ? 'primary' :
-                                attrName === 'foldScore' || attrName === 'fold_score' ? 'secondary' :
-                                attrName === 'tm' ? 'error' :
-                                attrName === 'selfMatch' || attrName === 'self_match' ? 'warning' :
-                                attrName === 'mappedGenes' || attrName === 'mapped_genes' ? 'info' :
-                                attrName === 'kmerCount' || attrName === 'kmer_count' ? 'success' :
-                                attrName === 'mappedSites' || attrName === 'mapped_sites' ? 'info' :
-                                'default'
-                              }
-                            />
-                          ))}
-                          {!Object.values(selectedCustomType.targetConfig.attributes).some(attr => attr?.enabled) && (
-                            <Typography variant="caption" color="text.secondary">
-                              No attributes configured
-                            </Typography>
-                          )}
-                        </Box>
-                      )}
+                      {selectedCustomType.targetConfig?.attributes && renderAttributeTable('target', selectedCustomType.targetConfig.attributes)}
+
                     </Box>
 
                     {/* Probe Configuration */}
@@ -2376,11 +2304,10 @@ const DesignWorkflow: React.FC = () => {
                           </AccordionSummary>
                           <AccordionDetails>
                             {/* Probe-level attributes */}
+                            <Typography variant="overline" color="text.secondary">Complete probe attributes</Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
-                              {probeConfig.attributes && Object.entries(probeConfig.attributes).map(([attrName, attrValue]) => 
-                                renderAttributeChip(probeName, null, attrName, attrValue)
-                              )}
-                              {(!probeConfig.attributes || !Object.values(probeConfig.attributes).some(attr => attr?.enabled)) && (
+                              {probeConfig.attributes && renderAttributeTable('probe', probeConfig.attributes, probeName)}
+                              {!probeConfig.attributes && (
                                 <Typography variant="caption" color="text.secondary">
                                   No attributes configured
                                 </Typography>
@@ -2421,14 +2348,8 @@ const DesignWorkflow: React.FC = () => {
                                 </Box>
                                 {partConfig.attributes && (
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                    {Object.entries(partConfig.attributes).map(([attrName, attrValue]) => 
-                                      renderAttributeChip(probeName, partName, attrName, attrValue)
-                                    )}
-                                    {!Object.values(partConfig.attributes).some(attr => attr?.enabled) && (
-                                      <Typography variant="caption" color="text.secondary">
-                                        No attributes configured
-                                      </Typography>
-                                    )}
+                                    {renderAttributeTable('part', partConfig.attributes, probeName, partName)}
+
                                   </Box>
                                 )}
                               </Box>
