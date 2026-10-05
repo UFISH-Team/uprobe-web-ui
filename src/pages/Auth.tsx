@@ -37,12 +37,10 @@ import {
   Business,
   LocationOn,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import ApiService from '../api';
 
 const Auth = () => {
-  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const regOutlinedSx = {
@@ -268,7 +266,7 @@ const Auth = () => {
         }
         
         await login(formData.emailOrUsername, formData.password, false);
-        navigate('/home');
+        window.location.replace('/home');
       } else {
         // Registration mode validation
         if (registrationStep === 0) {
@@ -325,7 +323,7 @@ const Auth = () => {
             department: formData.department.trim(),
             location: formData.location.trim(),
           });
-          navigate('/home');
+          window.location.replace('/home');
         }
       }
     } catch (err: any) {

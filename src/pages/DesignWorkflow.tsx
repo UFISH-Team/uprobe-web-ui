@@ -64,9 +64,10 @@ import ApiService from '../api';
 import { CustomProbeType, extractParametersFromYaml } from '../types';
 
 import YAML from 'yaml';
+import { AttributeFilter, parseAttributeFilter, buildAttributeFilter } from '../utils/attributeFilters';
 
 
-interface AttributeValue {
+interface AttributeValue extends AttributeFilter {
   name: string;
   min?: number;
   max?: number;
@@ -120,8 +121,6 @@ const getProbeType = (customType?: CustomProbeType | null): 'DNA' | 'RNA' => {
 const DesignWorkflow: React.FC = () => {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
   const [barcodeLibrary, setBarcodeLibrary] = useState<{ name: string; sequence: string }[]>([]);
-  const [editingBarcode, setEditingBarcode] = useState<string | null>(null);
-  const [barcodeDraft, setBarcodeDraft] = useState('');
   const [activeSection, setActiveSection] = useState('species');
   const [showValidation, setShowValidation] = useState(false);
   const scrollTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -258,23 +257,7 @@ const DesignWorkflow: React.FC = () => {
   };
 
   // Function to auto-generate barcode based on config with length validation
-  const generateBarcode = async (barcodeIndex: number, generationType: 'quick' | 'pcr' | 'sequencing' = 'quick'): Promise<string> => {
-    let expectedLength = 12; // Default fallback
-    let barcodeType = 'default';
-    
-    if (selectedCustomType?.barcodeConfig) {
-      const config = selectedCustomType.barcodeConfig;
-      
-      // Try to get specific barcode from config
-      const barcodeKey = `barcode${barcodeIndex + 1}`;
-      if (config.barcodes && config.barcodes[barcodeKey]) {
-        const barcodeConfig = config.barcodes[barcodeKey];
-        expectedLength = barcodeConfig.length || config.default_length || 12;
-        barcodeType = barcodeConfig.name || barcodeType;
-      } else {
-        expectedLength = config.default_length || 12;
-      }
-    }
+  const generateBarcode = async (expectedLength: number, generationType: 'quick' | 'pcr' | 'sequencing' = 'quick'): Promise<string> => {
 
     try {
 
@@ -346,15 +329,21 @@ const DesignWorkflow: React.FC = () => {
 
   // Add loading state for barcode generation
   const [generatingBarcodes, setGeneratingBarcodes] = useState<{[key: string]: boolean}>({});
+  const [barcodeGeneration, setBarcodeGeneration] = useState<{ itemIndex: number; barcodeKey: string } | null>(null);
+  const [generationLength, setGenerationLength] = useState('12');
+
+  const openBarcodeGeneration = (itemIndex: number, barcodeKey: string) => {
+    setGenerationLength(String(getExpectedBarcodeLength(barcodeKey) ?? 12));
+    setBarcodeGeneration({ itemIndex, barcodeKey });
+  };
 
   // Function to auto-generate barcode for specific item
-  const autoGenerateBarcodeForItem = async (itemIndex: number, barcodeKey: string) => {
+  const autoGenerateBarcodeForItem = async (itemIndex: number, barcodeKey: string, length: number) => {
     const loadingKey = `target_${itemIndex}_${barcodeKey}`;
     setGeneratingBarcodes(prev => ({ ...prev, [loadingKey]: true }));
     
     try {
-      const barcodeIndex = parseInt(barcodeKey.replace('barcode', '')) - 1;
-      const newBarcode = await generateBarcode(barcodeIndex, 'quick');
+      const newBarcode = await generateBarcode(length, 'quick');
       
       if (newBarcode) {
         updateTarget(itemIndex, barcodeKey as keyof Target, newBarcode);
@@ -368,8 +357,10 @@ const DesignWorkflow: React.FC = () => {
     }
   };
 
-  const validateManualBarcode = (barcode: string, barcodeKey: string): boolean =>
-    /^[ACGT]+$/.test(barcode) && barcode.length === getExpectedBarcodeLength(barcodeKey);
+  const validateManualBarcode = (barcode: string, barcodeKey: string): boolean => {
+    const length = getExpectedBarcodeLength(barcodeKey);
+    return /^[ACGT]+$/.test(barcode) && (length === undefined || barcode.length === length);
+  };
 
   const importBarcodeLibrary = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -416,14 +407,10 @@ const DesignWorkflow: React.FC = () => {
   };
 
   // Helper function to get expected barcode length
-  const getExpectedBarcodeLength = (barcodeKey: string): number => {
-    if (!selectedCustomType?.barcodeConfig) return 12;
-    
-    const config = selectedCustomType.barcodeConfig;
-    if (config.barcodes && config.barcodes[barcodeKey]) {
-      return config.barcodes[barcodeKey].length || config.default_length || 12;
-    }
-    return config.default_length || 12;
+  const getExpectedBarcodeLength = (barcodeKey: string): number | undefined => {
+    const config = selectedCustomType?.barcodeConfig;
+    const length = config?.barcodes?.[barcodeKey]?.length ?? config?.default_length;
+    return typeof length === 'number' && Number.isInteger(length) && length > 0 ? length : undefined;
   };
 
   const {
@@ -537,38 +524,13 @@ const DesignWorkflow: React.FC = () => {
           // Parse attributes and distribute them
           const attributes = JSON.parse(JSON.stringify(typedConfig.attributes || {}));
           
-          // Parse post_process filters to extract min/max values
-          const filters = typedConfig.post_process?.filters || {};
-          const filterValues: Record<string, {min?: number, max?: number}> = {};
-          
-          for (const [filterKey, filterVal] of Object.entries(filters)) {
-            const condition = (filterVal as any).condition;
-            if (typeof condition === 'string') {
-              const minMatch = condition.match(/>=\s*([\d.-]+)/);
-              const maxMatch = condition.match(/<=\s*([\d.-]+)/);
-              
-              if (!filterValues[filterKey]) filterValues[filterKey] = {};
-              if (minMatch) filterValues[filterKey].min = parseFloat(minMatch[1]);
-              if (maxMatch) filterValues[filterKey].max = parseFloat(maxMatch[1]);
-              
-              // Special handling for gcContent which might be in decimals (0.2-0.9) while UI expects percentages (20-90)
-              if (filterKey.toLowerCase().includes('gccontent')) {
-                if (filterValues[filterKey].min !== undefined && filterValues[filterKey].min! <= 1) {
-                  filterValues[filterKey].min = filterValues[filterKey].min! * 100;
-                }
-                if (filterValues[filterKey].max !== undefined && filterValues[filterKey].max! <= 1) {
-                  filterValues[filterKey].max = filterValues[filterKey].max! * 100;
-                }
-              }
-            }
+          const filters: Record<string, { condition: string }> = typedConfig.post_process?.filters || {};
+          const filterValues: Record<string, AttributeFilter> = {};
+          for (const [name, attr] of Object.entries(attributes)) {
+            filterValues[name] = parseAttributeFilter(name, (attr as any).type, filters[name]?.condition);
           }
-          
           const defaultValues: Record<string, Partial<AttributeValue>> = {
-            gcContent: { min: 40, max: 60, enabled: true },
-            foldScore: { max: 40, enabled: true },
-            tm: { min: 60, max: 75, enabled: true },
-            selfMatch: { max: 4, enabled: true },
-            mappedGenes: { max: 5, aligner: 'bowtie2', enabled: true },
+            mappedGenes: { aligner: 'bowtie2', enabled: true },
             kmerCount: { kmer_len: 35, aligner: 'jellyfish', enabled: true },
             mappedSites: { aligner: 'bowtie2', enabled: true }
           };
@@ -583,11 +545,19 @@ const DesignWorkflow: React.FC = () => {
             'mapped_sites': 'mappedSites'
           };
 
+          const sortFieldAliases: Record<string, { category: string; field: string }> = {
+            n_trans: { category: 'Sequence Metadata', field: 'n_trans' }
+          };
+
           for (const [attrKey, attrVal] of Object.entries(attributes)) {
             const typedAttrVal = attrVal as any;
             const target = typedAttrVal.target;
             const attrType = typedAttrVal.type;
             const uiAttrName = typeToNameMapping[attrType] || attrType;
+            sortFieldAliases[attrKey] = {
+              category: target === 'target_region' ? 'Target Sequence' : target.includes('.') ? 'Part Attributes' : 'Probe Attributes',
+              field: attrKey
+            };
             
             const attrObj = {
               ...defaultValues[uiAttrName],
@@ -650,14 +620,33 @@ const DesignWorkflow: React.FC = () => {
             name: name,
             extracts: typedConfig.extracts,
             probes: typedConfig.probes,
-            attributes: typedConfig.attributes
+            attributes: typedConfig.attributes,
+            post_process: typedConfig.post_process
           };
           const yamlContent = YAML.stringify(yamlObj);
+
+          const sortDefaults: SortOption[] = [];
+          const seenSortFields = new Set<string>();
+          for (const [key, order] of [['is_ascending', 'asc'], ['is_descending', 'desc']] as const) {
+            const configured = typedConfig.post_process?.sorts?.[key];
+            const fields = typeof configured === 'string' ? [configured] : configured;
+            if (!Array.isArray(fields)) continue;
+            for (const name of fields) {
+              if (typeof name !== 'string') continue;
+              const resolved = sortFieldAliases[name] || Object.values(sortFieldAliases).find(item => item.field === name);
+              if (!resolved || seenSortFields.has(resolved.field)) continue;
+              seenSortFields.add(resolved.field);
+              sortDefaults.push({ ...resolved, order });
+            }
+          }
 
           builtinTypes.push({
             id: `builtin_${name}`,
             name: name,
             type: 'builtin',
+            sortDefaults,
+            extraFilters: Object.fromEntries(Object.entries(filters).filter(([key]) => !(key in attributes))),
+            barcodeConfig: extractParametersFromYaml(YAML.stringify(typedConfig))?.barcodeConfig,
             yamlContent: yamlContent,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -1127,72 +1116,9 @@ const DesignWorkflow: React.FC = () => {
       onDelete: handleDelete
     };
 
-    switch(attrName) {
-      case 'gcContent':
-      case 'gc_content':
-        return (
-          <Chip
-            {...chipProps}
-            label={`GC: ${attrValue.min}%-${attrValue.max}%`}
-            color="primary"
-          />
-        );
-      case 'foldScore':
-      case 'fold_score':
-        return (
-          <Chip
-            {...chipProps}
-            label={`Fold: max ${attrValue.max}`}
-            color="secondary"
-          />
-        );
-      case 'tm':
-        return (
-          <Chip
-            {...chipProps}
-            label={`Tm: ${attrValue.min}°C-${attrValue.max}°C`}
-            color="error"
-          />
-        );
-      case 'selfMatch':
-      case 'self_match':
-        return (
-          <Chip
-            {...chipProps}
-            label={`Self: max ${attrValue.max}`}
-            color="warning"
-          />
-        );
-      case 'mappedGenes':
-      case 'mapped_genes':
-        return (
-          <Chip
-            {...chipProps}
-            label={`Map: max ${attrValue.max}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}`}
-            color="info"
-          />
-        );
-      case 'kmerCount':
-      case 'kmer_count':
-        return (
-          <Chip
-            {...chipProps}
-            label={`Kmer: ${attrValue.kmer_len}${attrValue.aligner ? ` (${attrValue.aligner})` : ''}`}
-            color="success"
-          />
-        );
-      case 'mappedSites':
-      case 'mapped_sites':
-        return (
-          <Chip
-            {...chipProps}
-            label={`Sites${attrValue.aligner ? ` (${attrValue.aligner})` : ''}`}
-            color="info"
-          />
-        );
-      default:
-        return null;
-    }
+    const condition = buildAttributeFilter(attrValue, attrValue.originalName || attrName, attrName === 'gcContent' || attrName === 'gc_content');
+    return <Chip {...chipProps} label={`${attrName}: ${condition || 'Calculated only'}`} color="primary" />;
+
   };
 
 
@@ -1220,7 +1146,10 @@ const DesignWorkflow: React.FC = () => {
   const getAvailableSortFields = (): SortCategory[] => {
     if (!selectedCustomType) return [];
 
-    const categories: SortCategory[] = [];
+    const categories: SortCategory[] = [{
+      category: 'Sequence Metadata', icon: '📋',
+      fields: [{ value: 'n_trans', label: 'Transcript Count' }]
+    }];
     
     if (selectedCustomType.targetConfig?.attributes) {
       const targetFields: SortField[] = [];
@@ -1228,7 +1157,7 @@ const DesignWorkflow: React.FC = () => {
         if (value.enabled) {
           const fieldLabel = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
           targetFields.push({
-            value: `target_${getSnakeCaseAttrName(key)}`,
+            value: value.originalName || `target_${getSnakeCaseAttrName(key)}`,
             label: fieldLabel
           });
         }
@@ -1253,7 +1182,7 @@ const DesignWorkflow: React.FC = () => {
             if (value.enabled) {
               const fieldLabel = `${formatProbeName(probeName)} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
               probeFields.push({
-                value: `${formattedProbeName}_${getSnakeCaseAttrName(key)}`,
+                value: value.originalName || `${formattedProbeName}_${getSnakeCaseAttrName(key)}`,
                 label: fieldLabel
               });
             }
@@ -1282,7 +1211,7 @@ const DesignWorkflow: React.FC = () => {
                 if (value.enabled) {
                   const fieldLabel = `${formatProbeName(probeName)} - ${formatPartName(partName)} - ${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}`;
                   partFields.push({
-                    value: `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(key)}`,
+                    value: value.originalName || `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(key)}`,
                     label: fieldLabel
                   });
                 }
@@ -1303,10 +1232,13 @@ const DesignWorkflow: React.FC = () => {
     return categories;
   };
 
-  // when probe type changes, reset sort options
+  // Load defaults only when the type changes, preserving subsequent user edits.
   useEffect(() => {
-    setSortOptions([]);
-  }, [selectedCustomType]);
+    const defaults = selectedCustomType?.sortDefaults || [];
+    setSortOptions(defaults.map(option => ({ ...option })));
+    setEnableSorting(defaults.length > 0);
+    setBarcodeGeneration(null);
+  }, [selectedCustomType?.id, selectedCustomType?.sortDefaults]);
 
   // when probe type changes, update DNA-specific features
   useEffect(() => {
@@ -1477,6 +1409,16 @@ const DesignWorkflow: React.FC = () => {
     return mapping[attrName] || attrName;
   };
 
+  const getEditingFilterName = () => {
+    if (editingAttribute?.originalName) return editingAttribute.originalName;
+    const attribute = getSnakeCaseAttrName(editingAttribute?.name || 'attribute');
+    if (currentAttributeType === 'target') return `target_${attribute}`;
+    const probe = /^\d+$/.test(currentProbeName) ? `probe${parseInt(currentProbeName) + 1}` : currentProbeName;
+    if (currentAttributeType === 'probe') return `${probe}_${attribute}`;
+    const part = /^\d+$/.test(currentPartName) ? `part${parseInt(currentPartName) + 1}` : currentPartName;
+    return `${probe}_${part}_${attribute}`;
+  };
+
   // Helper function to generate automatic task name
   const generateAutoTaskName = () => {
     const probeName = selectedCustomType?.name || probeType || 'probe';
@@ -1546,21 +1488,20 @@ const DesignWorkflow: React.FC = () => {
         if (!attrs) return;
         Object.entries(attrs).forEach(([attrName, attrValue]: [string, any]) => {
           if (attrValue.enabled) {
-            if (attrName === 'gcContent' || attrName === 'gc_content' || attrName === 'tm') {
-              if (attrValue.min === undefined || attrValue.min === '' || isNaN(Number(attrValue.min)) || 
-                  attrValue.max === undefined || attrValue.max === '' || isNaN(Number(attrValue.max))) {
-                errors.push(`${context}: ${attrName} requires valid min and max values.`);
+            if (attrValue.filterEnabled !== false && attrValue.filterExpression === undefined) {
+              for (const bound of ['min', 'max']) {
+                if (attrValue[bound] !== undefined && !Number.isFinite(Number(attrValue[bound]))) {
+                  errors.push(`${context}: ${attrName} has an invalid ${bound}.`);
+                }
               }
-            } else if (attrName === 'foldScore' || attrName === 'fold_score' || attrName === 'selfMatch' || attrName === 'self_match' || attrName === 'mappedGenes' || attrName === 'mapped_genes') {
-              if (attrValue.max === undefined || attrValue.max === '' || isNaN(Number(attrValue.max))) {
-                errors.push(`${context}: ${attrName} requires a valid max value.`);
-              }
-            } else if (attrName === 'kmerCount' || attrName === 'kmer_count') {
-              if (attrValue.kmer_len === undefined || attrValue.kmer_len === '' || isNaN(Number(attrValue.kmer_len))) {
-                errors.push(`${context}: ${attrName} requires a valid k-mer length.`);
+              if (attrValue.min !== undefined && attrValue.max !== undefined && Number(attrValue.min) > Number(attrValue.max)) {
+                errors.push(`${context}: ${attrName} minimum exceeds maximum.`);
               }
             }
-            
+            if ((attrName === 'kmerCount' || attrName === 'kmer_count') && (!Number.isInteger(Number(attrValue.kmer_len)) || Number(attrValue.kmer_len) < 1)) {
+              errors.push(`${context}: ${attrName} requires a positive k-mer length.`);
+            }
+
             if (attrName === 'mappedGenes' || attrName === 'mapped_genes' || attrName === 'kmerCount' || attrName === 'kmer_count' || attrName === 'mappedSites' || attrName === 'mapped_sites') {
               if (!attrValue.aligner) {
                 errors.push(`${context}: ${attrName} requires an aligner.`);
@@ -1681,7 +1622,7 @@ const DesignWorkflow: React.FC = () => {
       if (selectedCustomType.targetConfig?.attributes) {
         Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
           if (attrValue.enabled) {
-            const attributeKey = `target_${getSnakeCaseAttrName(attrName)}`;
+            const attributeKey = attrValue.originalName || `target_${getSnakeCaseAttrName(attrName)}`;
             const attr: any = {
               target: 'target_region',
               type: getAttributeType(attrName)
@@ -1717,7 +1658,7 @@ const DesignWorkflow: React.FC = () => {
           if (probeConfig.attributes) {
             Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
               if (attrValue.enabled) {
-                const attributeKey = `${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`;
+                const attributeKey = attrValue.originalName || `${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`;
                 const attr: any = {
                   target: formattedProbeName.replace(/probe(\d+)/, 'probe_$1'), // Use probe_1 format in target
                   type: getAttributeType(attrName)
@@ -1752,7 +1693,7 @@ const DesignWorkflow: React.FC = () => {
               if (partConfig.attributes) {
                 Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
                   if (attrValue.enabled) {
-                    const attributeKey = `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`;
+                    const attributeKey = attrValue.originalName || `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`;
                     const attr: any = {
                       target: `${formattedProbeName.replace(/probe(\d+)/, 'probe_$1')}.${formattedPartName}`, // Use dot separator
                       type: getAttributeType(attrName)
@@ -1792,29 +1733,14 @@ const DesignWorkflow: React.FC = () => {
     
     // 1. Filters
     if (enableBasicFilter && selectedCustomType) {
-      const filters: any = {};
+      const filters: any = { ...selectedCustomType.extraFilters };
       
       // Target region filtering
       if (selectedCustomType.targetConfig?.attributes) {
         Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
           if (attrValue.enabled) {
-            const filterName = `target_${getSnakeCaseAttrName(attrName)}`;
-            let condition = '';
-            
-            if (attrName === 'gcContent' || attrName === 'gc_content') {
-              if (attrValue.min !== undefined && attrValue.max !== undefined) {
-                condition = `${filterName} >= ${attrValue.min/100} & ${filterName} <= ${attrValue.max/100}`;
-              } else if (attrValue.max !== undefined) {
-                condition = `${filterName} <= ${attrValue.max/100}`;
-              }
-            } else {
-              if (attrValue.min !== undefined && attrValue.max !== undefined) {
-                condition = `${filterName} >= ${attrValue.min} & ${filterName} <= ${attrValue.max}`;
-              } else if (attrValue.max !== undefined) {
-                condition = `${filterName} <= ${attrValue.max}`;
-              }
-            }
-            
+            const filterName = attrValue.originalName || `target_${getSnakeCaseAttrName(attrName)}`;
+            const condition = buildAttributeFilter(attrValue, filterName, attrName === 'gcContent' || attrName === 'gc_content');
             if (condition) {
               filters[filterName] = { condition };
             }
@@ -1830,23 +1756,8 @@ const DesignWorkflow: React.FC = () => {
           if (probeConfig.attributes) {
             Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
               if (attrValue.enabled) {
-                const filterName = `${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`;
-                let condition = '';
-                
-                if (attrName === 'gcContent' || attrName === 'gc_content') {
-                  if (attrValue.min !== undefined && attrValue.max !== undefined) {
-                    condition = `${filterName} >= ${attrValue.min/100} & ${filterName} <= ${attrValue.max/100}`;
-                  } else if (attrValue.max !== undefined) {
-                    condition = `${filterName} <= ${attrValue.max/100}`;
-                  }
-                } else {
-                  if (attrValue.min !== undefined && attrValue.max !== undefined) {
-                    condition = `${filterName} >= ${attrValue.min} & ${filterName} <= ${attrValue.max}`;
-                  } else if (attrValue.max !== undefined) {
-                    condition = `${filterName} <= ${attrValue.max}`;
-                  }
-                }
-                
+                const filterName = attrValue.originalName || `${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`;
+                const condition = buildAttributeFilter(attrValue, filterName, attrName === 'gcContent' || attrName === 'gc_content');
                 if (condition) {
                   filters[filterName] = { condition };
                 }
@@ -1861,23 +1772,8 @@ const DesignWorkflow: React.FC = () => {
               if (partConfig.attributes) {
                 Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
                   if (attrValue.enabled) {
-                    const filterName = `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`;
-                    let condition = '';
-                    
-                    if (attrName === 'gcContent' || attrName === 'gc_content') {
-                      if (attrValue.min !== undefined && attrValue.max !== undefined) {
-                        condition = `${filterName} >= ${attrValue.min/100} & ${filterName} <= ${attrValue.max/100}`;
-                      } else if (attrValue.max !== undefined) {
-                        condition = `${filterName} <= ${attrValue.max/100}`;
-                      }
-                    } else {
-                      if (attrValue.min !== undefined && attrValue.max !== undefined) {
-                        condition = `${filterName} >= ${attrValue.min} & ${filterName} <= ${attrValue.max}`;
-                      } else if (attrValue.max !== undefined) {
-                        condition = `${filterName} <= ${attrValue.max}`;
-                      }
-                    }
-                    
+                    const filterName = attrValue.originalName || `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`;
+                    const condition = buildAttributeFilter(attrValue, filterName, attrName === 'gcContent' || attrName === 'gc_content');
                     if (condition) {
                       filters[filterName] = { condition };
                     }
@@ -1920,8 +1816,8 @@ const DesignWorkflow: React.FC = () => {
     
     // 5. Sorting
     if (enableSorting && sortOptions.length > 0) {
-      const ascFields = sortOptions.filter(opt => opt.order === 'asc').map(opt => opt.field);
-      const descFields = sortOptions.filter(opt => opt.order === 'desc').map(opt => opt.field);
+      const ascFields = sortOptions.filter(opt => opt.field && opt.order === 'asc').map(opt => opt.field);
+      const descFields = sortOptions.filter(opt => opt.field && opt.order === 'desc').map(opt => opt.field);
       
       if (ascFields.length > 0 || descFields.length > 0) {
         post_process.sorts = {};
@@ -1948,7 +1844,7 @@ const DesignWorkflow: React.FC = () => {
     if (selectedCustomType?.targetConfig?.attributes) {
       Object.entries(selectedCustomType.targetConfig.attributes).forEach(([attrName, attrValue]) => {
         if (attrValue.enabled) {
-          summaryAttributes.push(`target_${getSnakeCaseAttrName(attrName)}`);
+          summaryAttributes.push(attrValue.originalName || `target_${getSnakeCaseAttrName(attrName)}`);
         }
       });
     }
@@ -1961,7 +1857,7 @@ const DesignWorkflow: React.FC = () => {
         if (probeConfig.attributes) {
           Object.entries(probeConfig.attributes).forEach(([attrName, attrValue]) => {
             if (attrValue.enabled) {
-              summaryAttributes.push(`${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`);
+              summaryAttributes.push(attrValue.originalName || `${formattedProbeName}_${getSnakeCaseAttrName(attrName)}`);
             }
           });
         }
@@ -1974,7 +1870,7 @@ const DesignWorkflow: React.FC = () => {
             if (partConfig.attributes) {
               Object.entries(partConfig.attributes).forEach(([attrName, attrValue]) => {
                 if (attrValue.enabled) {
-                  summaryAttributes.push(`${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`);
+                  summaryAttributes.push(attrValue.originalName || `${formattedProbeName}_${formattedPartName}_${getSnakeCaseAttrName(attrName)}`);
                 }
               });
             }
@@ -2366,6 +2262,8 @@ const DesignWorkflow: React.FC = () => {
                                 }}
                                 onDelete={() => handleDeleteAttribute('target', attrName)}
                               label={
+                                attrValue.filterEnabled === false ? `${attrName}: Calculated only` :
+                                attrValue.filterExpression !== undefined ? attrValue.filterExpression :
                                 attrName === 'gcContent' ? `GC: ${attrValue.min}%-${attrValue.max}%` :
                                 attrName === 'gc_content' ? `GC: ${attrValue.min}%-${attrValue.max}%` :
                                 attrName === 'foldScore' ? `Fold: max ${attrValue.max}` :
@@ -2575,7 +2473,7 @@ const DesignWorkflow: React.FC = () => {
                   </Typography>
                 </Stack>
                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 'auto' }}>
-                  <Tooltip title="Import a shared CSV library with name,sequence columns. Double-click a BC cell to edit, use the arrow to select, or ↻ to generate. Only matching-length library sequences are shown." arrow>
+                  <Tooltip title="Click a BC cell to type a sequence, use the arrow to select from the library, or ↻ to generate. Changes are saved automatically." arrow>
                     <IconButton size="small" aria-label="Barcode configuration help" sx={{ color: 'text.secondary' }}>
                       <HelpOutlineIcon sx={{ fontSize: 18 }} />
                     </IconButton>
@@ -2631,59 +2529,42 @@ const DesignWorkflow: React.FC = () => {
                       Array.from({ length: selectedCustomType.barcodeCount }).map((_, barcodeIndex) => {
                         const barcodeKey = `barcode${barcodeIndex + 1}`;
                         const value = String(item[barcodeKey] || '');
-                        const cellKey = `${index}_${barcodeKey}`;
-                        const editing = editingBarcode === cellKey;
                         const invalid = value.length > 0 && !validateManualBarcode(value, barcodeKey);
-                        const options = barcodeLibrary.filter(entry => entry.sequence.length === getExpectedBarcodeLength(barcodeKey));
-                        const saveEdit = () => {
-                          updateTarget(index, barcodeKey as keyof Target, barcodeDraft.trim().toUpperCase());
-                          setEditingBarcode(null);
-                        };
+                        const expectedLength = getExpectedBarcodeLength(barcodeKey);
+                        const barcodeLabel = `BC${barcodeIndex + 1}${expectedLength === undefined ? '' : ` · ${expectedLength} bp`}`;
+                        const options = barcodeLibrary.filter(entry => expectedLength === undefined || entry.sequence.length === expectedLength);
                         return (
                           <Grid item key={barcodeIndex} sx={{ width: 240, flexShrink: 0 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              {editing ? (
-                                <TextField
-                                  autoFocus fullWidth size="small"
-                                  label={`BC${barcodeIndex + 1} · ${getExpectedBarcodeLength(barcodeKey)} bp`}
-                                  value={barcodeDraft}
-                                  onChange={event => setBarcodeDraft(event.target.value)}
-                                  onBlur={saveEdit}
-                                  onKeyDown={event => {
-                                    if (event.key === 'Enter') { event.preventDefault(); saveEdit(); }
-                                    if (event.key === 'Escape') { event.preventDefault(); setEditingBarcode(null); }
-                                  }}
-                                  inputProps={{ style: { fontFamily: 'monospace' } }}
-                                />
-                              ) : (
                                 <Autocomplete
-                                  fullWidth size="small" options={options}
+                                  freeSolo forcePopupIcon fullWidth size="small" options={options}
+                                  inputValue={value}
+                                  onInputChange={(_, text, reason) => {
+                                    if (reason === 'input' || reason === 'clear') {
+                                      updateTarget(index, barcodeKey as keyof Target, text.trim().toUpperCase());
+                                    }
+                                  }}
                                   value={options.find(entry => entry.sequence === value) || (value ? { name: '', sequence: value } : null)}
-                                  getOptionLabel={entry => entry.sequence}
+                                  getOptionLabel={entry => typeof entry === 'string' ? entry : entry.sequence}
                                   filterOptions={(entries, state) => entries.filter(entry => `${entry.name} ${entry.sequence}`.toLowerCase().includes(state.inputValue.toLowerCase()))}
                                   renderOption={(props, entry) => <li {...props} key={entry.name}>{entry.name} · {entry.sequence}</li>}
                                   isOptionEqualToValue={(option, selected) => option.sequence === selected.sequence}
-                                  onChange={(_, entry) => updateTarget(index, barcodeKey as keyof Target, entry?.sequence || '')}
+                                  onChange={(_, entry) => updateTarget(index, barcodeKey as keyof Target, (typeof entry === 'string' ? entry : entry?.sequence || '').trim().toUpperCase())}
                                   noOptionsText={barcodeLibrary.length ? 'No barcodes with matching length' : 'Import a barcode library first'}
                                   renderInput={params => (
                                     <TextField {...params}
-                                      label={`BC${barcodeIndex + 1} · ${getExpectedBarcodeLength(barcodeKey)} bp`}
-                                      placeholder="Double-click to edit"
-                                      onDoubleClick={() => { setBarcodeDraft(value); setEditingBarcode(cellKey); }}
-                                      onKeyDown={event => {
-                                        if (event.key === 'F2') { event.preventDefault(); setBarcodeDraft(value); setEditingBarcode(cellKey); }
-                                      }}
+                                      label={barcodeLabel}
+                                      placeholder="Type or select a barcode"
                                       error={invalid}
-                                      helperText={invalid ? `Use ${getExpectedBarcodeLength(barcodeKey)} A/C/G/T bases` : ''}
+                                      helperText={invalid ? (expectedLength === undefined ? 'Use A/C/G/T bases' : `Use ${expectedLength} A/C/G/T bases`) : ''}
                                       inputProps={{ ...params.inputProps, style: { fontFamily: 'monospace' } }}
                                     />
                                   )}
                                 />
-                              )}
                               <Tooltip title="Generate barcode for this cell">
                                 <span><IconButton size="small" aria-label={`Generate BC${barcodeIndex + 1} for target ${index + 1}`}
-                                  disabled={editing || generatingBarcodes[`target_${index}_${barcodeKey}`]}
-                                  onClick={() => autoGenerateBarcodeForItem(index, barcodeKey)}>
+                                  disabled={generatingBarcodes[`target_${index}_${barcodeKey}`]}
+                                  onClick={() => openBarcodeGeneration(index, barcodeKey)}>
                                   {generatingBarcodes[`target_${index}_${barcodeKey}`] ? <CircularProgress size={16} /> : <AutorenewIcon fontSize="small" />}
                                 </IconButton></span>
                               </Tooltip>
@@ -2694,7 +2575,7 @@ const DesignWorkflow: React.FC = () => {
                     ) : null}
 
                     <Grid item sx={{ width: 48 }}>
-                      <IconButton onClick={() => { setEditingBarcode(null); removeTarget(index); }}>
+                      <IconButton onClick={() => { setBarcodeGeneration(null); removeTarget(index); }}>
                         <DeleteIcon />
                       </IconButton>
                     </Grid>
@@ -3371,57 +3252,64 @@ const DesignWorkflow: React.FC = () => {
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle1" sx={{ mb: 2 }}>
               {(editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'gc_content') && '🧬 GC Content'}
-              {(editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'fold_score') && '📊 Fold Score'}
-              {editingAttribute?.name === 'tm' && '🌡️ Melting Temperature'}
-              {(editingAttribute?.name === 'selfMatch' || editingAttribute?.name === 'self_match') && '🔍 Self Match'}
-              {(editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'mapped_genes') && '🧬 Mapped Genes'}
+              {editingAttribute?.name && !['gcContent', 'gc_content', 'kmerCount', 'kmer_count', 'mappedSites', 'mapped_sites'].includes(editingAttribute.name) && editingAttribute.name}
               {(editingAttribute?.name === 'kmerCount' || editingAttribute?.name === 'kmer_count') && '🔢 K-mer Count'}
               {(editingAttribute?.name === 'mappedSites' || editingAttribute?.name === 'mapped_sites') && '📍 Mapped Sites'}
             </Typography>
             <Grid container spacing={2}>
-              {(editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'gc_content' || editingAttribute?.name === 'tm') && (
+              <Grid item xs={12}>
+                <FormControlLabel label="Enable filtering" control={<Switch
+                  checked={editingAttribute?.filterEnabled !== false}
+                  onChange={(_, checked) => setEditingAttribute(prev => prev ? { ...prev, filterEnabled: checked } : null)}
+                />} />
+                <TextField fullWidth multiline margin="dense" label="Filter expression (advanced)"
+                  disabled={editingAttribute?.filterEnabled === false}
+                  value={editingAttribute ? buildAttributeFilter({ ...editingAttribute, filterEnabled: true }, getEditingFilterName(), ['gcContent', 'gc_content'].includes(editingAttribute.name)) : ''}
+                  helperText="Conditions are preserved as written. GC values here use 0–1; the bounds below use percent."
+                  onChange={event => setEditingAttribute(prev => prev ? {
+                    ...prev, min: undefined, max: undefined,
+                    ...parseAttributeFilter(getEditingFilterName(), ['gcContent', 'gc_content'].includes(prev.name) ? 'gc_content' : '', event.target.value),
+                    filterEnabled: true
+                  } : null)}
+                />
+              </Grid>
+              {(editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'gc_content' || editingAttribute?.name === 'tm' || editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'fold_score' || editingAttribute?.name === 'selfMatch' || editingAttribute?.name === 'self_match' || editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'mapped_genes') && (
                 <>
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
                       label="Min"
                       type="number"
-                      value={editingAttribute?.min}
+                      value={editingAttribute?.min ?? ''}
+                      disabled={editingAttribute?.filterEnabled === false}
                       onChange={(e) => setEditingAttribute(prev => prev ? {
                         ...prev,
-                        min: Number(e.target.value)
+                        min: e.target.value === '' ? undefined : Number(e.target.value), filterExpression: undefined
                       } : null)}
                     />
+                    <FormControlLabel label="Include minimum" control={<Switch
+                      checked={editingAttribute?.minInclusive !== false}
+                      onChange={(_, checked) => setEditingAttribute(prev => prev ? { ...prev, minInclusive: checked, filterExpression: undefined } : null)}
+                    />} />
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
                       label="Max"
                       type="number"
-                      value={editingAttribute?.max}
+                      value={editingAttribute?.max ?? ''}
+                      disabled={editingAttribute?.filterEnabled === false}
                       onChange={(e) => setEditingAttribute(prev => prev ? {
                         ...prev,
-                        max: Number(e.target.value)
+                        max: e.target.value === '' ? undefined : Number(e.target.value), filterExpression: undefined
                       } : null)}
                     />
+                    <FormControlLabel label="Include maximum" control={<Switch
+                      checked={editingAttribute?.maxInclusive !== false}
+                      onChange={(_, checked) => setEditingAttribute(prev => prev ? { ...prev, maxInclusive: checked, filterExpression: undefined } : null)}
+                    />} />
                   </Grid>
                 </>
-              )}
-              {(editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'fold_score' || 
-                editingAttribute?.name === 'selfMatch' || editingAttribute?.name === 'self_match' || 
-                editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'mapped_genes') && (
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Max"
-                    type="number"
-                    value={editingAttribute?.max}
-                    onChange={(e) => setEditingAttribute(prev => prev ? {
-                      ...prev,
-                      max: Number(e.target.value)
-                    } : null)}
-                  />
-                </Grid>
               )}
               {(editingAttribute?.name === 'kmerCount' || editingAttribute?.name === 'kmer_count') && (
                 <Grid item xs={12}>
@@ -3468,6 +3356,31 @@ const DesignWorkflow: React.FC = () => {
       </Dialog>
 
 
+      <Dialog open={barcodeGeneration !== null} onClose={() => setBarcodeGeneration(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Generate barcode</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus fullWidth margin="dense" label="Barcode length (bp)" type="number"
+            value={generationLength} onChange={event => setGenerationLength(event.target.value)}
+            inputProps={{ min: 1, step: 1 }}
+            error={!Number.isSafeInteger(Number(generationLength)) || Number(generationLength) < 1}
+            helperText="Enter a positive whole number."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBarcodeGeneration(null)}>Cancel</Button>
+          <Button variant="contained"
+            disabled={!Number.isSafeInteger(Number(generationLength)) || Number(generationLength) < 1}
+            onClick={() => {
+              if (!barcodeGeneration) return;
+              const { itemIndex, barcodeKey } = barcodeGeneration;
+              setBarcodeGeneration(null);
+              void autoGenerateBarcodeForItem(itemIndex, barcodeKey, Number(generationLength));
+            }}>
+            Generate
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

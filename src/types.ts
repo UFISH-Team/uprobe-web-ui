@@ -102,6 +102,8 @@ export interface ProbeConfig {
 }
 
 export interface CustomProbeType {
+  extraFilters?: Record<string, { condition: string }>;
+  sortDefaults?: { category: string; field: string; order: 'asc' | 'desc' }[];
   id: string;
   name: string;
   type: string;
@@ -119,10 +121,10 @@ export interface CustomProbeType {
   };
   barcodeConfig?: {
     count: number;
-    default_length: number;
+    default_length?: number;
     barcodes: Record<string, {
       name: string;
-      length: number;
+      length?: number;
     }>;
   };
   probes?: Record<string, ProbeConfig>;
@@ -172,7 +174,7 @@ export const extractParametersFromYaml = (yamlContent: string) => {
   } else if (parsed.barcodes) {
     // Handle the format used in CustomProbe page and downloaded configs
     const barcodes = parsed.barcodes.barcodes || {};
-    const barcodeEntries: Record<string, { name: string; length: number }> = {};
+    const barcodeEntries: Record<string, { name: string; length?: number }> = {};
     
     // Convert BC1, BC2 format to barcode1, barcode2 format for internal use
     Object.entries(barcodes).forEach(([key, config]: [string, any]) => {
@@ -181,16 +183,14 @@ export const extractParametersFromYaml = (yamlContent: string) => {
         const barcodeKey = `barcode${barcodeIndex}`;
         barcodeEntries[barcodeKey] = {
           name: key,
-          length: config.length || 12
+          length: config.length
         };
       }
     });
     
     parameters.barcodeConfig = {
       count: parsed.barcodes.count,
-      default_length: parsed.barcodes.default_length || 
-        (Object.keys(barcodeEntries).length > 0 ? 
-          Math.min(...Object.values(barcodeEntries).map(b => b.length)) : 12),
+      default_length: parsed.barcodes.default_length,
       barcodes: barcodeEntries
     };
   }
