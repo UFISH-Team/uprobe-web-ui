@@ -101,8 +101,15 @@ export interface ProbeConfig {
   attributes?: Record<string, any>;
 }
 
+export interface WorkflowFilter {
+  condition?: string;
+  type?: 'sequence_pattern';
+  target?: string;
+  exclude_patterns?: string[];
+}
+
 export interface CustomProbeType {
-  extraFilters?: Record<string, { condition: string }>;
+  extraFilters?: Record<string, WorkflowFilter>;
   sortDefaults?: { category: string; field: string; order: 'asc' | 'desc' }[];
   id: string;
   name: string;
