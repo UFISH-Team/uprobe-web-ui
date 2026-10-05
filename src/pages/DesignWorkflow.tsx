@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createTheme, ThemeProvider, useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { 
   Autocomplete,
@@ -14,7 +15,6 @@ import {
   InputLabel, 
   FormControl, 
   Grid, 
-  Divider, 
   IconButton, 
   LinearProgress, 
   Dialog, 
@@ -61,7 +61,8 @@ import DownloadIcon from '@mui/icons-material/Download';
 import Papa from 'papaparse';
 import useDesignStore from '../store/designStore';
 import ApiService from '../api';
-import { CustomProbeType, extractParametersFromYaml } from '../types';
+import { CustomProbeType, WorkflowFilter, extractParametersFromYaml } from '../types';
+import SequenceFilters from '../components/SequenceFilters';
 
 import YAML from 'yaml';
 import { AttributeFilter, parseAttributeFilter, buildAttributeFilter } from '../utils/attributeFilters';
@@ -119,6 +120,20 @@ const getProbeType = (customType?: CustomProbeType | null): 'DNA' | 'RNA' => {
 };
 
 const DesignWorkflow: React.FC = () => {
+  const inheritedTheme = useTheme();
+  const workflowTheme = React.useMemo(() => createTheme(inheritedTheme, {
+    components: {
+      MuiCard: { defaultProps: { variant: 'outlined' }, styleOverrides: { root: { borderRadius: 12, boxShadow: 'none' } } },
+      MuiCardHeader: { styleOverrides: { root: { padding: '20px 24px 12px' }, title: { fontSize: '1.05rem', fontWeight: 600 }, subheader: { fontSize: '0.8rem', marginTop: 4 }, action: { marginTop: 0 } } },
+      MuiCardContent: { styleOverrides: { root: { padding: '12px 24px 20px', '&:last-child': { paddingBottom: 20 } } } },
+      MuiTextField: { defaultProps: { size: 'small' } },
+      MuiFormControl: { defaultProps: { size: 'small' } },
+      MuiButton: { defaultProps: { disableElevation: true, size: 'small' }, styleOverrides: { root: { textTransform: 'none', borderRadius: 8, fontWeight: 600 } } },
+      MuiAccordion: { defaultProps: { disableGutters: true, elevation: 0 }, styleOverrides: { root: { border: '1px solid', borderColor: inheritedTheme.palette.divider, borderRadius: '8px !important', '&:before': { display: 'none' } } } },
+      MuiAccordionSummary: { styleOverrides: { root: { minHeight: 48 }, content: { margin: '10px 0', '& .MuiBox-root': { marginBottom: 0 } } } },
+      MuiDialogTitle: { styleOverrides: { root: { fontSize: '1.1rem', fontWeight: 600 } } },
+    }
+  }), [inheritedTheme]);
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
   const [barcodeLibrary, setBarcodeLibrary] = useState<{ name: string; sequence: string }[]>([]);
   const [activeSection, setActiveSection] = useState('species');
@@ -183,7 +198,7 @@ const DesignWorkflow: React.FC = () => {
   const [enableBasicFilter, setEnableBasicFilter] = useState(true);
   const [enableAvoidOtp, setEnableAvoidOtp] = useState(false);
   const [enableEqualSpace, setEnableEqualSpace] = useState(false);
-  const [enableRemoveOverlap, setEnableRemoveOverlap] = useState(true);
+  const [enableRemoveOverlap, setEnableRemoveOverlap] = useState(false);
   const [enableSorting, setEnableSorting] = useState(true);
   
   // avoid_otp configuration interface
@@ -524,7 +539,7 @@ const DesignWorkflow: React.FC = () => {
           // Parse attributes and distribute them
           const attributes = JSON.parse(JSON.stringify(typedConfig.attributes || {}));
           
-          const filters: Record<string, { condition: string }> = typedConfig.post_process?.filters || {};
+          const filters: Record<string, WorkflowFilter> = typedConfig.post_process?.filters || {};
           const filterValues: Record<string, AttributeFilter> = {};
           for (const [name, attr] of Object.entries(attributes)) {
             filterValues[name] = parseAttributeFilter(name, (attr as any).type, filters[name]?.condition);
@@ -728,6 +743,7 @@ const DesignWorkflow: React.FC = () => {
         
         const updatedCustomType = {
           ...customType,
+          extraFilters: { ...customType.extraFilters, ...Object.fromEntries(Object.entries(YAML.parse(customType.yamlContent)?.post_process?.filters || {}).filter(([, rule]) => (rule as WorkflowFilter).type === 'sequence_pattern')) } as Record<string, WorkflowFilter>,
           targetLength: parameters?.targetLength || customType.targetLength,
           barcodeCount: parameters?.barcodeCount || parameters?.barcodeConfig?.count || customType.barcodeCount,
           probes: enabledProbes,
@@ -902,6 +918,7 @@ const DesignWorkflow: React.FC = () => {
         
         const updatedCustomType = {
           ...customType,
+          extraFilters: { ...customType.extraFilters, ...Object.fromEntries(Object.entries(YAML.parse(customType.yamlContent)?.post_process?.filters || {}).filter(([, rule]) => (rule as WorkflowFilter).type === 'sequence_pattern')) } as Record<string, WorkflowFilter>,
           targetLength: parameters?.targetLength || customType.targetLength,
           barcodeCount: parameters?.barcodeCount || parameters?.barcodeConfig?.count || customType.barcodeCount,
           probes: enabledProbes,
@@ -1239,6 +1256,16 @@ const DesignWorkflow: React.FC = () => {
     setEnableSorting(defaults.length > 0);
     setBarcodeGeneration(null);
   }, [selectedCustomType?.id, selectedCustomType?.sortDefaults]);
+
+  // Missing remove_overlap means disabled, matching the backend configuration.
+  useEffect(() => {
+    const config = selectedCustomType?.yamlContent ? YAML.parse(selectedCustomType.yamlContent) : null;
+    const removeOverlap = config?.post_process?.remove_overlap;
+    setEnableRemoveOverlap(!!removeOverlap && typeof removeOverlap === 'object');
+    if (typeof removeOverlap?.location_interval === 'number') {
+      setOverlapThreshold(removeOverlap.location_interval);
+    }
+  }, [selectedCustomType?.id]);
 
   // when probe type changes, update DNA-specific features
   useEffect(() => {
@@ -1733,7 +1760,13 @@ const DesignWorkflow: React.FC = () => {
     
     // 1. Filters
     if (enableBasicFilter && selectedCustomType) {
-      const filters: any = { ...selectedCustomType.extraFilters };
+      const filters: any = Object.fromEntries(Object.entries(selectedCustomType.extraFilters || {}).map(([name, rule]) => [name, { ...rule }]));
+      for (const rule of Object.values(filters) as WorkflowFilter[]) {
+        if (rule.type !== 'sequence_pattern') continue;
+        rule.exclude_patterns = rule.exclude_patterns?.map(pattern => pattern.trim()).filter(Boolean);
+        if (!rule.target || !rule.exclude_patterns?.length) throw new Error('Sequence exclusions require a target and at least one pattern.');
+        rule.exclude_patterns.forEach(pattern => new RegExp(pattern, 'i'));
+      }
       
       // Target region filtering
       if (selectedCustomType.targetConfig?.attributes) {
@@ -2013,18 +2046,19 @@ const DesignWorkflow: React.FC = () => {
   }, [selectedCustomType, expandedSections.probeType]);
 
   return (
+    <ThemeProvider theme={workflowTheme}>
     <Container
       maxWidth={false}
       sx={{ 
         width: '100%',
-        px: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1.5, sm: 3, md: 4 },
         py: 2,
         height: { xs: 'calc(100dvh - 56px)', sm: 'calc(100dvh - 60px)' },
         display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
       }}>
 
       <Box sx={{ display: 'flex', alignItems: 'stretch', gap: { md: 3, lg: 4 }, flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <Box component="nav" aria-label="Workflow stages" sx={{ display: { xs: 'none', md: 'block' }, width: 208, flexShrink: 0, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
+        <Box component="nav" aria-label="Workflow stages" sx={{ display: { xs: 'none', md: 'block' }, width: 188, flexShrink: 0, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
           <Typography variant="overline" color="text.secondary" sx={{ pl: 1.5 }}>Workflow stages</Typography>
           <Stepper nonLinear orientation="vertical" activeStep={getActiveSteps().findIndex(step => step.id === activeSection)} sx={{ mt: 1,
             '& .MuiStepConnector-line': { borderColor: 'divider', minHeight: 16 },
@@ -2049,12 +2083,12 @@ const DesignWorkflow: React.FC = () => {
           </Stepper>
         </Box>
         <Box ref={workflowScroll} sx={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 1, pb: 3, overscrollBehavior: 'contain' }}>
-      <Box textAlign="center" sx={{ mb: 2, flexShrink: 0 }}>
+      <Box sx={{ mb: 3, flexShrink: 0 }}>
         <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', fontSize: 24 }} gutterBottom>
-          Ready to craft your perfect workflow? 🎨
+          Design probes
         </Typography>
-        <Typography variant="body1" color="text.primary" sx={{ fontSize: 17 }}>
-          Follow the steps below to design your probe workflow
+        <Typography variant="body2" color="text.secondary">
+          Choose a genome and probe type, add targets, then review your filters.
         </Typography>
       </Box>
 
@@ -2068,8 +2102,8 @@ const DesignWorkflow: React.FC = () => {
       {/* Species Option */}
       <Card id="design-species" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
-          title="🌍 Species Option" 
-          subheader="Choose the species genome to design your probes"
+          title="Genome" 
+          subheader={species ? getGenomeLabel(species) : "Select the reference genome"}
           action={
             <IconButton onClick={() => toggleSection('species')}>
               {expandedSections.species ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -2099,8 +2133,8 @@ const DesignWorkflow: React.FC = () => {
       {/* Probe Type */}
       <Card id="design-probeType" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
-          title="🔬 Probe Type" 
-          subheader="Choose from existing probe types or use a custom design from history"
+          title="Probe type" 
+          subheader={probeType || "Select a built-in or saved design"}
           action={
             <IconButton onClick={() => toggleSection('probeType')}>
               {expandedSections.probeType ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -2109,10 +2143,7 @@ const DesignWorkflow: React.FC = () => {
         />
         <Collapse in={expandedSections.probeType}>
           <CardContent>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              We are gradually adding more FISH methods as built-in probe types. Stay tuned!
-            </Alert>
-            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
               <FormControl fullWidth>
                 <InputLabel id="probe-type-label">Probe Type</InputLabel>
                 <Select
@@ -2156,7 +2187,7 @@ const DesignWorkflow: React.FC = () => {
                 onClick={() => setShowCustomProbeTypes(true)}
                 disabled={isLoadingCustomTypes}
               >
-                View Custom Types
+                Saved designs
               </Button>
             </Box>
 
@@ -2168,15 +2199,15 @@ const DesignWorkflow: React.FC = () => {
                   boxShadow: 'none'
                 }}>
                   <CardHeader
-                    title="⚙️ Custom Probe Parameters"
-                    subheader="Adjust the parameters for your custom probe design"
+                    title="Probe parameters"
+                    subheader="Sequence structure and attribute conditions"
                   />
                   <CardContent>
                     {/* Target Sequence Configuration */}
-                    <Box sx={{ mb: 4 }}>
+                    <Box sx={{ mb: 3 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h6" sx={{ color: 'text.primary' }}>
-                          🎯 Target Sequence Configuration
+                        <Typography variant="subtitle1" sx={{ color: 'text.primary', fontWeight: 600 }}>
+                          Target sequence
                         </Typography>
                         <Tooltip title="Add target sequence attributes">
                           <IconButton
@@ -2301,10 +2332,10 @@ const DesignWorkflow: React.FC = () => {
                     </Box>
 
                     {/* Probe Configuration */}
-                    <Box sx={{ mb: 4 }}>
+                    <Box sx={{ mb: 3 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h6" sx={{ color: 'text.primary' }}>
-                          🔬 Probe Configuration
+                        <Typography variant="subtitle1" sx={{ color: 'text.primary', fontWeight: 600 }}>
+                          Probe sequences
                         </Typography>
                       </Box>
 
@@ -2423,8 +2454,8 @@ const DesignWorkflow: React.FC = () => {
       {/* Targets */}
       <Card id="design-geneMap" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
-          title="🎯 Targets" 
-          subheader="Input target names and select barcodes according to your probe type configuration."
+          title="Targets" 
+          subheader={`${targetList.filter(item => item.target.trim()).length} targets · Enter directly or import a CSV file`}
           action={
             <IconButton onClick={() => toggleSection('geneMap')}>
               {expandedSections.geneMap ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -2433,13 +2464,13 @@ const DesignWorkflow: React.FC = () => {
         />
         <Collapse in={expandedSections.geneMap}>
           <CardContent>
-            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
               <Button
                 variant="outlined"
                 component="label"
                 startIcon={<AddIcon />}
               >
-                Upload target list (.csv)
+                Import CSV
                 <input
                   type="file"
                   hidden
@@ -2448,12 +2479,12 @@ const DesignWorkflow: React.FC = () => {
                 />
               </Button>
               <Button
-                variant="outlined"
-                color="error"
+                variant="text"
+                color="inherit"
                 startIcon={<DeleteIcon />}
                 onClick={handleResetTargetList}
               >
-                Reset Target List
+                Clear targets
               </Button>
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
@@ -2598,8 +2629,8 @@ const DesignWorkflow: React.FC = () => {
       {/* Post Processing Step */}
       <Card id="design-postProcessing" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader
-          title="🛠️ Post Processing"
-          subheader="Configure processing options for optimal probe selection"
+          title="Post Processing"
+          subheader="Filter candidates, define priority and select probes"
           action={
             <IconButton onClick={() => setShowPostProcess(!showPostProcess)}>
               {showPostProcess ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -2609,239 +2640,37 @@ const DesignWorkflow: React.FC = () => {
         <Collapse in={showPostProcess}>
           <CardContent>
             <Stack spacing={3}>
-              {/* Processing Options Grid */}
-              <Grid container spacing={2}>
-                {/* Basic Filtering */}
-                <Grid item xs={12} sm={6} md={4}>
-                  <Paper 
-                    elevation={enableBasicFilter ? 2 : 0}
-                    sx={{ 
-                      p: 2, 
-                      height: '100%',
-                      border: enableBasicFilter ? '2px solid' : '1px solid',
-                      borderColor: enableBasicFilter ? 'primary.main' : 'divider',
-                      backgroundColor: enableBasicFilter ? 'primary.50' : 'background.paper',
-                      transition: 'all 0.2s ease-in-out'
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={enableBasicFilter}
-                          onChange={(e) => setEnableBasicFilter(e.target.checked)}
-                          color="primary"
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography variant="subtitle1" fontWeight="medium">
-                            🔍 Basic Filtering
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Apply attribute-based filters
-                          </Typography>
-                        </Box>
-                      }
-                      labelPlacement="start"
-                      sx={{ 
-                        width: '100%', 
-                        justifyContent: 'space-between',
-                        ml: 0,
-                        mr: 0
-                      }}
-                    />
-                  </Paper>
-                </Grid>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, p: 1, bgcolor: 'grey.50', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                {[
+                  { label: 'Basic Filtering', checked: enableBasicFilter, change: setEnableBasicFilter },
+                  { label: 'Sorting', checked: enableSorting, change: setEnableSorting },
+                  { label: 'Remove Overlap', checked: enableRemoveOverlap, change: setEnableRemoveOverlap },
+                  ...(shouldEnableDnaFeatures() ? [
+                    { label: 'Avoid Off-Target', checked: enableAvoidOtp, change: (value: boolean) => { setEnableAvoidOtp(value); if (value) initializeAvoidOtpConfig(); } },
+                    { label: 'Equal Spacing', checked: enableEqualSpace, change: (value: boolean) => { setEnableEqualSpace(value); if (value) initializeEqualSpaceConfig(); } },
+                  ] : [])
+                ].map(option => <Box key={option.label} sx={{ px: 1.5, py: 0.5, borderRadius: 1.5, bgcolor: option.checked ? 'background.paper' : 'transparent', boxShadow: option.checked ? '0 1px 4px rgba(15,23,42,0.08)' : 'none' }}>
+                  <FormControlLabel sx={{ m: 0, gap: 1 }} label={<Typography variant="body2" fontWeight={option.checked ? 600 : 400} color={option.checked ? 'text.primary' : 'text.secondary'}>{option.label}</Typography>} labelPlacement="start"
+                    control={<Switch size="small" checked={option.checked} onChange={event => option.change(event.target.checked)} />} />
+                </Box>)}
+              </Box>
 
-                {/* Avoid Off-Target Priming */}
-                <Grid item xs={12} sm={6} md={4}>
-                  <Paper 
-                    elevation={enableAvoidOtp ? 2 : 0}
-                    sx={{ 
-                      p: 2, 
-                      height: '100%',
-                      border: enableAvoidOtp ? '2px solid' : '1px solid',
-                      borderColor: enableAvoidOtp ? 'warning.main' : 'divider',
-                      backgroundColor: enableAvoidOtp ? 'warning.50' : !shouldEnableDnaFeatures() ? 'grey.100' : 'background.paper',
-                      opacity: !shouldEnableDnaFeatures() ? 0.6 : 1,
-                      transition: 'all 0.2s ease-in-out'
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={enableAvoidOtp}
-                          onChange={(e) => {
-                            setEnableAvoidOtp(e.target.checked);
-                            if (e.target.checked) {
-                              initializeAvoidOtpConfig();
-                            }
-                          }}
-                          color="warning"
-                          disabled={!shouldEnableDnaFeatures()}
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography variant="subtitle1" fontWeight="medium" sx={{ color: !shouldEnableDnaFeatures() ? 'text.disabled' : 'text.primary' }}>
-                            ⚠️ Avoid Off-Target
-                          </Typography>
-                          <Typography variant="caption" color={!shouldEnableDnaFeatures() ? 'text.disabled' : 'text.secondary'}>
-                            {!shouldEnableDnaFeatures() ? 'DNA only' : 'Prevent off-target binding'}
-                          </Typography>
-                        </Box>
-                      }
-                      labelPlacement="start"
-                      sx={{ 
-                        width: '100%', 
-                        justifyContent: 'space-between',
-                        ml: 0,
-                        mr: 0
-                      }}
-                    />
-                  </Paper>
-                </Grid>
-
-                {/* Equal Spacing */}
-                <Grid item xs={12} sm={6} md={4}>
-                  <Paper 
-                    elevation={enableEqualSpace ? 2 : 0}
-                    sx={{ 
-                      p: 2, 
-                      height: '100%',
-                      border: enableEqualSpace ? '2px solid' : '1px solid',
-                      borderColor: enableEqualSpace ? 'secondary.main' : 'divider',
-                      backgroundColor: enableEqualSpace ? 'secondary.50' : !shouldEnableDnaFeatures() ? 'grey.100' : 'background.paper',
-                      opacity: !shouldEnableDnaFeatures() ? 0.6 : 1,
-                      transition: 'all 0.2s ease-in-out'
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={enableEqualSpace}
-                          onChange={(e) => {
-                            setEnableEqualSpace(e.target.checked);
-                            if (e.target.checked) {
-                              initializeEqualSpaceConfig();
-                            }
-                          }}
-                          color="secondary"
-                          disabled={!shouldEnableDnaFeatures()}
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography variant="subtitle1" fontWeight="medium" sx={{ color: !shouldEnableDnaFeatures() ? 'text.disabled' : 'text.primary' }}>
-                            📏 Equal Spacing
-                          </Typography>
-                          <Typography variant="caption" color={!shouldEnableDnaFeatures() ? 'text.disabled' : 'text.secondary'}>
-                            {!shouldEnableDnaFeatures() ? 'DNA only' : 'Distribute probes evenly'}
-                          </Typography>
-                        </Box>
-                      }
-                      labelPlacement="start"
-                      sx={{ 
-                        width: '100%', 
-                        justifyContent: 'space-between',
-                        ml: 0,
-                        mr: 0
-                      }}
-                    />
-                  </Paper>
-                </Grid>
-
-                {/* Remove Overlap */}
-                <Grid item xs={12} sm={6} md={4}>
-                  <Paper 
-                    elevation={enableRemoveOverlap ? 2 : 0}
-                    sx={{ 
-                      p: 2, 
-                      height: '100%',
-                      border: enableRemoveOverlap ? '2px solid' : '1px solid',
-                      borderColor: enableRemoveOverlap ? 'error.main' : 'divider',
-                      backgroundColor: enableRemoveOverlap ? 'error.50' : 'background.paper',
-                      transition: 'all 0.2s ease-in-out'
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={enableRemoveOverlap}
-                          onChange={(e) => setEnableRemoveOverlap(e.target.checked)}
-                          color="error"
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography variant="subtitle1" fontWeight="medium">
-                            🚫 Remove Overlap
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Eliminate overlapping probes
-                          </Typography>
-                        </Box>
-                      }
-                      labelPlacement="start"
-                      sx={{ 
-                        width: '100%', 
-                        justifyContent: 'space-between',
-                        ml: 0,
-                        mr: 0
-                      }}
-                    />
-                  </Paper>
-                </Grid>
-
-                {/* Sorting Options */}
-                <Grid item xs={12} sm={6} md={4}>
-                  <Paper 
-                    elevation={enableSorting ? 2 : 0}
-                    sx={{ 
-                      p: 2, 
-                      height: '100%',
-                      border: enableSorting ? '2px solid' : '1px solid',
-                      borderColor: enableSorting ? 'info.main' : 'divider',
-                      backgroundColor: enableSorting ? 'info.50' : 'background.paper',
-                      transition: 'all 0.2s ease-in-out'
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={enableSorting}
-                          onChange={(e) => setEnableSorting(e.target.checked)}
-                          color="info"
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography variant="subtitle1" fontWeight="medium">
-                            🔄 Sorting Options
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Sort by attributes
-                          </Typography>
-                        </Box>
-                      }
-                      labelPlacement="start"
-                      sx={{ 
-                        width: '100%', 
-                        justifyContent: 'space-between',
-                        ml: 0,
-                        mr: 0
-                      }}
-                    />
-                  </Paper>
-                </Grid>
-              </Grid>
+              {/* Basic filtering: sequence patterns */}
+              {enableBasicFilter && selectedCustomType && <SequenceFilters
+                targets={['target_region', ...Object.entries(selectedCustomType.probes || {}).flatMap(([name, probe]) => {
+                  const target = /^\d+$/.test(name) ? `probe${Number(name) + 1}` : name;
+                  return [target, ...Object.keys(probe.parts || {}).map(part => `${target}.${/^\d+$/.test(part) ? `part${Number(part) + 1}` : part}`)];
+                })]}
+                filters={selectedCustomType.extraFilters || {}}
+                onChange={extraFilters => setSelectedCustomType({ ...selectedCustomType, extraFilters })}
+              />}
 
               {/* Configuration Sections */}
               {/* Avoid OTP Configuration */}
               <Collapse in={enableAvoidOtp}>
                 <Paper variant="outlined" sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom>
-                    ⚠️ Off-Target Peak
+                    Off-target avoidance
                   </Typography>
                   {getCurrentTargets().length > 0 ? (
                     <Grid container spacing={2}>
@@ -2901,7 +2730,7 @@ const DesignWorkflow: React.FC = () => {
               <Collapse in={enableEqualSpace}>
                 <Paper variant="outlined" sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom>
-                    📏 Equal Spacing 
+                    Equal spacing 
                   </Typography>
                   {getCurrentTargets().length > 0 ? (
                     <Grid container spacing={2}>
@@ -2942,7 +2771,7 @@ const DesignWorkflow: React.FC = () => {
               <Collapse in={enableRemoveOverlap}>
                 <Paper variant="outlined" sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom>
-                    🚫 Overlap Removal 
+                    Overlap removal
                   </Typography>
                   <Box sx={{ maxWidth: 300 }}>
                     <TextField
@@ -2964,7 +2793,7 @@ const DesignWorkflow: React.FC = () => {
               <Collapse in={enableSorting}>
                 <Paper variant="outlined" sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom>
-                    🔄 Sorting 
+                    Sorting priority
                   </Typography>
                   <Stack spacing={2}>
                     {sortOptions.map((option, index) => (
@@ -3052,6 +2881,17 @@ const DesignWorkflow: React.FC = () => {
                   </Stack>
                 </Paper>
               </Collapse>
+              <Box sx={{ pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="overline" color="text.secondary">Active configuration</Typography>
+                <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 0.5 }}>
+                  <Chip size="small" variant="outlined" label={`Basic filtering: ${enableBasicFilter ? 'On' : 'Off'}`} />
+                  {enableBasicFilter && <Chip size="small" variant="outlined" label={`Sequence patterns: ${Object.values(selectedCustomType?.extraFilters || {}).filter(rule => rule.type === 'sequence_pattern').reduce((count, rule) => count + (rule.exclude_patterns || []).filter(Boolean).length, 0)}`} />}
+                  <Chip size="small" variant="outlined" label={`Overlap removal: ${enableRemoveOverlap ? `${overlapThreshold} bp` : 'Off'}`} />
+                  {enableSorting && sortOptions.filter(option => option.field).map((option, index) => <Chip key={option.field} size="small" color="primary" variant="outlined" label={`${index + 1}. ${option.field} ${option.order === 'asc' ? '↑' : '↓'}`} />)}
+                  {!enableSorting && <Chip size="small" variant="outlined" label="Sorting: Off" />}
+                  {shouldEnableDnaFeatures() && <Chip size="small" variant="outlined" label={`Off-target: ${enableAvoidOtp ? 'On' : 'Off'} · Spacing: ${enableEqualSpace ? 'On' : 'Off'}`} />}
+                </Stack>
+              </Box>
             </Stack>
           </CardContent>
         </Collapse>
@@ -3060,8 +2900,8 @@ const DesignWorkflow: React.FC = () => {
       {/* Task Name */}
       <Card id="design-taskName" sx={{ mb: 3, scrollMarginTop: 16 }}>
         <CardHeader 
-          title="📝 Task Name" 
-          subheader="Give your task a unique name to easily identify it (optional - will auto-generate if empty)"
+          title="Task name" 
+          subheader="Optional · A name is generated automatically"
           action={
             <IconButton onClick={() => toggleSection('taskName')}>
               {expandedSections.taskName ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -3082,13 +2922,15 @@ const DesignWorkflow: React.FC = () => {
         </Collapse>
       </Card>
 
-      <Divider sx={{ my: 4 }} />
-
       {/* Submit button and progress bar */}
-      <Box display="flex" justifyContent="center" alignItems="center" mt={4}>
+      <Box sx={{ position: 'sticky', bottom: 0, zIndex: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap', p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2, boxShadow: '0 -4px 18px rgba(15,23,42,0.04)' }}>
+        <Box>
+          <Typography variant="body2" fontWeight={600}>{probeType || 'Select a probe type'} · {targetList.filter(item => item.target.trim()).length} targets</Typography>
+          <Typography variant="caption" color="text.secondary">{species ? getGenomeLabel(species) : 'Select a genome'} · Review your configuration before submitting</Typography>
+        </Box>
         <Button
           variant="contained"
-          color={isSubmitting ? 'secondary' : 'primary'}
+          color="primary"
           onClick={handleSubmitTask}
           disabled={isSubmitting}
           size="large"
@@ -3382,7 +3224,9 @@ const DesignWorkflow: React.FC = () => {
         </DialogActions>
       </Dialog>
     </Container>
+    </ThemeProvider>
   );
 };
 
 export default DesignWorkflow;
+
