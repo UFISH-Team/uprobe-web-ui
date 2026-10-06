@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 const load = path => {
  const module={exports:{}};
- vm.runInNewContext(ts.transpile(fs.readFileSync(path,'utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}),{module,exports:module.exports,require:name=>name==='./attributeFilters'?load('src/utils/attributeFilters.ts'):null,console});
+ vm.runInNewContext(ts.transpile(fs.readFileSync(path,'utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}),{module,exports:module.exports,require:name=>name==='./sampling'?load('src/utils/sampling.ts'):name==='./attributeFilters'?load('src/utils/attributeFilters.ts'):null,console});
  return module.exports;
 };
 const {restoreTemplate,validateProbeDependencies,exportAttribute}=load('src/utils/probeConfig.ts');

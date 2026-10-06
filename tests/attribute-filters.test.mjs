@@ -7,6 +7,9 @@ const require = createRequire(import.meta.url);
 const module = { exports: {} };
 vm.runInNewContext(ts.transpile(fs.readFileSync('src/utils/attributeFilters.ts', 'utf8'), { module: ts.ModuleKind.CommonJS }), { exports: module.exports, module });
 const {parseAttributeFilter: parse, buildAttributeFilter: build} = module.exports;
+const samplingModule = { exports: {} };
+vm.runInNewContext(ts.transpile(fs.readFileSync('src/utils/sampling.ts', 'utf8'), { module: ts.ModuleKind.CommonJS }), { exports: samplingModule.exports, module: samplingModule });
+const { samplingStep } = samplingModule.exports;
 const plain = value => JSON.parse(JSON.stringify(value));
 assert.equal(build(parse('score','fold_score'), 'score', false), '');
 for (const expression of ['score > -1e-3', 'score <= 15', 'score >= 0 & score < 40', '(score > 1 | score < -1)', 'score > 1 & other < 5']) {
@@ -40,7 +43,7 @@ const snake=vm.runInNewContext(ts.transpile(source.slice(snakeStart,snakeEnd)+'\
 const exportStart=source.indexOf('    // 1. Filters',source.indexOf('const generateTaskConfig'));
 const exportEnd=source.indexOf('    // 2.',exportStart);
 function roundtrip(data) {
- const ctx={builtinData:data,builtinTypes:[],YAML:require('yaml'),getSnakeCaseAttrName:snake,parseAttributeFilter:parse,extractParametersFromYaml:()=>({}),console};
+ const ctx={samplingStep,builtinData:data,builtinTypes:[],YAML:require('yaml'),getSnakeCaseAttrName:snake,parseAttributeFilter:parse,extractParametersFromYaml:()=>({}),console};
  vm.runInNewContext(ts.transpile(source.slice(loopStart,loopEnd),{target:ts.ScriptTarget.ES2020}),ctx);
  for(const type of ctx.builtinTypes) {
   const output={};

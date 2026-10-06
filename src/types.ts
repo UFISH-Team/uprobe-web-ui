@@ -1,3 +1,5 @@
+import { TargetLayout } from './utils/targetLayout';
+import { TargetLength, samplingStep } from './utils/sampling';
 import yaml from 'js-yaml';
 
 // Folder chain type for file navigation
@@ -118,12 +120,15 @@ export interface CustomProbeType {
   createdAt: Date;
   updatedAt: Date;
   barcodeCount: number;
-  targetLength?: number;
+  targetLength?: TargetLength;
+  step?: number;
   overlap?: number;
   targetConfig?: {
     source: string;
     sequence: string;
-    length: number;
+    length: TargetLength;
+    step?: number;
+    layout?: TargetLayout;
     attributes?: Record<string, any>;
   };
   barcodeConfig?: {
@@ -157,6 +162,7 @@ export const extractParametersFromYaml = (yamlContent: string) => {
   // Extract target sequence information
   if (parsed.target_sequence) {
     parameters.target_sequence = {
+      ...parsed.target_sequence,
       source: parsed.target_sequence.source,
       sequence: parsed.target_sequence.sequence,
       length: parsed.target_sequence.length,
@@ -202,9 +208,11 @@ export const extractParametersFromYaml = (yamlContent: string) => {
     };
   }
 
-  // Extract overlap from extracts section
-  if (parsed.extracts && parsed.extracts.target_region && parsed.extracts.target_region.overlap !== undefined) {
-    parameters.overlap = parsed.extracts.target_region.overlap;
+  const region = parsed.extracts?.target_region || parsed.target_sequence;
+  if (region?.length !== undefined) {
+    parameters.targetLength = region.length;
+    parameters.step = samplingStep(region);
+    parameters.target_sequence ||= { ...region, sequence: '', attributes: {} };
   }
 
   // Extract probe names and their parts

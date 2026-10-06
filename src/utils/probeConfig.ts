@@ -1,9 +1,11 @@
+import { samplingStep } from './sampling';
 import { parseAttributeFilter } from './attributeFilters';
 export const attributeType = (name: string) => ({gcContent:'gc_content',foldScore:'fold_score',tm:'annealing_temperature',selfMatch:'self_match',mappedGenes:'mapped_genes',kmerCount:'kmer_count',mappedSites:'mapped_sites'} as Record<string,string>)[name] || (name === 'tm' ? 'annealing_temperature' : name);
 export function restoreTemplate(config: any) {
   const probes = JSON.parse(JSON.stringify(config.probes || {}));
   const region = config.target_sequence || config.extracts?.target_region || {};
   const targetConfig = { ...region, source: region.source || 'exon', sequence: region.sequence || '', attributes: { ...(region.attributes || {}) } };
+  if (region.length !== undefined) { targetConfig.step = samplingStep(region); delete targetConfig.overlap; }
   const filters = config.post_process?.filters || {};
   const used = new Set<string>();
   const aliases: Record<string,{category:string;field:string}> = {n_trans:{category:'Sequence Metadata',field:'n_trans'}};
@@ -25,6 +27,10 @@ export function restoreTemplate(config: any) {
     const attr = data as any;
     const target = attr.target?.replace(/:/g,'.');
     if (!target) continue;
+    if (target.startsWith('target_parts.')) {
+      if (!targetConfig.layout?.parts?.[target.slice('target_parts.'.length)]) throw new Error(`Attribute ${name} references missing target part ${target}`);
+      continue;
+    }
     const value = {...attr,...parseAttributeFilter(name,attr.type,filters[name]?.condition),enabled:true,originalType:attr.type};
     const scope = target === 'target_region' ? targetConfig : target.includes('.') ? probes[target.split('.')[0]]?.parts?.[target.split('.')[1]] : probes[target];
     if (!scope) throw new Error(`Attribute ${name} references missing sequence ${target}`);

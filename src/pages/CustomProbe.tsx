@@ -1,3 +1,7 @@
+import TargetLengthEditor from '../components/TargetLengthEditor';
+import TargetLayoutEditor from '../components/TargetLayoutEditor';
+import { TargetLayout, validateTargetLayout } from '../utils/targetLayout';
+import { TargetLength, formatTargetLength, parseTargetLength } from '../utils/sampling';
 import React, { useState, useEffect, useRef } from "react";
 import yaml from 'js-yaml';
 import { 
@@ -7,6 +11,7 @@ import {
   Button, 
   Paper, 
   IconButton, 
+  FormControlLabel,
   FormControl, 
   InputLabel, 
   Select, 
@@ -192,10 +197,11 @@ const reverseComplement = (sequence: string): string => {
 
 // Type definitions
 type TargetSource = 'genome' | 'exon' | 'CDS' | 'UTR';
-type PartSource = 'target' | 'barcode' | 'fixed' | 'external' | 'probe';
+type PartSource = 'target_part' | 'target' | 'barcode' | 'fixed' | 'external' | 'probe';
 type AlignerType = 'Bowtie2' | 'BLAST' | 'MMseqs2' | 'Jellyfish';
 
 interface TargetAttributes {
+  length?: { min?: number; max?: number; enabled?: boolean };
   gc_content?: {
     min?: number;
     max?: number;
@@ -233,11 +239,14 @@ interface TargetAttributes {
 interface TargetConfig {
   source: TargetSource;
   sequence: string;
-  length: number;
+  length: TargetLength;
+  step?: number;
+  layout?: TargetLayout;
   attributes: TargetAttributes;
 }
 
 interface PartAttributes {
+  length?: { min?: number; max?: number; enabled?: boolean };
   gc_content?: {
     min?: number;
     max?: number;
@@ -280,6 +289,8 @@ interface ProbePart {
   endPos?: number | '';
   isReverseComplement: boolean;
   label: string;
+  targetPartName?: string;
+  targetPartSlice?: string;
   sourceProbeId?: string;
   sourceStartPos?: number | '';
   sourceEndPos?: number | '';
@@ -287,6 +298,7 @@ interface ProbePart {
 }
 
 interface ProbeAttributes {
+  length?: { min?: number; max?: number; enabled?: boolean };
   gc_content?: {
     min?: number;
     max?: number;
@@ -350,6 +362,7 @@ interface AttributeValue {
 }
 
 interface YAMLAttributes {
+  length?: { min?: number; max?: number; enabled?: boolean };
   gc_content?: AttributeValue;
   fold_score?: { max?: number };
   tm?: AttributeValue;
@@ -379,8 +392,11 @@ interface YAMLProbes {
 interface YAMLTargetSequence {
   source: string;
   sequence: string;
-  length: number;
+  length: TargetLength;
+  step?: number;
+  layout?: TargetLayout;
   attributes: {
+    length?: { min?: number; max?: number };
     gc_content?: {
       min?: number;
       max?: number;
@@ -448,7 +464,10 @@ const convertProbesToYAML = (probes: Probe[], _targetLength: number, barcodes: {
       source: targetConfig.source,
       sequence: '',
       length: targetConfig.length,
+      step: targetConfig.step ?? 1,
+      ...(targetConfig.layout ? { layout: targetConfig.layout } : {}),
       attributes: {
+        length: targetConfig.attributes.length?.enabled ? { min: targetConfig.attributes.length.min, max: targetConfig.attributes.length.max } : undefined,
         gc_content: targetConfig.attributes.gc_content?.enabled ? {
           min: targetConfig.attributes.gc_content.min,
           max: targetConfig.attributes.gc_content.max
@@ -493,6 +512,7 @@ const convertProbesToYAML = (probes: Probe[], _targetLength: number, barcodes: {
         max: probe.attributes.gc_content.max
       };
     }
+    if (probe.attributes?.length?.enabled) probeAttributes.length = { min: probe.attributes.length.min, max: probe.attributes.length.max };
     if (probe.attributes?.fold_score?.enabled) {
       probeAttributes.fold_score = {
         max: probe.attributes.fold_score.max
@@ -546,6 +566,7 @@ const convertProbesToYAML = (probes: Probe[], _targetLength: number, barcodes: {
             max: part.attributes.gc_content.max
           };
         }
+        if (part.attributes.length?.enabled) partConfig.attributes.length = { min: part.attributes.length.min, max: part.attributes.length.max };
         if (part.attributes.fold_score?.enabled) {
           partConfig.attributes.fold_score = {
             max: part.attributes.fold_score.max
@@ -581,7 +602,11 @@ const convertProbesToYAML = (probes: Probe[], _targetLength: number, barcodes: {
         }
       }
       
-      if (part.source === 'target') {
+      if (part.source === 'target_part') {
+        const reference = `target_parts['${part.targetPartName}']${part.targetPartSlice ? `[${part.targetPartSlice}]` : ''}`;
+        partConfig.expr = part.isReverseComplement ? `rc(${reference})` : reference;
+        delete partConfig.length;
+      } else if (part.source === 'target') {
         const start = Number(part.startPos);
         const end = Number(part.endPos);
         partConfig.expr = part.isReverseComplement 
@@ -629,7 +654,7 @@ const CustomProbe: React.FC = () => {
     groupColors.current[id] ||= palette[Object.keys(groupColors.current).length % palette.length];
     return groupColors.current[id];
   };
-  const partSummary = (part: ProbePart) => part.source === 'fixed' ? part.sequence :
+  const partSummary = (part: ProbePart) => part.source === 'target_part' ? `Target part ${part.targetPartName}${part.isReverseComplement ? ' · RC' : ''}` : part.source === 'fixed' ? part.sequence :
     `${part.source === 'target' ? `Target ${part.startPos}–${part.endPos}` : part.source === 'barcode' ? part.label : 'Probe reference'} · ${part.sequence.length} nt${part.isReverseComplement ? ' · RC' : ''}`;
 
   const theme = useTheme();
@@ -737,6 +762,8 @@ const CustomProbe: React.FC = () => {
     externalType: string;
     externalName: string;
     customFixedSequence: string;
+    targetPartName?: string;
+    targetPartSlice?: string;
     sourceProbeId: string;
     sourceStartPos: string;
     sourceEndPos: string;
@@ -787,7 +814,7 @@ const CustomProbe: React.FC = () => {
     // Internal length placeholder only; never exported as a target sequence.
     const sequence = 'N'.repeat(Math.max(1, length));
     setTargetSequence(sequence);
-    setTargetConfig(prev => ({ ...prev, sequence: '', length }));
+    setTargetConfig(prev => ({ ...prev, sequence: '' }));
   };
 
   // Add function to generate random barcode
@@ -815,18 +842,19 @@ const CustomProbe: React.FC = () => {
     showAlert(`New barcode ${newBarcodeName} generated!`, 'success');
   };
   
-  // Modify the handleTargetLengthChange function
+  const [lengthInput, setLengthInput] = useState(formatTargetLength(targetConfig.length));
+  useEffect(() => { setLengthInput(formatTargetLength(targetConfig.length)); }, [targetConfig.length]);
   const handleTargetLengthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const length = parseInt(e.target.value, 10);
-    if (!isNaN(length)) {
-      setTargetLength(length);
-      generateRandomSequence(length);
-      if (length < 10 || length > 1000) {
-        showAlert('Recommended sequence length is between 10 and 1000 base pairs', 'warning');
-      }
-    }
+    setLengthInput(e.target.value);
+    try {
+      const length = parseTargetLength(e.target.value);
+      setTargetConfig(prev => ({ ...prev, length }));
+      const previewLength = Array.isArray(length) ? length[1] : length;
+      setTargetLength(previewLength);
+      generateRandomSequence(previewLength);
+    } catch { /* Keep incomplete input editable. */ }
   };
-  
+
   // Handle expanding/collapsing probe cards
   const toggleExpandCard = (probeId: string) => {
     setExpandedCards(prev => ({
@@ -955,6 +983,8 @@ const CustomProbe: React.FC = () => {
             [property]: property === 'enabled' ? value : Number(value),
             enabled: property === 'enabled' ? value : (updatedAttributes.gc_content?.enabled || false)
           };
+        } else if (attributeType === 'length') {
+          updatedAttributes.length = { ...updatedAttributes.length, [property]: value, enabled: property === 'enabled' ? value : (updatedAttributes.length?.enabled || false) };
         } else if (attributeType === 'fold_score') {
           updatedAttributes.fold_score = {
             ...updatedAttributes.fold_score,
@@ -1032,6 +1062,8 @@ const CustomProbe: React.FC = () => {
           [property]: property === 'enabled' ? value : Number(value),
           enabled: property === 'enabled' ? value : (probe.attributes.gc_content?.enabled || false)
         };
+      } else if (attributeType === 'length') {
+        probe.attributes.length = { ...probe.attributes.length, [property]: value, enabled: property === 'enabled' ? value : (probe.attributes.length?.enabled || false) };
       } else if (attributeType === 'fold_score') {
         probe.attributes.fold_score = {
           ...probe.attributes.fold_score,
@@ -1103,6 +1135,8 @@ const CustomProbe: React.FC = () => {
           [property]: property === 'enabled' ? value : Number(value),
           enabled: property === 'enabled' ? value : (part.attributes.gc_content?.enabled || false)
         };
+      } else if (attributeType === 'length') {
+        part.attributes.length = { ...part.attributes.length, [property]: value, enabled: property === 'enabled' ? value : (part.attributes.length?.enabled || false) };
       } else if (attributeType === 'fold_score') {
         part.attributes.fold_score = {
           ...part.attributes.fold_score,
@@ -1165,7 +1199,7 @@ const CustomProbe: React.FC = () => {
       return;
     }
 
-    if (newPart.externalType === 'fixed' && !validateSequence(newPart.customFixedSequence)) {
+    if (newPart.source === 'external' && newPart.externalType === 'fixed' && !validateSequence(newPart.customFixedSequence)) {
       showAlert('Invalid fixed sequence. Only A, T, G, C bases are allowed', 'error');
       return;
     }
@@ -1176,7 +1210,11 @@ const CustomProbe: React.FC = () => {
     let source: PartSource = newPart.source;
     let sourceProbeId: string | undefined = undefined;
     
-    if (newPart.source === 'target') {
+    if (newPart.source === 'target_part') {
+      if (!newPart.targetPartName || !targetConfig.layout?.parts[newPart.targetPartName]) { showAlert('Select a named target part', 'error'); return; }
+      if (newPart.targetPartSlice && !/^(?:-?\d+)?:(?:-?\d+)?$/.test(newPart.targetPartSlice)) { showAlert('Use a slice such as :6 or -6:', 'error'); return; }
+      partLabel = `target part: ${newPart.targetPartName}`;
+    } else if (newPart.source === 'target') {
       partLabel = `target: ${newPart.startPos}-${newPart.endPos}`;
     } else if (newPart.source === 'external') {
       if (newPart.externalType === 'barcode') {
@@ -1198,6 +1236,8 @@ const CustomProbe: React.FC = () => {
       isReverseComplement: newPart.isReverseComplement,
       label: partLabel,
       sourceProbeId,
+      targetPartName: newPart.source === 'target_part' ? newPart.targetPartName : undefined,
+      targetPartSlice: newPart.source === 'target_part' ? newPart.targetPartSlice : undefined,
       startPos: newPart.source === 'target' ? parseInt(newPart.startPos, 10) : undefined,
       endPos: newPart.source === 'target' ? parseInt(newPart.endPos, 10) : undefined,
       sourceStartPos: newPart.source === 'probe' ? parseInt(newPart.sourceStartPos, 10) : undefined,
@@ -1486,6 +1526,12 @@ const CustomProbe: React.FC = () => {
     const dependencyError = validateProbeDependencies(probes);
     if (dependencyError) { showAlert(dependencyError, 'error'); return; }
 
+    try { parseTargetLength(lengthInput); } catch (error) { showAlert(String(error), 'error'); return; }
+
+    const layoutError = validateTargetLayout(targetConfig.layout, targetConfig.length);
+    if (layoutError) { showAlert(layoutError, 'error'); return; }
+    if (probes.some(probe => probe.parts.some(part => part.source === 'target_part' && (!part.targetPartName || !targetConfig.layout?.parts[part.targetPartName])))) { showAlert('A probe references a missing target part', 'error'); return; }
+
     // Validate attributes
     let validationErrors: string[] = [];
     validationErrors = validationErrors.concat(validateAttributes(targetConfig.attributes, 'Target Sequence'));
@@ -1568,7 +1614,7 @@ const CustomProbe: React.FC = () => {
       setDefaultBarcodeLength(config.barcodes?.default_length ?? config.barcode_config?.default_length ?? 12);
       if (group.targetConfig) {
         setTargetConfig(group.targetConfig);
-        setTargetLength(group.targetConfig.length || 50);
+        setTargetLength(Array.isArray(group.targetConfig.length) ? group.targetConfig.length[1] : group.targetConfig.length || 50);
         setTargetSequence(group.targetConfig.sequence);
       }
       setShowHistory(false);
@@ -1637,8 +1683,15 @@ const CustomProbe: React.FC = () => {
           <StyledTab label="Mapped Genes" icon={<CategoryIcon fontSize="small" />} disabled={isDna} />
           <StyledTab label="K-mer Count" icon={<FilterListIcon fontSize="small" />} disabled={!isDna} />
           <StyledTab label="Mapped Sites" icon={<CategoryIcon fontSize="small" />} disabled={!isDna} />
+          <StyledTab label="Length" icon={<TuneIcon fontSize="small" />} />
         </StyledTabs>
         
+        {attributeTab === 7 && <Box sx={{ p: 2 }}>
+          <FormControlLabel label="Calculate sequence length" control={<Switch checked={attributes.length?.enabled || false} onChange={e => onChange('length.enabled', e.target.checked)} />} />
+          {attributes.length?.enabled && <Grid container spacing={2}>
+            {(['min', 'max'] as const).map(bound => <Grid item xs={6} key={bound}><TextField label={bound === 'min' ? 'Minimum length' : 'Maximum length'} type="number" value={attributes.length?.[bound] ?? ''} onChange={e => onChange(`length.${bound}`, e.target.value === '' ? undefined : Number(e.target.value))} fullWidth /></Grid>)}
+          </Grid>}
+        </Box>}
         {/* GC Content Tab */}
         {attributeTab === 0 && (
           <Box sx={{ p: 2 }}>
@@ -2103,20 +2156,7 @@ const CustomProbe: React.FC = () => {
 
             {/* Sequence Length */}
             <Grid item xs={12} sm={4}>
-              <TextField
-                label="Sequence Length"
-                type="number"
-                value={targetLength}
-                onChange={handleTargetLengthChange}
-                size="small"
-                fullWidth
-                InputProps={{ 
-                  inputProps: { 
-                    min: 1,
-                    step: 1
-                  } 
-                }}
-              />
+              <TargetLengthEditor value={lengthInput} onChange={text => handleTargetLengthChange({ target: { value: text } } as React.ChangeEvent<HTMLInputElement>)} />
             </Grid>
 
             {/* Regenerate Button and Attributes Button */}
@@ -2146,6 +2186,11 @@ const CustomProbe: React.FC = () => {
               <Typography variant="caption" color="text.secondary">A structural placeholder. Actual bases are supplied when the design task runs.</Typography>
             </Grid>
             
+            <Grid item xs={12}><TargetLayoutEditor value={targetConfig.layout} length={targetConfig.length} onChange={layout => setTargetConfig(prev => ({ ...prev, layout }))} onRename={(layout, before, after) => {
+              setTargetConfig(prev => ({ ...prev, layout }));
+              setProbes(prev => prev.map(probe => ({ ...probe, parts: probe.parts.map(part => part.source === 'target_part' && part.targetPartName === before ? { ...part, targetPartName: after, label: 'target part: ' + after } : part) })));
+              setNewPart(prev => prev.targetPartName === before ? { ...prev, targetPartName: after } : prev);
+            }} /></Grid>
             {/* Display active target attributes as chips */}
             <Grid item xs={12}>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1, gap: 0.5 }}>
@@ -2264,6 +2309,8 @@ const CustomProbe: React.FC = () => {
                       [property]: property === 'enabled' ? value : Number(value),
                       enabled: property === 'enabled' ? value : (newConfig.attributes.gc_content?.enabled || false)
                     };
+                  } else if (attributeType === 'length') {
+                    newConfig.attributes.length = { ...newConfig.attributes.length, [property]: value, enabled: property === 'enabled' ? value : (newConfig.attributes.length?.enabled || false) };
                   } else if (attributeType === 'fold_score') {
                     newConfig.attributes.fold_score = {
                       ...newConfig.attributes.fold_score,
@@ -2818,6 +2865,7 @@ const CustomProbe: React.FC = () => {
                                 onChange={(e) => handleNewPartChange('source', e.target.value)}
                               >
                                 <MenuItem value="target">Target </MenuItem>
+                                {targetConfig.layout && <MenuItem value="target_part">Named target part</MenuItem>}
                                 <MenuItem value="external">External </MenuItem>
                                 {getCompletedProbes().length > 0 && (
                                   <MenuItem value="probe">Existing Probe</MenuItem>
@@ -2826,6 +2874,11 @@ const CustomProbe: React.FC = () => {
                             </FormControl>
                           </Grid>
 
+                          {newPart.source === 'target_part' && <Grid item xs={12} sm={6}><FormControl fullWidth size="small"><InputLabel>Target part</InputLabel><Select label="Target part" value={newPart.targetPartName || ''} onChange={event => {
+                            const name = event.target.value; const length = targetConfig.layout?.parts[name]?.length || 0;
+                            const preview = Array.isArray(length) ? length[1] : length;
+                            setNewPart(prev => ({ ...prev, targetPartName: name, sequence: 'N'.repeat(Math.max(1, preview)) }));
+                          }}>{Object.keys(targetConfig.layout?.parts || {}).map(name => <MenuItem key={name} value={name}>{name}</MenuItem>)}</Select></FormControl><TextField size="small" fullWidth sx={{ mt: 1 }} label="Optional slice" helperText="Leave blank for the whole part; :6 = first 6, -6: = last 6" value={newPart.targetPartSlice || ''} onChange={event => setNewPart(prev => ({ ...prev, targetPartSlice: event.target.value }))} /></Grid>}
                           {/* Region Selection */}
                           {newPart.source === 'target' && (
                             <>

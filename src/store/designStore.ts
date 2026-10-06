@@ -1,3 +1,4 @@
+import { TargetLength } from '../utils/sampling';
 import { create } from 'zustand';
 import ApiService from '../api';
 import { CustomProbeType} from '../types';
@@ -17,8 +18,8 @@ interface DesignState {
   
   // Unified target configuration
   targetList: Target[];
-  minLength: number;
-  overlap: number;
+  minLength: TargetLength;
+  step: number;
 
   // Custom probe type specific
   selectedCustomType: CustomProbeType | null;
@@ -43,8 +44,8 @@ interface DesignState {
   addTarget: () => void;
   removeTarget: (index: number) => void;
   updateTarget: (index: number, field: keyof Target, value: string | number) => void;
-  setMinLength: (length: number) => void;
-  setOverlap: (overlap: number) => void;
+  setMinLength: (length: TargetLength) => void;
+  setStep: (step: number) => void;
   
   // UI actions
   setSubmitting: (isSubmitting: boolean) => void;
@@ -64,7 +65,7 @@ const useDesignStore = create<DesignState>((set, _get) => ({
   species: '',
   targetList: [{ target: '', sequence: '' }],
   minLength: 40,
-  overlap: 20,
+  step: 20,
   selectedCustomType: null,
   isSubmitting: false,
   progress: 0,
@@ -94,7 +95,7 @@ const useDesignStore = create<DesignState>((set, _get) => ({
     ),
   })),
   setMinLength: (length) => set({ minLength: length }),
-  setOverlap: (overlap) => set({ overlap }),
+  setStep: (step) => set({ step }),
   
   // UI setters
   setSubmitting: (isSubmitting) => set({ isSubmitting }),

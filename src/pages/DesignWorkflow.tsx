@@ -1,3 +1,8 @@
+import TargetLayoutEditor from '../components/TargetLayoutEditor';
+import TargetLengthEditor from '../components/TargetLengthEditor';
+import { editProbePart, rewritePartReferences } from '../utils/structureEditing';
+import { validateTargetLayout } from '../utils/targetLayout';
+import { formatTargetLength, parseTargetLength, samplingStep } from '../utils/sampling';
 import React, { useEffect, useRef, useState } from 'react';
 import { createTheme, ThemeProvider, useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
@@ -438,7 +443,7 @@ const DesignWorkflow: React.FC = () => {
     species,
     targetList,
     minLength,
-    overlap,
+    step,
     selectedCustomType,
     isSubmitting,
     progress,
@@ -455,7 +460,7 @@ const DesignWorkflow: React.FC = () => {
     removeTarget,
     updateTarget,
     setMinLength,
-    setOverlap,
+    setStep,
     setSelectedCustomType,
     setAlert,
     setSubmitting,
@@ -501,6 +506,7 @@ const DesignWorkflow: React.FC = () => {
               source: parameters.target_sequence.source,
               sequence: parameters.target_sequence.sequence,
               length: parameters.target_sequence.length,
+              layout: parameters.target_sequence.layout,
               attributes: parameters.target_sequence.attributes || {}
             };
           }
@@ -514,7 +520,7 @@ const DesignWorkflow: React.FC = () => {
             updatedAt: new Date(group.updatedAt),
             barcodeCount: group.barcodeCount,
             targetLength: group.targetLength,
-            overlap: group.overlap,
+            step: parameters?.step ?? group.step,
             probes: group.probes || {},
             targetConfig: targetConfig,
           };
@@ -531,13 +537,14 @@ const DesignWorkflow: React.FC = () => {
           
           // Parse target config
           const targetLength = typedConfig.extracts?.target_region?.length || 100;
-          const overlap = typedConfig.extracts?.target_region?.overlap ?? 20;
+          const step = samplingStep(typedConfig.extracts?.target_region || { length: targetLength });
           const source = typedConfig.extracts?.target_region?.source || 'exon';
           
           const targetConfig: any = {
             source: source,
             sequence: '',
             length: targetLength,
+            layout: typedConfig.extracts?.target_region?.layout,
             attributes: {}
           };
           
@@ -668,14 +675,14 @@ const DesignWorkflow: React.FC = () => {
             name: name,
             type: 'builtin',
             sortDefaults,
-            extraFilters: Object.fromEntries(Object.entries(filters).filter(([key]) => !(key in attributes))),
+            extraFilters: Object.fromEntries(Object.entries(filters).filter(([key]) => !(key in attributes) || String(attributes[key]?.target || '').startsWith('target_parts.'))),
             barcodeConfig: extractParametersFromYaml(YAML.stringify(typedConfig))?.barcodeConfig,
             yamlContent: yamlContent,
             createdAt: new Date(),
             updatedAt: new Date(),
             barcodeCount: barcodeCount,
             targetLength: targetLength,
-            overlap: overlap,
+            step: step,
             probes: probes,
             targetConfig: targetConfig,
           });
@@ -692,6 +699,23 @@ const DesignWorkflow: React.FC = () => {
     }
   };
 
+  const [partEditor, setPartEditor] = useState<{ probe: string; before?: string; name: string; expr: string } | null>(null);
+  const [partEditError, setPartEditError] = useState('');
+  const savePartEdit = () => {
+    if (!partEditor || !selectedCustomType?.probes) return;
+    try {
+      const { probe, before, name, expr } = partEditor;
+      const probes = editProbePart(selectedCustomType.probes, probe, before, name, expr);
+      const seed = YAML.parse(selectedCustomType.yamlContent);
+      const updatedSeed = before && before !== name ? rewritePartReferences(seed, probe, before, name) : seed;
+      updatedSeed.probes = probes;
+      setSelectedCustomType({ ...selectedCustomType, probes, yamlContent: YAML.stringify(updatedSeed) });
+      setPartEditor(null); setPartEditError('');
+    } catch (error) { setPartEditError(String(error)); }
+  };
+  const [lengthInput, setLengthInput] = useState('40');
+  useEffect(() => { setLengthInput(formatTargetLength(minLength)); }, [minLength]);
+
   // Add this useEffect to load custom probe structures
   useEffect(() => {
     loadCustomProbeTypes();
@@ -703,7 +727,7 @@ const DesignWorkflow: React.FC = () => {
     const restored = type.type === 'builtin' ? type : { ...type, ...restoreTemplate(parsed), barcodeConfig: extractParametersFromYaml(type.yamlContent)?.barcodeConfig };
     setSelectedCustomType(restored);
     setMinLength(restored.targetConfig?.length ?? restored.targetLength ?? 100);
-    setOverlap(restored.overlap ?? parsed.extracts?.target_region?.overlap ?? 20);
+    setStep(samplingStep({ ...(parsed.extracts?.target_region || parsed.target_sequence || {}), length: restored.targetConfig?.length ?? restored.targetLength ?? 100, step: restored.step }));
   };
   useEffect(() => {
     if (isLoadingCustomTypes || !probeType) return;
@@ -926,6 +950,7 @@ const DesignWorkflow: React.FC = () => {
   // Modify the handleAddAttribute function
   const handleAddAttribute = (attributeId: string) => {
     const defaultValues: Record<string, Partial<AttributeValue>> = {
+      length: { enabled: true, filterEnabled: false },
       gcContent: { min: 40, max: 60, enabled: true },
       foldScore: { max: 40, enabled: true },
       tm: { min: 60, max: 75, enabled: true },
@@ -1137,7 +1162,7 @@ const DesignWorkflow: React.FC = () => {
     return [
       { id: 'species', label: 'Species', summary: species || 'Select a genome', completed: !!species, optional: false },
       { id: 'probeType', label: 'Probe Structure', summary: selectedCustomType?.name || probeType || 'Select a probe structure', completed: !!probeType, optional: false },
-      ...(selectedCustomType ? [{ id: 'parameters', label: 'Probe Parameters', summary: parameterErrors.length ? 'Configuration needed' : `${minLength} bp · overlap ${overlap}`, completed: !parameterErrors.length, optional: false }] : []),
+      ...(selectedCustomType ? [{ id: 'parameters', label: 'Probe Parameters', summary: parameterErrors.length ? 'Configuration needed' : `${formatTargetLength(minLength)} bp · step ${step}`, completed: !parameterErrors.length, optional: false }] : []),
       { id: 'geneMap', label: 'Targets', summary: `${targetList.filter(target => target.target.trim()).length} targets${targetErrors.length ? ' · incomplete' : ''}`, completed: !targetErrors.length, optional: false },
       { id: 'postProcessing', label: 'Post Processing', summary: [enableBasicFilter && 'Filtering', enableAvoidOtp && 'Avoid OTP', enableEqualSpace && 'Equal spacing'].filter(Boolean).join(' · ') || 'Default', completed: true, optional: true },
       { id: 'taskName', label: 'Task Name', summary: taskName.trim() || 'Auto-generated', completed: true, optional: true }
@@ -1310,13 +1335,14 @@ const DesignWorkflow: React.FC = () => {
       errors.push('please select a Source Type for the Target Sequence in the custom probe configuration');
     }
 
-    if (overlap === undefined || overlap === null || isNaN(Number(overlap)) || overlap.toString().trim() === '') {
-      errors.push('please specify a valid Overlap value for the Target Sequence Configuration');
+    if (!Number.isSafeInteger(step) || step <= 0) {
+      errors.push('please specify a positive integer Step for the Target Sequence Configuration');
     }
 
-    if (minLength === undefined || minLength === null || isNaN(Number(minLength)) || minLength.toString().trim() === '') {
-      errors.push('please specify a valid Target Length value for the Target Sequence Configuration');
-    }
+    try { parseTargetLength(lengthInput); } catch (error) { errors.push(String(error)); }
+
+    const layoutError = validateTargetLayout(selectedCustomType?.targetConfig?.layout, minLength);
+    if (layoutError) errors.push(layoutError);
 
     // Check if barcode fields are filled and have correct length when required
     if (selectedCustomType?.barcodeCount) {
@@ -1441,7 +1467,8 @@ const DesignWorkflow: React.FC = () => {
                 (probeType === 'RCA' ? 'exon' : 
                  probeType === 'DNA-FISH' ? 'genome' : 'exon'),
         length: minLength,
-        overlap: overlap
+        step: step,
+        ...(selectedCustomType?.targetConfig?.layout ? { layout: selectedCustomType.targetConfig.layout } : {})
       }
     };
     
@@ -1456,7 +1483,7 @@ const DesignWorkflow: React.FC = () => {
       
       if (yamlObj.probes) {
         // Extract probe configurations from the probes section
-        Object.entries(yamlObj.probes).forEach(([key, value]) => {
+        Object.entries(selectedCustomType.probes || yamlObj.probes).forEach(([key, value]) => {
           // Include all probe configurations, skip barcodes and other configs if any
           if (key !== 'barcodes' && key !== 'attributes' && key !== 'probes') {
             probesConfig[key] = removeAttributes(value);
@@ -1479,7 +1506,7 @@ const DesignWorkflow: React.FC = () => {
 
     // Attribute config - use expected naming format
     if (selectedCustomType) {
-      const attributes: any = {};
+      const attributes: any = Object.fromEntries(Object.entries(YAML.parse(selectedCustomType.yamlContent || '{}')?.attributes || {}).filter(([, value]) => String((value as any).target || '').startsWith('target_parts.')));
       
       // Target region attributes
       if (selectedCustomType.targetConfig?.attributes) {
@@ -1776,6 +1803,7 @@ const DesignWorkflow: React.FC = () => {
   // Get all attribute options (always show all, but some may be disabled)
   const getAllAttributeOptions = () => {
     return [
+      { id: 'length', label: 'Length', icon: '📏', type: 'common' },
       { id: 'gcContent', label: 'GC Content', icon: '🧬', type: 'common' },
       { id: 'foldScore', label: 'Fold Score', icon: '📊', type: 'common' },
       { id: 'tm', label: 'Melting Temperature', icon: '🌡️', type: 'common' },
@@ -2009,39 +2037,28 @@ const DesignWorkflow: React.FC = () => {
                       
                       <Grid container spacing={2} sx={{ mb: 3 }}>
                         <Grid item xs={12} sm={6}>
-                          <TextField
-                            fullWidth
-                            label="Target length"
-                            type="number"
-                            value={selectedCustomType.targetLength}
-                            onChange={(e) => {
-                              const updatedType = {
-                                ...selectedCustomType,
-                                targetLength: Number(e.target.value)
-                              };
-                              setSelectedCustomType(updatedType);
-                              setMinLength(Number(e.target.value));
-                            }}
-                            InputProps={{
-                              endAdornment: <InputAdornment position="end">bp</InputAdornment>,
-                            }}
-                            variant="outlined"
-                            size="small"
-                          />
+                          <TargetLengthEditor value={lengthInput} onChange={text => {
+                            setLengthInput(text);
+                            try {
+                              const length = parseTargetLength(text);
+                              setSelectedCustomType({ ...selectedCustomType, targetLength: length, targetConfig: selectedCustomType.targetConfig ? { ...selectedCustomType.targetConfig, length } : undefined });
+                              setMinLength(length);
+                            } catch { /* Keep incomplete text editable. */ }
+                          }} />
                         </Grid>
                         <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
-                            label="Candidate overlap"
+                            label="Candidate step"
                             type="number"
-                            value={selectedCustomType.overlap}
+                            value={step}
                             onChange={(e) => {
                               const updatedType = {
                                 ...selectedCustomType,
-                                overlap: Number(e.target.value)
+                                step: Number(e.target.value)
                               };
                               setSelectedCustomType(updatedType);
-                              setOverlap(Number(e.target.value));
+                              setStep(Number(e.target.value));
                             }}
                             InputProps={{
                               endAdornment: <InputAdornment position="end">bp</InputAdornment>,
@@ -2051,6 +2068,12 @@ const DesignWorkflow: React.FC = () => {
                           />
                         </Grid>
                       </Grid>
+
+                      <TargetLayoutEditor value={selectedCustomType.targetConfig?.layout} length={minLength} onChange={layout => setSelectedCustomType({ ...selectedCustomType, targetConfig: { ...selectedCustomType.targetConfig!, layout } })} onRename={(layout, before, after) => {
+                        const updated = rewritePartReferences(selectedCustomType, 'target_parts', before, after);
+                        const seed = rewritePartReferences(YAML.parse(selectedCustomType.yamlContent), 'target_parts', before, after);
+                        setSelectedCustomType({ ...updated, yamlContent: YAML.stringify(seed), targetConfig: { ...updated.targetConfig!, layout } });
+                      }} />
 
                       {selectedCustomType.targetConfig?.attributes && renderAttributeTable('target', selectedCustomType.targetConfig.attributes)}
 
@@ -2111,6 +2134,10 @@ const DesignWorkflow: React.FC = () => {
                               )}
                             </Box>
 
+                            <Button startIcon={<AddIcon />} size="small" onClick={() => {
+                              let n = 1; while (probeConfig.parts?.[`part${n}`]) n++;
+                              setPartEditError(''); setPartEditor({ probe: probeName, name: `part${n}`, expr: '' });
+                            }}>Add probe part</Button>
                             {/* Part-level attributes */}
                             {probeConfig.parts && Object.entries(probeConfig.parts).map(([partName, partConfig]) => (
                               <Box key={partName} sx={{ mb: 3 }}>
@@ -2119,6 +2146,8 @@ const DesignWorkflow: React.FC = () => {
                                     <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
                                       {formatPartName(partName)}
                                     </Typography>
+                                    <Button size="small" onClick={() => { setPartEditError(''); setPartEditor({ probe: probeName, before: partName, name: partName, expr: partConfig.expr }); }}>Edit part</Button>
+                                    <Typography variant="caption" sx={{ display: 'block', overflowWrap: 'anywhere' }}>{partConfig.expr}</Typography>
                                     <Typography variant="caption" color="text.secondary">
                                       Part of {formatProbeName(probeName)}
                                     </Typography>
@@ -2676,6 +2705,17 @@ const DesignWorkflow: React.FC = () => {
       </Snackbar>
 
       {/* Custom Probe Structures Dialog */}
+      <Dialog open={!!partEditor} onClose={() => setPartEditor(null)} fullWidth maxWidth="sm">
+        <DialogTitle>{partEditor?.before ? 'Edit probe part' : 'Add probe part'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField label="Part name" value={partEditor?.name || ''} onChange={e => setPartEditor(prev => prev && ({ ...prev, name: e.target.value }))} />
+            <TextField label="Sequence expression" multiline minRows={2} value={partEditor?.expr || ''} onChange={e => setPartEditor(prev => prev && ({ ...prev, expr: e.target.value }))} helperText="Examples: rc(target_parts['arm5']), encoding[target]['BC1'], 'ACGT'. New parts are appended to the probe." />
+            {partEditError && <Alert severity="error">{partEditError}</Alert>}
+          </Stack>
+        </DialogContent>
+        <DialogActions><Button onClick={() => setPartEditor(null)}>Cancel</Button><Button variant="contained" onClick={savePartEdit}>Apply</Button></DialogActions>
+      </Dialog>
       <Dialog
         open={showCustomProbeTypes}
         onClose={() => setShowCustomProbeTypes(false)}
@@ -2713,7 +2753,7 @@ const DesignWorkflow: React.FC = () => {
                       <Typography variant="body2" color="text.secondary">
                         Created: {new Date(type.createdAt).toLocaleDateString()}<br />
                         Barcode Count: {type.barcodeCount}<br />
-                        Target Length: {type.targetLength}
+                        Target Length: {formatTargetLength(type.targetLength ?? 40)}
                       </Typography>
                     }
                   />
@@ -2833,7 +2873,7 @@ const DesignWorkflow: React.FC = () => {
                   } : null)}
                 />
               </Grid>
-              {(editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'gc_content' || editingAttribute?.name === 'tm' || editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'fold_score' || editingAttribute?.name === 'selfMatch' || editingAttribute?.name === 'self_match' || editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'mapped_genes') && (
+              {(editingAttribute?.name === 'length' || editingAttribute?.name === 'gcContent' || editingAttribute?.name === 'gc_content' || editingAttribute?.name === 'tm' || editingAttribute?.name === 'foldScore' || editingAttribute?.name === 'fold_score' || editingAttribute?.name === 'selfMatch' || editingAttribute?.name === 'self_match' || editingAttribute?.name === 'mappedGenes' || editingAttribute?.name === 'mapped_genes') && (
                 <>
                   <Grid item xs={12} sm={6}>
                     <TextField
@@ -2944,5 +2984,3 @@ const DesignWorkflow: React.FC = () => {
 };
 
 export default DesignWorkflow;
-
-
