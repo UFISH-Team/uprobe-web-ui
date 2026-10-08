@@ -480,7 +480,7 @@ const Tutorial: React.FC = () => {
               <Typography variant="h5" sx={{ mt: 5, mb: 2, fontWeight: 600 }}>Interpreting Results</Typography>
               <Typography paragraph sx={{ color: 'text.secondary' }}>When a task is completed, you can:</Typography>
               <Box component="ul" sx={{ pl: 2, '& li': { mb: 1.5, color: 'text.secondary', lineHeight: 1.6 } }}>
-                <li><strong>Download ZIP:</strong> Contains raw CSV files with all generated probes and their calculated attributes.</li>
+                <li><strong>Download ZIP:</strong> Contains XLSX result tables and HTML reports. Raw XLSX tables contain unfiltered candidates and their calculated attributes.</li>
                 <li><strong>View Report:</strong> Opens an interactive HTML dashboard with distribution plots (e.g., GC content vs. Tm scatter plots) to help you visually select the best probes.</li>
               </Box>
             </TabPanel>
@@ -502,7 +502,7 @@ const Tutorial: React.FC = () => {
                       <li>Recommend optimal Tm and GC content ranges for specific experiments (e.g., "What's the best Tm for RNA-FISH?").</li>
                       <li>Explain complex bioinformatics concepts (e.g., "What does k-mer count mean for specificity?").</li>
                       <li>Help troubleshoot failed tasks by analyzing error logs.</li>
-                      <li>Write custom Python scripts to parse your downloaded CSV results.</li>
+                      <li>Write custom Python scripts to parse your downloaded XLSX results.</li>
                     </Box>
                   </Paper>
                 </Grid>
